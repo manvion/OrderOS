@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "npm-run-all --parallel dev:api dev:web",
+    "setup": "node scripts/setup.mjs",
     "dev:api": "npm run start:dev --workspace=@orderos/api",
     "dev:web": "npm run dev --workspace=@orderos/web",
     "build": "npm run build --workspace=@orderos/shared && npm run build --workspace=@orderos/api && npm run build --workspace=@orderos/web",
