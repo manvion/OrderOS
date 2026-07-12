@@ -1,0 +1,169 @@
+'use client';
+
+import Link from 'next/link';
+import Image from 'next/image';
+import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { formatMoney } from '@orderos/shared';
+import { useCart, useCartTotals } from '@/lib/cart-store';
+import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+
+export default function CartPage() {
+  const restaurant = useTenant();
+  const href = useTenantHref();
+  const lines = useCart((s) => s.lines);
+  const setQuantity = useCart((s) => s.setQuantity);
+  const removeLine = useCart((s) => s.removeLine);
+  const totals = useCartTotals(restaurant);
+
+  if (lines.length === 0) {
+    return (
+      <div className="container flex flex-col items-center py-24 text-center">
+        <ShoppingBag className="h-12 w-12 text-muted-foreground" />
+        <h1 className="mt-6 text-xl font-semibold">Your cart is empty</h1>
+        <p className="mt-2 text-muted-foreground">Add something from the menu to get started.</p>
+        <Button asChild variant="brand" className="mt-6">
+          <Link href={href('/menu')}>Browse the menu</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const belowMinimum = (totals?.subtotalCents ?? 0) < restaurant.minOrderCents;
+
+  return (
+    <div className="container max-w-2xl py-8 pb-32">
+      <h1 className="text-2xl font-bold tracking-tight">Your order</h1>
+
+      <div className="mt-6 space-y-3">
+        {lines.map((line) => {
+          const unitWithModifiers =
+            line.unitPriceCents + line.modifiers.reduce((s, m) => s + m.priceCents, 0);
+
+          return (
+            <Card key={line.lineId}>
+              <CardContent className="flex gap-4 p-4">
+                {line.imageUrl && (
+                  <Image
+                    src={line.imageUrl}
+                    alt={line.name}
+                    width={64}
+                    height={64}
+                    className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                  />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="font-medium">{line.name}</h2>
+                    <span className="shrink-0 font-semibold tabular-nums">
+                      {formatMoney(unitWithModifiers * line.quantity, restaurant.currency)}
+                    </span>
+                  </div>
+
+                  {line.modifiers.length > 0 && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      {line.modifiers.map((m) => m.name).join(', ')}
+                    </p>
+                  )}
+                  {line.notes && (
+                    <p className="mt-0.5 text-sm italic text-muted-foreground">“{line.notes}”</p>
+                  )}
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="flex items-center rounded-lg border">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setQuantity(line.lineId, line.quantity - 1)}
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </Button>
+                      <span className="w-8 text-center text-sm font-medium tabular-nums">
+                        {line.quantity}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setQuantity(line.lineId, line.quantity + 1)}
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeLine(line.lineId)}
+                      aria-label={`Remove ${line.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {totals && (
+        <Card className="mt-6">
+          <CardContent className="space-y-2 p-6 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="tabular-nums">
+                {formatMoney(totals.subtotalCents, restaurant.currency)}
+              </span>
+            </div>
+            <p className="pt-2 text-xs text-muted-foreground">
+              Tax, fees and any tip are calculated at checkout.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {belowMinimum && (
+        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          Minimum order is {formatMoney(restaurant.minOrderCents, restaurant.currency)} — add{' '}
+          {formatMoney(
+            restaurant.minOrderCents - (totals?.subtotalCents ?? 0),
+            restaurant.currency,
+          )}{' '}
+          more to check out.
+        </p>
+      )}
+
+      {/* Sticky footer: on a phone the cart scrolls, and the checkout button must
+          never be the thing you have to scroll to find. */}
+      <div className="fixed inset-x-0 bottom-0 border-t bg-background/95 p-4 backdrop-blur">
+        <div className="container flex max-w-2xl items-center gap-4 px-0">
+          <Button asChild variant="outline" className="hidden sm:flex">
+            <Link href={href('/menu')}>Add more</Link>
+          </Button>
+          <Button
+            asChild={!belowMinimum}
+            variant="brand"
+            size="lg"
+            className="flex-1"
+            disabled={belowMinimum}
+          >
+            {belowMinimum ? (
+              <span>Minimum not met</span>
+            ) : (
+              <Link href={href('/checkout')}>
+                Checkout · {formatMoney(totals?.subtotalCents ?? 0, restaurant.currency)}
+              </Link>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

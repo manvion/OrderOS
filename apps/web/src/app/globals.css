@@ -1,0 +1,247 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * OrderOS design tokens.
+ *
+ * The look is "premium restaurant", not "SaaS dashboard": warm neutrals rather
+ * than the blue-grey every admin panel on earth uses, generous radii, and shadows
+ * that are soft and layered rather than a single hard drop.
+ *
+ * Two rules the whole system obeys:
+ *
+ *  1. The tenant's brand colour is a CSS variable (`--brand`), injected per
+ *     restaurant. Every accent in the storefront and the widget reads from it, so
+ *     a restaurant's page looks like THEIRS, not like ours with a logo pasted on.
+ *
+ *  2. Shadows are layered (two shadows, one tight and one diffuse). A single
+ *     `box-shadow: 0 4px 6px` is the tell of a template. Real depth needs both a
+ *     contact shadow and an ambient one.
+ */
+
+@layer base {
+  :root {
+    /* Warm neutrals. Slate is cold and reads as "software"; food is warm. */
+    --background: 40 33% 99%;
+    --foreground: 24 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 10%;
+
+    --primary: 24 10% 10%;
+    --primary-foreground: 40 33% 99%;
+
+    --secondary: 30 20% 96%;
+    --secondary-foreground: 24 10% 10%;
+
+    --muted: 30 20% 96%;
+    --muted-foreground: 25 6% 45%;
+
+    --accent: 30 20% 95%;
+    --accent-foreground: 24 10% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 35%;
+    --warning: 38 92% 50%;
+
+    --border: 30 12% 90%;
+    --input: 30 12% 88%;
+    --ring: 24 10% 10%;
+
+    --radius: 0.875rem;
+
+    /* Per-tenant. Overridden by the storefront layout and the widget. */
+    --brand: #ea580c;
+    --brand-foreground: #ffffff;
+
+    /* Layered elevation. Never use a single shadow. */
+    --shadow-sm: 0 1px 2px rgb(24 10 10 / 0.04), 0 1px 3px rgb(24 10 10 / 0.06);
+    --shadow-md: 0 2px 4px rgb(24 10 10 / 0.04), 0 4px 12px rgb(24 10 10 / 0.08);
+    --shadow-lg: 0 4px 8px rgb(24 10 10 / 0.04), 0 12px 32px rgb(24 10 10 / 0.12);
+    --shadow-xl: 0 8px 16px rgb(24 10 10 / 0.06), 0 24px 64px rgb(24 10 10 / 0.16);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Contextual alternates + ligatures. Small thing; makes type look bought,
+       not defaulted. */
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headings get tighter tracking as they get bigger — the single highest-leverage
+     typographic adjustment there is, and the one most products never make. */
+  h1 {
+    @apply tracking-tight;
+    letter-spacing: -0.025em;
+  }
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
+  }
+
+  /* Prices, totals, counts. Tabular figures stop numbers jittering as they change
+     — critical on a live order board where totals update under the reader's eye. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Respect people who've asked the OS to stop moving things. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Elevation utilities, so nobody hand-rolls a shadow and breaks the system. */
+  .shadow-soft {
+    box-shadow: var(--shadow-sm);
+  }
+  .shadow-lifted {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-floating {
+    box-shadow: var(--shadow-lg);
+  }
+  .shadow-dramatic {
+    box-shadow: var(--shadow-xl);
+  }
+
+  /**
+   * The interactive card. Menu items, order tickets, settings panels.
+   * Lifts a little on hover — enough to say "this is clickable", not enough to
+   * make a grid of them feel like a bouncy castle.
+   */
+  .card-interactive {
+    @apply rounded-2xl border bg-card transition-all duration-200;
+    box-shadow: var(--shadow-sm);
+  }
+  .card-interactive:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  }
+
+  /* Skeletons that shimmer rather than blink. A pulsing grey block reads as
+     "broken"; a sweeping one reads as "loading". */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--accent)) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Entrance for content that arrives after a fetch. Subtle and fast — anything
+     over ~250ms starts to feel like the app is slow rather than polished. */
+  .animate-rise {
+    animation: rise 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* The live dot on an active order / an open restaurant. */
+  .pulse-dot {
+    position: relative;
+  }
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.5;
+    }
+    70%,
+    100% {
+      transform: scale(2.2);
+      opacity: 0;
+    }
+  }
+}
+
+@layer utilities {
+  /* Horizontal category rail: scrollable, no visible bar. */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* A tint of the tenant's own colour. Used for selected states, so a selection
+     looks like the restaurant's brand rather than a generic blue. */
+  .bg-brand-subtle {
+    background-color: color-mix(in srgb, var(--brand) 8%, transparent);
+  }
+  .border-brand-subtle {
+    border-color: color-mix(in srgb, var(--brand) 35%, transparent);
+  }
+  .text-brand {
+    color: var(--brand);
+  }
+
+  /* Fades the bottom of a scrolling menu so content doesn't just get guillotined
+     by the sticky cart bar. */
+  .mask-fade-bottom {
+    mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  }
+}
+
+/* Leaflet's controls are 1990s grey by default and wreck an otherwise clean page. */
+.leaflet-container {
+  font-family: inherit;
+  border-radius: 1rem;
+}
+.leaflet-control-zoom a {
+  border-radius: 8px !important;
+  border: none !important;
+  box-shadow: var(--shadow-sm);
+  color: hsl(var(--foreground)) !important;
+}
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  background: rgba(255, 255, 255, 0.75) !important;
+  border-radius: 6px 0 0 0;
+}

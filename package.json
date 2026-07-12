@@ -1,0 +1,38 @@
+{
+  "name": "orderos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OrderOS — direct ordering platform for restaurants",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:api": "npm run start:dev --workspace=@orderos/api",
+    "dev:web": "npm run dev --workspace=@orderos/web",
+    "build": "npm run build --workspace=@orderos/shared && npm run build --workspace=@orderos/api && npm run build --workspace=@orderos/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace=@orderos/api",
+    "db:migrate": "npm run db:migrate --workspace=@orderos/api",
+    "db:deploy": "npm run db:deploy --workspace=@orderos/api",
+    "db:seed": "npm run db:seed --workspace=@orderos/api",
+    "db:studio": "npm run db:studio --workspace=@orderos/api",
+    "infra:up": "docker compose up -d postgres redis",
+    "infra:down": "docker compose down",
+    "demo": "node scripts/demo/check-ports.mjs && npm-run-all --parallel demo:api demo:web demo:site",
+    "demo:api": "node scripts/demo/mock-api.mjs",
+    "demo:web": "npm run start --workspace=@orderos/web -- -p 3005",
+    "demo:site": "npx --yes serve -l 8090 scripts/demo/site",
+    "demo:build": "cd apps/web && next build"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

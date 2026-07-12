@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bella Burger — a totally normal restaurant website</title>
+
+    <style>
+      /*
+        This stylesheet is deliberately hostile. It is what a real restaurant
+        website from 2014 actually looks like, and the widget has to survive it:
+        a global reset, aggressive !important rules, and a z-index arms race with
+        a sticky header. If the widget renders correctly here, it renders anywhere.
+      */
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      /* A theme that nukes every button on the page. This is not hypothetical. */
+      button { font-family: 'Comic Sans MS', cursive !important; background: red !important; }
+
+      body { font-family: Georgia, serif; color: #2b2b2b; line-height: 1.6; }
+
+      header {
+        position: sticky; top: 0; z-index: 9999;
+        background: #111; color: #fff; padding: 16px 24px;
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      header a { color: #fff; text-decoration: none; margin-left: 20px; }
+
+      .hero {
+        background: linear-gradient(rgba(0,0,0,.5), rgba(0,0,0,.5)),
+                    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="%23c2410c"/></svg>');
+        color: #fff; padding: 100px 24px; text-align: center;
+      }
+      .hero h1 { font-size: 48px; margin-bottom: 12px; }
+
+      main { max-width: 720px; margin: 0 auto; padding: 48px 24px; }
+      h2 { margin: 32px 0 12px; }
+      footer { background: #111; color: #999; padding: 40px 24px; text-align: center; }
+
+      .cta {
+        display: inline-block; margin-top: 20px; padding: 14px 28px;
+        background: #ea580c !important; color: #fff !important;
+        border: none; border-radius: 6px; font-size: 16px; cursor: pointer;
+        font-family: Georgia, serif !important;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <strong>BELLA BURGER</strong>
+      <nav>
+        <a href="#menu">Menu</a>
+        <a href="#about">About</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Bella Burger</h1>
+      <p>Smash burgers since 2009.</p>
+
+      <!--
+        MANUAL_TRIGGER / custom-button test.
+        The site's own themed button opens the widget through the public API.
+        This is the path most restaurants with a designed site will actually want.
+      -->
+      <button class="cta" id="my-own-order-button">Order online</button>
+    </section>
+
+    <main>
+      <h2 id="about">About us</h2>
+      <p>
+        We have been griddling burgers on this corner for fifteen years. Our website was built in
+        2014 by the owner's nephew and we are not rebuilding it.
+      </p>
+
+      <h2 id="menu">Our menu</h2>
+      <p>
+        In INLINE_MENU mode, the widget renders the live menu into the container below — in the page
+        flow, sized to its content, with no inner scrollbar.
+      </p>
+
+      <!-- INLINE_MENU mode mounts here. -->
+      <div id="orderos-menu"></div>
+
+      <h2 id="contact">Find us</h2>
+      <p>535 Mission St, San Francisco · (415) 555-0123</p>
+    </main>
+
+    <footer>© 2014 Bella Burger. All rights reserved.</footer>
+
+    <!--
+      ==================================================================
+      THE ONLY LINE A RESTAURANT ADDS.
+
+      For local testing, point data-api-url at the local API. In production the
+      snippet is exactly two attributes and no more:
+
+        <script src="https://cdn.orderos.ai/widget.js" data-orderos-key="wk_..." defer></script>
+
+      Replace the key below with the one from your dashboard ("My website"), and
+      make sure this page's origin (http://localhost:8080) is registered as an
+      allowed domain — otherwise the API will correctly refuse it, which is the
+      whole point of the security model.
+      ==================================================================
+    -->
+    <script
+      src="http://localhost:3000/widget.js"
+      data-orderos-key="REPLACE_WITH_YOUR_WIDGET_KEY"
+      data-api-url="http://localhost:4000"
+      defer
+    ></script>
+
+    <script>
+      // Wire the site's own button to the widget. `attach` waits for nothing —
+      // window.OrderOS exists as soon as widget.js has run, and the click handler
+      // it registers works even before the config request has come back.
+      window.addEventListener('load', function () {
+        if (window.OrderOS) {
+          window.OrderOS.attach('#my-own-order-button');
+        } else {
+          console.error('[test] OrderOS did not load — check the key and the allowed domain.');
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,160 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { addressSchema, slugSchema } from '@orderos/shared';
+import { z } from 'zod';
+import {
+  PlatformAdminGuard,
+  PlatformRoles,
+  type PlatformRequest,
+} from '../../common/auth/platform-admin.guard';
+import { Public } from '../../common/auth/decorators';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { AdminService } from './admin.service';
+
+const createRestaurantSchema = z.object({
+  name: z.string().min(2).max(120),
+  slug: slugSchema,
+  /** The person who will OWN this restaurant. They get an invite; we never set their password. */
+  ownerEmail: z.string().email(),
+  phone: z.string().min(7).max(20),
+  email: z.string().email(),
+  address: addressSchema,
+  timezone: z.string().default('America/New_York'),
+  currency: z.string().length(3).default('USD'),
+  platformFeeBps: z.number().int().min(0).max(3000).optional(),
+});
+
+const feeSchema = z.object({
+  platformFeeBps: z.number().int().min(0).max(3000),
+});
+
+const suspendSchema = z.object({
+  isActive: z.boolean(),
+  reason: z.string().min(3).max(500),
+});
+
+const supportSchema = z.object({
+  reason: z.string().min(3).max(500),
+});
+
+/**
+ * The platform admin. Us, not the restaurants.
+ *
+ * @Public only means "skip the TENANT guard" — this controller is behind
+ * PlatformAdminGuard, which checks a completely separate table. A restaurant owner
+ * cannot reach any of this, whatever role they hold at their own restaurant.
+ */
+@ApiTags('admin')
+@Controller('admin')
+@Public()
+@UseGuards(PlatformAdminGuard)
+export class AdminController {
+  constructor(private readonly admin: AdminService) {}
+
+  /** Who am I? Used by the web app to decide whether to show the admin at all. */
+  @Get('me')
+  me(@Req() req: PlatformRequest) {
+    return req.admin;
+  }
+
+  @Get('overview')
+  overview(@Query('days') days?: string) {
+    return this.admin.getOverview(days ? Number(days) : 30);
+  }
+
+  @Get('restaurants')
+  listRestaurants(
+    @Query('search') search?: string,
+    @Query('status') status?: 'live' | 'draft' | 'suspended',
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.admin.listRestaurants({ search, status, cursor });
+  }
+
+  @Get('restaurants/:id')
+  getRestaurant(@Param('id') id: string) {
+    return this.admin.getRestaurant(id);
+  }
+
+  /**
+   * Onboard a restaurant for someone, then invite them to take ownership.
+   *
+   * The first fifty restaurants on any platform get set up by a human on a phone
+   * call. This is that flow — but we still never create their account: the owner
+   * accepts an invite and sets their own password, so we can never silently log in
+   * as them.
+   */
+  @Post('restaurants')
+  @PlatformRoles('SUPER_ADMIN')
+  createRestaurant(
+    @Req() req: PlatformRequest,
+    @Body(new ZodValidationPipe(createRestaurantSchema))
+    body: z.infer<typeof createRestaurantSchema>,
+  ) {
+    return this.admin.createRestaurantForOwner(body, req.admin!);
+  }
+
+  /** The price of the product. SUPER_ADMIN only — support must not be able to discount. */
+  @Patch('restaurants/:id/fee')
+  @PlatformRoles('SUPER_ADMIN')
+  setFee(
+    @Req() req: PlatformRequest,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(feeSchema)) body: z.infer<typeof feeSchema>,
+  ) {
+    return this.admin.setPlatformFee(id, body.platformFeeBps, req.admin!);
+  }
+
+  /** Switch a business off. Immediate, total, and reversible. Never deletes data. */
+  @Patch('restaurants/:id/active')
+  @PlatformRoles('SUPER_ADMIN')
+  setActive(
+    @Req() req: PlatformRequest,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(suspendSchema)) body: z.infer<typeof suspendSchema>,
+  ) {
+    return this.admin.setActive(id, body.isActive, body.reason, req.admin!);
+  }
+
+  /**
+   * Open a time-boxed session to act inside their dashboard and help them.
+   *
+   * Requires a written reason, expires in an hour, and lands on THEIR audit log —
+   * a support tool the customer cannot see us using is a surveillance tool.
+   */
+  @Post('restaurants/:id/support-session')
+  startSupport(
+    @Req() req: PlatformRequest,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(supportSchema)) body: z.infer<typeof supportSchema>,
+  ) {
+    return this.admin.startSupportSession(id, body.reason, req.admin!);
+  }
+
+  @Post('support-sessions/:sessionId/end')
+  endSupport(@Req() req: PlatformRequest, @Param('sessionId') sessionId: string) {
+    return this.admin.endSupportSession(sessionId, req.admin!);
+  }
+
+  /** The transparency record: who has been in whose data, and why. */
+  @Get('support-sessions')
+  listSupport(@Query('restaurantId') restaurantId?: string) {
+    return this.admin.listSupportSessions(restaurantId);
+  }
+
+  @Get('admins')
+  @PlatformRoles('SUPER_ADMIN')
+  listAdmins() {
+    return this.admin.listAdmins();
+  }
+}

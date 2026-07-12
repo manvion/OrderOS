@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bella Burger — San Francisco</title>
+
+    <style>
+      /*
+        A restaurant website from 2014. This CSS is deliberately hostile, because
+        real ones are: a global reset, !important rules that nuke every button on
+        the page, and a sticky header in a z-index arms race.
+
+        The widget has to survive all of it. It does, because its button lives in
+        a Shadow DOM this stylesheet cannot reach into, and the ordering UI is an
+        iframe this stylesheet cannot touch at all.
+      */
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      /* A theme that destroys every button on the page. Not hypothetical. */
+      button {
+        font-family: 'Comic Sans MS', cursive !important;
+        background: #ff0000 !important;
+        border: 3px dashed lime !important;
+      }
+
+      body { font-family: Georgia, 'Times New Roman', serif; color: #2b2b2b; line-height: 1.65; }
+
+      header {
+        position: sticky; top: 0; z-index: 99999;
+        background: #111; color: #fff;
+        padding: 18px 32px;
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      header nav a { color: #ddd; text-decoration: none; margin-left: 24px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+
+      .hero {
+        background: #7c2d12;
+        background-image: linear-gradient(135deg, #9a3412 0%, #7c2d12 100%);
+        color: #fff; padding: 110px 32px; text-align: center;
+      }
+      .hero h1 { font-size: 56px; margin-bottom: 10px; letter-spacing: -.02em; }
+      .hero p { font-size: 19px; opacity: .85; }
+
+      main { max-width: 760px; margin: 0 auto; padding: 64px 32px; }
+      h2 { font-size: 30px; margin: 48px 0 14px; }
+      h2:first-child { margin-top: 0; }
+      p + p { margin-top: 14px; }
+
+      .old-menu { border: 1px solid #ddd; padding: 24px; margin-top: 20px; background: #fafafa; }
+      .old-menu li { list-style: none; display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dotted #ccc; }
+      .old-menu li:last-child { border: 0; }
+
+      .callout { background: #fff7ed; border-left: 4px solid #ea580c; padding: 18px 22px; margin-top: 28px; font-size: 15px; }
+
+      footer { background: #111; color: #888; padding: 48px 32px; text-align: center; font-size: 14px; margin-top: 64px; }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <strong style="letter-spacing:.12em">BELLA BURGER</strong>
+      <nav>
+        <a href="#about">About</a>
+        <a href="#menu">Menu</a>
+        <a href="#visit">Visit</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Bella Burger</h1>
+      <p>Smash burgers on the corner of Mission &amp; 1st since 2009.</p>
+    </section>
+
+    <main>
+      <h2 id="about">About us</h2>
+      <p>
+        We have been griddling burgers on this corner for fifteen years. This website was built in
+        2014 by the owner's nephew, and we are not rebuilding it.
+      </p>
+      <p>
+        We are, however, tired of handing thirty percent of every delivery order to a marketplace
+        app.
+      </p>
+
+      <div class="callout">
+        <strong>This is the whole point.</strong> Nothing about this page changed except one
+        <code>&lt;script&gt;</code> tag before <code>&lt;/body&gt;</code>. The ordering button in
+        the corner, the menu, the cart, the checkout and the order tracking all come from OrderOS —
+        and the customer never leaves this website.
+      </div>
+
+      <h2 id="menu">Our menu</h2>
+      <p>The old static menu, still here, still out of date:</p>
+
+      <ul class="old-menu">
+        <li><span>The Classic</span><span>$12.00</span></li>
+        <li><span>Mushroom Swiss</span><span>$14.00</span></li>
+        <li><span>Hand-cut Fries</span><span>$5.00</span></li>
+        <li><span>Milkshake</span><span>$7.00</span></li>
+      </ul>
+
+      <h2 id="visit">Find us</h2>
+      <p>535 Mission St, San Francisco, CA 94105<br />(415) 555-0123</p>
+      <p>Open 11:00 – 22:00, seven days.</p>
+    </main>
+
+    <footer>© 2014 Bella Burger. All rights reserved.</footer>
+
+    <!--
+      ======================================================================
+      THE ONLY LINE THE RESTAURANT ADDS.
+
+      In production this is exactly two attributes:
+        <script src="https://cdn.orderos.ai/widget.js" data-orderos-key="wk_…" defer></script>
+
+      data-api-url is a local-dev override so this demo talks to the mock API
+      on :4000 instead of api.<domain>.
+      ======================================================================
+    -->
+    <script
+      src="http://localhost:3005/widget.js"
+      data-orderos-key="wk_demo00000000000000000000000000"
+      data-api-url="http://localhost:4000"
+      defer
+    ></script>
+  </body>
+</html>

@@ -1,0 +1,117 @@
+import { z } from 'zod';
+
+/**
+ * Environment contract. The app refuses to boot if this fails — a missing
+ * Stripe secret should crash on startup, not at 7pm on a Friday when the first
+ * customer tries to pay.
+ *
+ * Integrations that are legitimately optional in local dev (Twilio, Resend,
+ * Uber, Azure) are optional here; their services no-op and log loudly when the
+ * credentials are absent, so `docker compose up` works with nothing but a
+ * Postgres and a Redis.
+ */
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().default(4000),
+  API_URL: z.string().url().default('http://localhost:4000'),
+
+  /** Apex domain for tenant subdomains: <slug>.orderos.ai */
+  APP_DOMAIN: z.string().default('orderos.ai'),
+  WEB_URL: z.string().url().default('http://localhost:3000'),
+  /** Comma-separated exact origins allowed in addition to *.APP_DOMAIN. */
+  CORS_ORIGINS: z.string().default('http://localhost:3000'),
+
+  DATABASE_URL: z.string().url(),
+  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+
+  // --- Clerk (required: there is no auth without it) ---
+  CLERK_SECRET_KEY: z.string().min(1),
+  CLERK_PUBLISHABLE_KEY: z.string().min(1),
+  CLERK_WEBHOOK_SECRET: z.string().optional(),
+
+  // --- Stripe ---
+  STRIPE_SECRET_KEY: z.string().min(1),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  /** Platform commission on each order, in basis points. 0 = free platform. */
+  PLATFORM_FEE_BPS: z.coerce.number().int().min(0).max(3000).default(0),
+
+  // --- Uber Direct (optional; delivery is disabled without it) ---
+  UBER_CLIENT_ID: z.string().optional(),
+  UBER_CLIENT_SECRET: z.string().optional(),
+  UBER_CUSTOMER_ID: z.string().optional(),
+  UBER_API_BASE_URL: z.string().url().default('https://api.uber.com'),
+  UBER_AUTH_URL: z.string().url().default('https://auth.uber.com/oauth/v2/token'),
+  /** Shared secret Uber signs delivery webhooks with (HMAC-SHA256). */
+  UBER_WEBHOOK_SECRET: z.string().optional(),
+
+  // --- Notifications (optional; sends become no-ops) ---
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().email().default('orders@orderos.ai'),
+
+  // --- Azure Blob Storage (optional; uploads fall back to a local disk driver) ---
+  AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
+  AZURE_STORAGE_CONTAINER: z.string().default('orderos-media'),
+  /** Public CDN base in front of the blob container, if any. */
+  AZURE_STORAGE_PUBLIC_URL: z.string().url().optional(),
+
+  /**
+   * Where widget.js is served from. Baked into the snippet each restaurant pastes
+   * into their own site, so it is effectively permanent once anyone has installed
+   * it — a change here does not reach sites already carrying the old URL.
+   * Unset -> ${WEB_URL}/widget.js.
+   */
+  WIDGET_CDN_URL: z.string().url().optional(),
+
+  /**
+   * Comma-separated emails that become platform SUPER_ADMINs on first sign-in.
+   *
+   * Bootstrapping by env rather than by an endpoint: a "create the first admin"
+   * API is a permanent backdoor. An env var can only be set by someone who already
+   * has production access, which is the correct bar for platform ownership.
+   */
+  /**
+   * Geocoding, which is what makes deliveryRadiusMeters real.
+   *
+   * Unset -> falls back to Nominatim (OpenStreetMap): free, no key, but capped at
+   * ~1 req/sec by its usage policy and not licensed for heavy commercial use. Fine
+   * for development and a handful of restaurants; NOT a plan for a thousand.
+   *
+   * Google is strongly preferred for INDIA, where informal addresses defeat most
+   * other geocoders.
+   */
+  /**
+   * Vercel, for custom domains.
+   *
+   * A restaurant's own domain (joesburgers.com) is attached to our ONE multi-tenant
+   * Vercel project — no repo and no build per restaurant. Unset -> custom domains
+   * are simply unavailable and the feature is hidden.
+   */
+  VERCEL_TOKEN: z.string().optional(),
+  VERCEL_PROJECT_ID: z.string().optional(),
+  /** Required when the token is team-scoped, or every Vercel call 404s. */
+  VERCEL_TEAM_ID: z.string().optional(),
+
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
+  MAPBOX_TOKEN: z.string().optional(),
+
+  PLATFORM_ADMIN_EMAILS: z.string().optional(),
+
+  RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().default(60),
+  RATE_LIMIT_MAX: z.coerce.number().int().default(120),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export function validateEnv(raw: Record<string, unknown>): Env {
+  const parsed = envSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
+      .join('\n');
+    throw new Error(`Invalid environment configuration:\n${issues}`);
+  }
+  return parsed.data;
+}

@@ -1,0 +1,1222 @@
+// OrderOS — multi-tenant restaurant ordering platform.
+//
+// TENANCY RULE: every table below except `User` (which is scoped by membership)
+// and `WebhookEvent` (which is global) carries a `restaurantId`. Every query in
+// the API goes through TenantContext, which injects that filter. There is no
+// code path that reads tenant data without a restaurantId in the WHERE clause.
+//
+// MONEY RULE: all monetary amounts are integer cents (Int). No floats, ever.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum StaffRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  DRIVER_ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+  DINE_IN
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum DeliveryStatus {
+  PENDING
+  QUOTED
+  CREATED
+  PICKUP_ENROUTE
+  DROPOFF_ENROUTE
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum QRCodeType {
+  TABLE
+  FLYER
+  COUNTER
+}
+
+/// Who actually carries the food. Decided PER ORDER, not once in settings — a
+/// restaurant with its own driver still wants Uber as overflow on a busy Friday,
+/// and one that normally uses Uber still wants to hand a nearby order to the kid
+/// with the moped rather than pay a courier fee.
+enum DeliveryProvider {
+  UBER
+  SELF
+}
+
+enum SelectionType {
+  SINGLE
+  MULTIPLE
+}
+
+enum OnboardingStep {
+  ACCOUNT
+  BUSINESS_DETAILS
+  BRANDING
+  MENU
+  PAYMENTS
+  DELIVERY
+  PUBLISHED
+}
+
+// ---------------------------------------------------------------------------
+// Tenant root
+// ---------------------------------------------------------------------------
+
+model Restaurant {
+  id   String @id @default(cuid())
+  /// Subdomain: <slug>.orderos.ai. Immutable after publish (links would break).
+  slug String @unique
+
+  name        String
+  description String?
+  email       String
+  phone       String
+
+  // Address — denormalised because Uber Direct needs it on every pickup request
+  // and we don't want a join in the delivery hot path.
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String  @default("US")
+  latitude   Float?
+  longitude  Float?
+
+  timezone String @default("America/New_York")
+  currency String @default("USD")
+
+  // Branding
+  logoUrl           String?
+  coverImageUrl     String?
+  brandPrimaryColor String  @default("#EA580C")
+  brandAccentColor  String  @default("#0F172A")
+
+  /// BusinessHours JSON — see packages/shared/src/hours.ts for the shape.
+  businessHours Json
+
+  // Fulfillment configuration
+  pickupEnabled           Boolean @default(true)
+  deliveryEnabled         Boolean @default(false)
+  dineInEnabled           Boolean @default(false)
+  scheduledOrdersEnabled  Boolean @default(false)
+  /// We can dispatch an Uber courier.
+  uberDirectEnabled       Boolean @default(false)
+  /// The restaurant has their own driver.
+  ///
+  /// If BOTH this and uberDirectEnabled are on, the dashboard asks per order
+  /// rather than guessing — which is right, because the answer genuinely depends
+  /// on how far away the customer is and whether the moped kid is on shift.
+  selfDeliveryEnabled     Boolean @default(false)
+  deliveryFeeCents        Int     @default(499)
+  deliveryRadiusMeters    Int     @default(8000)
+  minOrderCents           Int     @default(0)
+  serviceFeeCents         Int     @default(0)
+  /// Effective combined rate, derived from taxComponents. Kept for quick display
+  /// and for the simple single-rate case.
+  taxRateBps              Int     @default(0)
+
+  /**
+   * Named tax components: [{ name: "GST", rateBps: 500 }, { name: "QST", rateBps: 998 }].
+   *
+   * A single rate cannot express Quebec (GST + QST) or India (CGST + SGST), and
+   * both jurisdictions require the components to be NAMED SEPARATELY on the
+   * receipt. See packages/shared/src/tax.ts.
+   */
+  taxComponents           Json?
+  /// 'US' | 'CA' | 'IN'. Which tax regime this restaurant is under.
+  taxCountry              String?
+  /// State / province, used to resolve the default rates.
+  taxRegion               String?
+  prepTimeMinutes         Int     @default(20)
+
+  // Stripe Connect — each restaurant is paid directly; we never hold their funds.
+  stripeAccountId       String?
+  stripeChargesEnabled  Boolean @default(false)
+  stripePayoutsEnabled  Boolean @default(false)
+  /// Platform commission in basis points, taken as a Stripe application fee.
+  platformFeeBps        Int     @default(0)
+
+  // Lifecycle
+  onboardingStep OnboardingStep @default(ACCOUNT)
+  isPublished    Boolean        @default(false)
+  publishedAt    DateTime?
+  isActive       Boolean        @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Where the restaurant itself wants to be told about orders. Distinct from
+  // `phone`/`email` (which are public, shown to customers): the number that gets
+  // woken up at 8pm is the pass phone, not the one on the website.
+  notifyPhone        String?
+  notifyEmail        String?
+  notifySmsEnabled   Boolean @default(true)
+  notifyEmailEnabled Boolean @default(true)
+
+  users      User[]
+  customers  Customer[]
+  categories Category[]
+  products   Product[]
+  modifierGroups ModifierGroup[]
+  orders     Order[]
+  payments   Payment[]
+  deliveries Delivery[]
+  qrCodes    QRCode[]
+  auditLogs  AuditLog[]
+  websiteIntegrations WebsiteIntegration[]
+  widgetEvents        WidgetEvent[]
+  staffInvites        StaffInvite[]
+  notifications       NotificationLog[]
+  customDomains       CustomDomain[]
+
+  @@index([isPublished, isActive])
+  @@map("restaurants")
+}
+
+// ---------------------------------------------------------------------------
+// Custom domains
+// ---------------------------------------------------------------------------
+
+enum DomainStatus {
+  /// Added, but their DNS doesn't point at us yet. We show them the records to add.
+  PENDING_DNS
+  /// DNS looks right; Vercel is issuing the certificate. Usually under a minute.
+  ISSUING_CERT
+  /// Live. The storefront serves on this domain over HTTPS.
+  ACTIVE
+  /// Something is wrong and needs the owner to act. `error` says what.
+  FAILED
+}
+
+/**
+ * A restaurant's own domain — joesburgers.com — pointing at their storefront.
+ *
+ * ARCHITECTURE NOTE, because this is the decision that saves the most money and
+ * pain:
+ *
+ * We do NOT generate a repository per restaurant and deploy each one. The
+ * storefront is already multi-tenant: ONE Vercel deployment serves every
+ * restaurant, resolved by hostname. Attaching a custom domain is therefore a DNS +
+ * certificate operation, not a build.
+ *
+ * A repo-per-restaurant design would mean a thousand git repos, a thousand builds,
+ * a thousand things to keep patched, and a security fix that has to be rolled out a
+ * thousand times. This way, a fix ships once and every restaurant has it.
+ *
+ * The domain is added to the Vercel project via their API, Vercel issues the
+ * certificate, and the middleware maps the incoming Host back to the tenant.
+ */
+model CustomDomain {
+  id String @id @default(cuid())
+
+  /// Bare host, lowercased: "joesburgers.com" or "order.joesburgers.com".
+  domain String @unique
+
+  status DomainStatus @default(PENDING_DNS)
+
+  /// The exact DNS records the owner must create. Rendered verbatim in the UI —
+  /// Vercel tells us what it wants, and we do not paraphrase it.
+  dnsRecords Json?
+
+  /// Whatever went wrong, in the owner's language, not Vercel's.
+  error String?
+
+  /// Vercel has the domain attached to the project.
+  vercelConfigured Boolean @default(false)
+  /// Certificate issued and serving.
+  sslActive Boolean @default(false)
+  /// Registered with Stripe so Apple Pay renders. Silently absent otherwise.
+  applePayRegistered Boolean @default(false)
+
+  /// The verification cron backs off as attempts pile up; this bounds it.
+  checkAttempts Int       @default(0)
+  lastCheckedAt DateTime?
+  verifiedAt    DateTime?
+
+  /// Serve the storefront at this domain instead of <slug>.orderos.ai.
+  isPrimary Boolean @default(true)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([status])
+  @@map("custom_domains")
+}
+
+// ---------------------------------------------------------------------------
+// Platform operators (us, not the restaurants)
+// ---------------------------------------------------------------------------
+
+enum PlatformRole {
+  /// Everything: commission, suspension, deleting a tenant.
+  SUPER_ADMIN
+  /// Read + act-as, for helping a stuck owner. Cannot change money or suspend.
+  SUPPORT
+}
+
+/**
+ * A member of OUR staff. Deliberately a separate table from `User`.
+ *
+ * `User` is a MEMBERSHIP: it binds a Clerk identity to exactly one restaurant, and
+ * every tenant-scoped query hangs off it. If platform admins were just Users with a
+ * special role, then "is this person allowed to see this restaurant's orders?" and
+ * "is this person an employee of ours?" would be the same question — and the day
+ * someone fat-fingers a role, a line cook becomes a platform operator.
+ *
+ * Keeping them separate means the tenant guard can stay brutally simple (no
+ * membership, no access, no exceptions) and platform access is a deliberate,
+ * separately-audited second door.
+ */
+model PlatformAdmin {
+  id          String @id @default(cuid())
+  clerkUserId String @unique
+  email       String @unique
+
+  name String?
+  role PlatformRole @default(SUPPORT)
+
+  isActive Boolean @default(true)
+
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([clerkUserId])
+  @@map("platform_admins")
+}
+
+/**
+ * A platform admin acting inside a restaurant's dashboard to help them.
+ *
+ * Support access is a loaded gun: it lets one of our employees read a restaurant's
+ * customers, orders and revenue. So every session is opened explicitly, carries a
+ * reason, expires on its own, and is written down. "We looked at your data because
+ * you asked us to, here is exactly when and why" is the only defensible answer when
+ * a restaurant asks.
+ */
+model SupportSession {
+  id String @id @default(cuid())
+
+  adminId      String
+  adminEmail   String
+  restaurantId String
+
+  /// Free text, required. "Owner can't publish — ticket #412".
+  reason String
+
+  /// Short-lived by construction. An admin who forgets to close a session does not
+  /// keep standing access to a restaurant's data.
+  expiresAt DateTime
+  endedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([adminId, createdAt])
+  @@map("support_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+/// Restaurant staff. Authenticated by Clerk; `clerkUserId` is the join key.
+/// A person who works at two restaurants has two User rows (one per tenant).
+model User {
+  id          String @id @default(cuid())
+  clerkUserId String
+
+  email     String
+  firstName String?
+  lastName  String?
+  imageUrl  String?
+
+  role   StaffRole @default(STAFF)
+  isActive Boolean @default(true)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  /// One membership per person per restaurant.
+  @@unique([clerkUserId, restaurantId])
+  @@index([restaurantId])
+  @@index([clerkUserId])
+  @@map("users")
+}
+
+/// A guest who ordered. Not a Clerk account — identified by phone within a
+/// tenant, so repeat orders from the same number roll up to one customer record.
+model Customer {
+  id    String  @id @default(cuid())
+  name  String
+  phone String
+  email String?
+
+  /**
+   * Set when the customer has an account. NULL for guests.
+   *
+   * Guest checkout is not a fallback, it is the default: forcing a signup before
+   * someone can buy a burger is the fastest way to lose the sale. An account is a
+   * convenience we offer AFTER they've ordered ("save this address for next time"),
+   * never a toll gate before it.
+   *
+   * A guest who later signs up with the same phone number gets their history
+   * claimed automatically — the Customer row already exists, we just attach an
+   * identity to it.
+   */
+  clerkUserId String?
+
+  // Rolling aggregates, updated when an order reaches COMPLETED. Denormalised so
+  // the customers dashboard doesn't aggregate the whole orders table per row.
+  totalOrders     Int      @default(0)
+  totalSpentCents Int      @default(0)
+  lastOrderAt     DateTime?
+
+  /// Marketing consent for SMS. Transactional order SMS does not require this.
+  marketingOptIn Boolean @default(false)
+
+  /// Set when the customer replies STOP. Once true we send them NOTHING by SMS,
+  /// including transactional order updates — US carriers and the TCPA treat a STOP
+  /// as absolute, and honouring it only for marketing is how a number gets blocked.
+  /// They still get email, and the tracking link still works.
+  smsOptOut   Boolean   @default(false)
+  smsOptOutAt DateTime?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]
+  addresses CustomerAddress[]
+
+  @@unique([restaurantId, phone])
+  /// One customer record per account per restaurant.
+  @@unique([restaurantId, clerkUserId])
+  @@index([restaurantId, lastOrderAt])
+  @@index([clerkUserId])
+  @@map("customers")
+}
+
+/// A saved delivery address. The entire reason to have an account: never type
+/// your address again.
+model CustomerAddress {
+  id String @id @default(cuid())
+
+  /// "Home", "Work". Free text — people's mental models of their own addresses
+  /// are not ours to constrain.
+  label String?
+
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String @default("US")
+  latitude   Float?
+  longitude  Float?
+
+  /// Buzzer codes, gate instructions, "leave with the neighbour". The stuff that
+  /// actually determines whether a delivery succeeds.
+  notes String?
+
+  isDefault Boolean @default(false)
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+// ---------------------------------------------------------------------------
+// Menu
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@index([restaurantId, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  priceCents  Int
+  imageUrl    String?
+  sortOrder   Int     @default(0)
+
+  /// Owner toggles this when they run out. Hidden from the storefront, but
+  /// historical order items still reference the product.
+  isAvailable Boolean @default(true)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modifierGroups ModifierGroup[]
+  orderItems     OrderItem[]
+
+  @@index([restaurantId, categoryId, sortOrder])
+  @@index([categoryId])
+  @@map("products")
+}
+
+/// A set of choices attached to a product, e.g. "Size" (SINGLE) or "Extras"
+/// (MULTIPLE). Owned by exactly one product — duplicating a group across
+/// products is a copy, which keeps edits from leaking between menu items.
+model ModifierGroup {
+  id            String        @id @default(cuid())
+  name          String
+  selectionType SelectionType @default(SINGLE)
+  required      Boolean       @default(false)
+  minSelections Int           @default(0)
+  maxSelections Int           @default(1)
+  sortOrder     Int           @default(0)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modifiers Modifier[]
+
+  @@index([productId, sortOrder])
+  @@map("modifier_groups")
+}
+
+model Modifier {
+  id          String  @id @default(cuid())
+  name        String
+  /// Surcharge for this choice. 0 for "Small", 200 for "Large", etc.
+  priceCents  Int     @default(0)
+  isAvailable Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItemModifiers OrderItemModifier[]
+
+  @@index([modifierGroupId, sortOrder])
+  @@map("modifiers")
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+model Order {
+  id String @id @default(cuid())
+  /// Human-readable, unique per restaurant. What staff shout across the kitchen.
+  orderNumber String
+
+  status      OrderStatus     @default(PENDING)
+  fulfillment FulfillmentType
+
+  // Money — every figure the customer was shown is frozen here at checkout so a
+  // later menu price change can never alter a historical order's total.
+  subtotalCents    Int
+  taxCents         Int
+  deliveryFeeCents Int @default(0)
+  serviceFeeCents  Int @default(0)
+  tipCents         Int @default(0)
+  discountCents    Int @default(0)
+  totalCents       Int
+  currency         String @default("USD")
+
+  /// Snapshot of the tax rate used, so a rate change doesn't make old orders unreproducible.
+  taxRateBps Int @default(0)
+
+  /// Tax exactly as it was charged and printed: [{ name, rateBps, amountCents }].
+  /// Frozen at checkout — a rate change must never rewrite a historical receipt,
+  /// and a tax audit reads THIS, not today's settings.
+  taxLines   Json?
+
+  // Contact — captured on the order itself, not only on Customer, because a
+  // customer may edit their profile later and the order must stay as-placed.
+  customerName  String
+  customerPhone String
+  customerEmail String
+
+  // Delivery destination
+  deliveryStreet     String?
+  deliveryCity       String?
+  deliveryState      String?
+  deliveryPostalCode String?
+  deliveryCountry    String?
+  deliveryLatitude   Float?
+  deliveryLongitude  Float?
+  deliveryNotes      String?
+
+  notes       String?
+  tableNumber String?
+
+  /// Null = ASAP. Set = customer picked a future slot.
+  scheduledFor DateTime?
+
+  acceptedAt  DateTime?
+  readyAt     DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  cancelReason String?
+
+  /// Public tracking token — the /track/:token URL is unguessable, so a customer
+  /// can follow their order without an account and without exposing the order id.
+  trackingToken String @unique @default(cuid())
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  qrCodeId String?
+  qrCode   QRCode? @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+
+  /// Set when the order came through an embedded widget on the restaurant's own
+  /// website. This is what makes "revenue by website" answerable — without it we
+  /// could count widget orders but never attribute them to a domain.
+  websiteIntegrationId String?
+  websiteIntegration   WebsiteIntegration? @relation(fields: [websiteIntegrationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    OrderItem[]
+  payment  Payment?
+  delivery Delivery?
+  events   OrderEvent[]
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId, status, createdAt])
+  @@index([restaurantId, createdAt])
+  @@index([customerId])
+  /// Widget analytics groups orders by integration to compute revenue per website.
+  @@index([websiteIntegrationId])
+  @@map("orders")
+}
+
+/// A line item, price-frozen at checkout. `productId` is kept for analytics but
+/// `name`/`unitPriceCents` are snapshots — renaming a product does not rewrite
+/// history.
+model OrderItem {
+  id       String @id @default(cuid())
+  name     String
+  quantity Int
+
+  /// Base product price at time of order.
+  unitPriceCents Int
+  /// unitPrice + modifiers, times quantity. Denormalised to keep receipts cheap.
+  totalCents     Int
+
+  notes String?
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  modifiers OrderItemModifier[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id         String @id @default(cuid())
+  name       String
+  priceCents Int
+  quantity   Int    @default(1)
+
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  modifierId String?
+  modifier   Modifier? @relation(fields: [modifierId], references: [id], onDelete: SetNull)
+
+  @@index([orderItemId])
+  @@map("order_item_modifiers")
+}
+
+/// Append-only status history. Powers the customer tracking timeline and gives
+/// support a defensible record of who moved an order and when.
+model OrderEvent {
+  id     String      @id @default(cuid())
+  status OrderStatus
+  note   String?
+  /// "system" | "restaurant" | "customer" | "uber" | "stripe"
+  source String      @default("system")
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id     String        @id @default(cuid())
+  status PaymentStatus @default(PENDING)
+
+  amountCents         Int
+  refundedAmountCents Int    @default(0)
+  currency            String @default("USD")
+
+  /// Application fee taken by the platform on this charge.
+  platformFeeCents Int @default(0)
+
+  stripeCheckoutSessionId String? @unique
+  stripePaymentIntentId   String? @unique
+  stripeChargeId          String?
+  /// Card brand + last4, for the dashboard. Never store a PAN.
+  cardBrand String?
+  cardLast4 String?
+
+  failureReason String?
+  paidAt        DateTime?
+  refundedAt    DateTime?
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  refunds Refund[]
+
+  @@index([restaurantId, status])
+  @@map("payments")
+}
+
+model Refund {
+  id             String @id @default(cuid())
+  amountCents    Int
+  reason         String?
+  stripeRefundId String @unique
+
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  /// Clerk user id of the staff member who issued it. Null = issued by Stripe/system.
+  issuedByUserId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+// ---------------------------------------------------------------------------
+// Delivery (Uber Direct)
+// ---------------------------------------------------------------------------
+
+model Delivery {
+  id     String         @id @default(cuid())
+  status DeliveryStatus @default(PENDING)
+
+  /// UBER = a courier we dispatched. SELF = the restaurant's own driver.
+  provider DeliveryProvider @default(UBER)
+
+  // The restaurant's own driver. Only set when provider = SELF. Kept here rather
+  // than in a Driver table on purpose: most self-delivering restaurants have one
+  // or two people and a phone number, not a fleet to manage. Model the fleet when
+  // someone actually asks for one.
+  driverName  String?
+  driverPhone String?
+
+  // Uber Direct identifiers
+  uberQuoteId    String?
+  uberDeliveryId String? @unique
+  trackingUrl    String?
+
+  /// What Uber charges US for the delivery. May differ from what the customer
+  /// paid (Order.deliveryFeeCents) — the difference is the restaurant's margin
+  /// or subsidy, and the analytics page surfaces it.
+  feeCents Int?
+  currency String @default("USD")
+
+  quoteExpiresAt DateTime?
+
+  // Courier — populated from webhooks once assigned.
+  courierName          String?
+  courierPhone         String?
+  courierVehicle       String?
+  courierLatitude      Float?
+  courierLongitude     Float?
+
+  /**
+   * Handoff identification.
+   *
+   * A busy kitchen at 8pm has three bags on the pass and two Uber couriers standing
+   * at the counter. Handing the wrong bag to the wrong driver is the single most
+   * common — and most expensive — operational failure in delivery: the food is gone,
+   * both customers are furious, and neither order can be remade for free.
+   *
+   * So every delivery gets a short, human-readable code. It is printed on the bag
+   * label AND sent to Uber as the manifest reference, which is what the courier
+   * sees in their driver app. Staff ask "what's your code?", the driver reads it
+   * off their phone, and it either matches the bag or it doesn't.
+   *
+   * Deliberately NOT the order number: order numbers are sequential and guessable,
+   * and two orders in the same minute look almost identical on a bag label
+   * (0712-014 vs 0712-041). A random 4-character code is unmistakable at a glance.
+   */
+  pickupCode       String?
+  /// Set when staff confirm the code matched and the bag went out the door.
+  handedOverAt     DateTime?
+  handedOverByUserId String?
+
+  pickupEta  DateTime?
+  dropoffEta DateTime?
+
+  pickedUpAt  DateTime?
+  deliveredAt DateTime?
+  cancelledAt DateTime?
+
+  /// Attempt counter for the retry queue. Guards against infinite retry loops.
+  attemptCount Int      @default(0)
+  lastError    String?
+  lastAttemptAt DateTime?
+
+  /**
+   * How many times we have had to find a NEW courier for this order.
+   *
+   * Distinct from attemptCount, which counts failures to reach Uber at all. This
+   * counts couriers who accepted and then vanished: Uber cancelled, the driver
+   * un-assigned, the food was returned. Each one means a fresh delivery must be
+   * created, and the customer's dinner is still sitting on the pass.
+   *
+   * Capped, because at some point the honest answer is "a human must deal with
+   * this", not "let's ask Uber a seventh time".
+   */
+  redispatchCount Int @default(0)
+
+  /**
+   * Set when we gave up automating and put this in front of a human.
+   *
+   * An escalated delivery has NOT failed — it is still live, still owed to a
+   * customer, and now loudly the restaurant's problem to solve (their own driver,
+   * a phone call). The watchdog keeps it visible until someone resolves it.
+   */
+  escalatedAt     DateTime?
+  escalationReason String?
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pings CourierPing[]
+
+  @@index([restaurantId, status])
+  /// The watchdog sweeps these every minute hunting for stranded orders.
+  @@index([status, escalatedAt, updatedAt])
+  @@map("deliveries")
+}
+
+/// Courier breadcrumb trail.
+///
+/// `Delivery.courierLatitude/Longitude` holds only the LATEST position, which is
+/// enough for a pin but not for a route. Keeping the trail lets the map draw the
+/// path the driver actually took, which is what makes a tracking map feel live
+/// rather than like a teleporting dot — and it lets us answer "where did the
+/// driver go?" when a customer disputes a delivery.
+///
+/// Rows are only written when the courier has actually moved (see DeliveryService),
+/// so a driver stuck at a traffic light doesn't generate 200 identical rows.
+model CourierPing {
+  id String @id @default(cuid())
+
+  latitude  Float
+  longitude Float
+
+  deliveryId String
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([deliveryId, createdAt])
+  @@map("courier_pings")
+}
+
+// ---------------------------------------------------------------------------
+// QR codes
+// ---------------------------------------------------------------------------
+
+model QRCode {
+  id    String     @id @default(cuid())
+  type  QRCodeType
+  label String
+
+  /// Only meaningful for TABLE codes. Pre-fills the order's table number.
+  tableNumber String?
+
+  /// The encoded URL, e.g. https://joes.orderos.ai/menu?src=qr&c=<id>
+  targetUrl String
+  /// Azure Blob URL of the rendered PNG.
+  imageUrl  String?
+
+  /// Incremented on every storefront hit carrying this code's id.
+  scanCount Int      @default(0)
+  lastScanAt DateTime?
+
+  isActive Boolean @default(true)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([restaurantId, type])
+  @@map("qr_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Platform infrastructure
+// ---------------------------------------------------------------------------
+
+/// Who did what. Written for every mutating staff action and every inbound
+/// webhook that changes state.
+model AuditLog {
+  id String @id @default(cuid())
+
+  /// e.g. "order.accepted", "menu.product.deleted", "payment.refunded"
+  action String
+  /// e.g. "Order", "Product"
+  entityType String
+  entityId   String?
+
+  /// Before/after snapshot for mutations. Redacted of PII where applicable.
+  metadata Json?
+
+  ipAddress String?
+  userAgent String?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  /// Null when the actor is a webhook or a background job rather than a person.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+}
+
+/// Who the message was for. The same order event produces different messages for
+/// the two audiences: the customer wants "your food is on its way", the kitchen
+/// wants "table 4, two burgers, no pickles".
+enum NotificationAudience {
+  CUSTOMER
+  RESTAURANT
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+  /// Deliberately not sent — customer replied STOP, or the restaurant turned this
+  /// channel off. Recorded so support can answer "why didn't I get a text?".
+  SKIPPED
+}
+
+/// Every message we attempted, and what happened to it.
+///
+/// This exists because "the customer says they never got the text" is the single
+/// most common support ticket in food delivery, and without a log the honest
+/// answer is a shrug.
+model NotificationLog {
+  id String @id @default(cuid())
+
+  channel  NotificationChannel
+  audience NotificationAudience
+  status   NotificationStatus
+
+  /// e.g. "order.accepted", "order.delivered.thank_you", "restaurant.new_order"
+  template String
+
+  /// Masked at write time — we keep "***0188", never the full number. A log of
+  /// every customer's phone number is a breach waiting to happen.
+  recipient String
+
+  /// Twilio SID / Resend id, for tracing a message into the provider's dashboard.
+  providerId String?
+  error      String?
+
+  orderId String?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([orderId])
+  @@map("notification_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Staff invitations
+// ---------------------------------------------------------------------------
+
+/// An invitation to join a restaurant's staff.
+///
+/// Without this there is no way to add a second person to a restaurant — the only
+/// User row that ever gets created is the founder's. The invited person may not
+/// have a Clerk account yet, which is why the invite is keyed by email and only
+/// becomes a User when they accept.
+model StaffInvite {
+  id String @id @default(cuid())
+
+  email String
+  role  StaffRole @default(STAFF)
+
+  /// Unguessable. It is the whole authorisation for accepting — the accept link we
+  /// email must not be walkable to someone else's invite.
+  token String @unique @default(cuid())
+
+  /// Invites rot. A link that still works six months later is a way into a
+  /// restaurant's orders long after the person was meant to join.
+  expiresAt DateTime
+
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+
+  invitedByUserId String?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /// One live invite per email per restaurant.
+  @@unique([restaurantId, email])
+  @@index([token])
+  @@map("staff_invites")
+}
+
+// ---------------------------------------------------------------------------
+// Website integration (embeddable widget)
+// ---------------------------------------------------------------------------
+
+/// One integration per restaurant website. A restaurant with a WordPress site and
+/// a separate landing page has two, so revenue can be attributed to each.
+model WebsiteIntegration {
+  id String @id @default(cuid())
+
+  /// Human label, e.g. "Main site (WordPress)".
+  name String
+
+  /// The primary domain, normalised to a bare host: "joes.com", never "https://joes.com/".
+  domain String
+
+  /// PUBLIC identifier, embedded in the customer's HTML. Deliberately NOT a secret —
+  /// anyone can read it by viewing source, so it must not be treated as one.
+  /// Authorisation comes from `allowedDomains` + the Origin header, not from
+  /// possession of this key. Prefixed so it is greppable in logs and support tickets.
+  widgetKey String @unique
+
+  /// Every host permitted to embed this widget. An Origin not on this list is
+  /// refused at the CORS layer AND at the guard, so a scraped widgetKey pasted
+  /// into another site simply does not work.
+  allowedDomains String[]
+
+  /// Appearance + behaviour. See WidgetSettings in packages/shared.
+  settings Json
+
+  isActive Boolean @default(true)
+
+  /// Set the first time a real browser loads the widget from an allowed origin.
+  /// The dashboard uses it to say "we haven't seen this on your site yet",
+  /// which is the single most useful piece of install debugging we can offer.
+  installedAt   DateTime?
+  lastSeenAt    DateTime?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events WidgetEvent[]
+  orders Order[]
+
+  @@index([restaurantId])
+  @@map("website_integrations")
+}
+
+enum WidgetEventType {
+  /// The loader script ran and the button rendered. The denominator for conversion.
+  VIEW
+  /// The customer clicked "Order Now" and the widget opened.
+  OPEN
+  ADD_TO_CART
+  CHECKOUT_START
+  /// An order row was created. Payment may still fail — revenue is read from
+  /// Order/Payment, never from this table.
+  ORDER_CREATED
+}
+
+/// Widget funnel telemetry. Deliberately thin: no cookies, no cross-site
+/// identifiers, no PII — a random per-visit sessionId is enough to compute a
+/// funnel, and anything more would make this a tracker we'd have to disclose.
+model WidgetEvent {
+  type WidgetEventType
+
+  id String @id @default(cuid())
+
+  /// Random, generated in the browser per visit. Lets us count unique visitors
+  /// through the funnel without identifying anyone.
+  sessionId String
+
+  /// The Origin the event came from. Recorded because a restaurant with several
+  /// domains wants revenue split by site, not summed.
+  origin String?
+
+  /// Populated on ORDER_CREATED so the funnel can be joined to real money.
+  orderId String?
+
+  integrationId String
+  integration   WebsiteIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([integrationId, type, createdAt])
+  @@index([restaurantId, createdAt])
+  /// One row per session per event type: a customer who opens the widget five
+  /// times is one "open", or the conversion rate becomes meaningless.
+  @@unique([integrationId, sessionId, type])
+  @@map("widget_events")
+}
+
+/// Idempotency ledger for inbound webhooks. Stripe and Uber both retry, and
+/// both can deliver out of order — we insert the provider's event id here first
+/// and skip anything we've already processed.
+model WebhookEvent {
+  id String @id @default(cuid())
+
+  /// "stripe" | "uber"
+  provider String
+  /// The provider's own event id — the uniqueness key that makes retries safe.
+  eventId  String
+  eventType String
+
+  payload Json
+
+  processedAt DateTime?
+  error       String?
+  attempts    Int       @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([provider, processedAt])
+  @@map("webhook_events")
+}
