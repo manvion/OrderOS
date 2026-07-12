@@ -9,7 +9,9 @@ import type { BusinessHours } from '@orderos/shared';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';
+import { BusinessLocationForm } from '@/components/dashboard/business-location-form';
 import { HoursEditor } from '@/components/dashboard/hours-editor';
+import { LegalIdentityForm } from '@/components/dashboard/legal-identity-form';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -142,6 +144,13 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Where they are. Sits ABOVE the legal card on purpose: the country chosen here
+          decides what the tax field below is even called, and whether it is required. */}
+      <BusinessLocationForm />
+
+      {/* Who the restaurant is to a tax authority — what makes a receipt a valid invoice. */}
+      <LegalIdentityForm />
+
       {/* Stripe */}
       <Card>
         <CardHeader>
@@ -228,12 +237,15 @@ function DeliverySettings() {
     dineInEnabled: restaurant?.dineInEnabled ?? false,
     scheduledOrdersEnabled: restaurant?.scheduledOrdersEnabled ?? false,
     uberDirectEnabled: restaurant?.uberDirectEnabled ?? false,
+    doorDashEnabled: restaurant?.doorDashEnabled ?? false,
     selfDeliveryEnabled: restaurant?.selfDeliveryEnabled ?? false,
     deliveryFeeCents: restaurant?.deliveryFeeCents ?? 499,
     deliveryRadiusMeters: restaurant?.deliveryRadiusMeters ?? 8000,
     minOrderCents: restaurant?.minOrderCents ?? 0,
     serviceFeeCents: restaurant?.serviceFeeCents ?? 0,
-    taxRateBps: restaurant?.taxRateBps ?? 0,
+    // taxRateBps is deliberately NOT here. It is derived from the tax components in
+    // BusinessLocationForm, and if this form still carried it, saving "prep time" would
+    // POST a stale rate and silently overwrite the itemised tax the owner just set.
     prepTimeMinutes: restaurant?.prepTimeMinutes ?? 20,
   });
 
@@ -296,12 +308,30 @@ function DeliverySettings() {
             disabled={readOnly || !form.deliveryEnabled}
           />
           <Toggle
+            label="DoorDash Drive"
+            hint="Dispatch a DoorDash courier when an order is marked ready"
+            checked={form.doorDashEnabled}
+            onChange={(doorDashEnabled) => setForm({ ...form, doorDashEnabled })}
+            disabled={readOnly || !form.deliveryEnabled}
+          />
+          <Toggle
             label="We have our own driver"
             hint="Deliver it yourself instead of paying for a courier"
             checked={form.selfDeliveryEnabled}
             onChange={(selfDeliveryEnabled) => setForm({ ...form, selfDeliveryEnabled })}
             disabled={readOnly || !form.deliveryEnabled}
           />
+
+          {/* Two couriers is not twice the setup — it is a running auction on every
+              order, and the saving is real money. Say so, because a restaurant looking
+              at two toggles has no reason to guess that turning both on is strictly
+              better than either alone. */}
+          {form.uberDirectEnabled && form.doorDashEnabled && (
+            <p className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-900">
+              Both couriers are on. We price every delivery with each of them and send the cheaper
+              one — and if one is having a bad day, the other still collects the order.
+            </p>
+          )}
 
           {/* Both on = a real decision per order, and we tell them so rather than
               letting them discover it at the pass. */}
@@ -337,26 +367,20 @@ function DeliverySettings() {
             disabled={readOnly}
           />
 
-          <div className="space-y-2">
-            <Label htmlFor="tax">Tax rate (%)</Label>
-            <Input
-              id="tax"
-              type="number"
-              step="0.01"
-              min="0"
-              max="30"
-              // Stored as basis points so the rate is exact. 8.75% -> 875.
-              value={(form.taxRateBps / 100).toFixed(2)}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  taxRateBps: Math.round(parseFloat(e.target.value || '0') * 100),
-                })
-              }
-              disabled={readOnly}
-            />
-            <p className="text-xs text-muted-foreground">Applied to food and service fees.</p>
-          </div>
+          {/*
+            Tax used to be a single percentage box RIGHT HERE, which is why it is worth
+            a note that it is now gone rather than moved by accident.
+
+            One box cannot express how tax actually works: Quebec charges GST 5% + QST
+            9.975% as two separately-named lines, and India charges CGST + SGST. Both
+            legally require the components to be itemised on the receipt. And a rate
+            entered here in isolation had no idea which jurisdiction it belonged to.
+
+            So tax now lives with the ADDRESS, in BusinessLocationForm, where the
+            jurisdiction that determines it lives — pre-filled from the country and
+            region, itemised, and confirmed. Two places to set tax is one place to set it
+            wrong.
+          */}
 
           <div className="space-y-2">
             <Label htmlFor="prep">Prep time (minutes)</Label>

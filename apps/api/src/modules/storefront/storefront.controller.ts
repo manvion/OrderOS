@@ -117,20 +117,25 @@ export class StorefrontController {
   ) {
     const restaurant = await this.prisma.restaurant.findUniqueOrThrow({
       where: { id: restaurantId },
-      select: { uberDirectEnabled: true, deliveryEnabled: true, deliveryFeeCents: true },
+      select: {
+        uberDirectEnabled: true,
+        doorDashEnabled: true,
+        deliveryEnabled: true,
+        deliveryFeeCents: true,
+      },
     });
 
     if (!restaurant.deliveryEnabled) {
       return { deliverable: false as const, reason: 'This restaurant does not deliver' };
     }
 
-    // Delivery without Uber: the restaurant drives it themselves, so it's a flat
-    // fee and always "deliverable" — they know their own range.
-    if (!restaurant.uberDirectEnabled) {
+    // Delivery with no courier at all: the restaurant drives it themselves, so it's a
+    // flat fee and always "deliverable" — they know their own range.
+    if (!restaurant.uberDirectEnabled && !restaurant.doorDashEnabled) {
       return {
         deliverable: true as const,
         customerFeeCents: restaurant.deliveryFeeCents,
-        uberFeeCents: null,
+        courierFeeCents: null,
         selfDelivery: true as const,
       };
     }

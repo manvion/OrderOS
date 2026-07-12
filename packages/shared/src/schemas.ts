@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { WEEKDAYS } from './hours';
-import { taxComponentSchema } from './tax';
+import { SUPPORTED_TAX_COUNTRIES, taxComponentSchema } from './tax';
 
 /**
  * Validation schemas shared by the API (DTO validation) and the web app
@@ -115,7 +115,7 @@ export const createRestaurantSchema = z.object({
    * (CGST + SGST), where the law requires each to be printed under its own name.
    */
   taxComponents: z.array(taxComponentSchema).max(4).optional(),
-  taxCountry: z.enum(['US', 'CA', 'IN']).optional(),
+  taxCountry: z.enum(SUPPORTED_TAX_COUNTRIES).optional(),
   taxRegion: z.string().max(40).optional(),
   deliveryFeeCents: z.number().int().min(0).max(100_00).optional(),
   serviceFeeCents: z.number().int().min(0).max(50_00).optional(),
@@ -129,7 +129,34 @@ export const updateRestaurantSchema = z.object({
   phone: z.string().min(7).max(20).optional(),
   email: z.string().email().optional(),
   address: addressSchema.optional(),
+
+  /**
+   * Overridable, but DERIVED from the address when it isn't sent.
+   *
+   * A country with one timezone needs no picker at all; a country with six needs the
+   * owner to say which. Either way the address decides the default — see
+   * deriveLocaleDefaults() in ./countries.
+   */
   timezone: z.string().min(1).optional(),
+
+  /**
+   * Note what is NOT here: `currency`.
+   *
+   * Currency is not a preference, it is a fact about where the restaurant is. A
+   * restaurant in Toronto is paid in CAD, and a form that lets them choose USD is a
+   * form that lets them silently mis-price their entire menu — the numbers on the
+   * products don't change, only the symbol in front of them. So the server derives it
+   * from the country and the client cannot override it.
+   */
+
+  /**
+   * The rate actually charged. Pre-filled from the jurisdiction, then CONFIRMED or
+   * corrected by the owner — never applied silently. See the honesty note in ./tax.
+   */
+  taxComponents: z.array(taxComponentSchema).max(4).optional(),
+  taxCountry: z.enum(SUPPORTED_TAX_COUNTRIES).optional(),
+  taxRegion: z.string().max(40).optional(),
+
   logoUrl: z.string().url().nullable().optional(),
   coverImageUrl: z.string().url().nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
@@ -142,6 +169,17 @@ export const updateRestaurantSchema = z.object({
    */
   aboutHeadline: z.string().max(120).nullable().optional(),
   aboutBody: z.string().max(4000).nullable().optional(),
+
+  /**
+   * Who the restaurant is to a tax authority.
+   *
+   * The shape of `taxId` depends entirely on the country, so it cannot be checked
+   * here — validate it with isValidTaxId(country, value) from './countries', which
+   * knows that a GSTIN is not an ABN. This schema only stops absurd input.
+   */
+  legalName: z.string().max(160).nullable().optional(),
+  taxId: z.string().max(30).nullable().optional(),
+  businessNumber: z.string().max(40).nullable().optional(),
 
   businessHours: businessHoursSchema.optional(),
   orderingMode: z.enum(['WEBSITE', 'QR_ONLY']).optional(),
@@ -176,10 +214,33 @@ export const deliverySettingsSchema = z.object({
   deliveryRadiusMeters: z.number().int().min(500).max(50_000),
   minOrderCents: z.number().int().min(0).max(500_00),
   serviceFeeCents: z.number().int().min(0).max(50_00),
-  taxRateBps: z.number().int().min(0).max(3000),
+  /**
+   * Tax is NOT here, and that is the point.
+   *
+   * It used to be a single `taxRateBps` on this schema, set from a percentage box on
+   * the fulfillment form — a rate with no jurisdiction attached, that could not express
+   * Quebec (GST + QST) or India (CGST + SGST), both of which legally require the
+   * components to be printed as separate named lines.
+   *
+   * Tax now belongs to the ADDRESS (updateRestaurantSchema.taxComponents), because the
+   * address is what determines it. Zod strips unknown keys, so an older client still
+   * sending taxRateBps here is ignored rather than rejected — which matters, because
+   * that client would be sending a stale rate that would silently clobber the itemised
+   * one.
+   */
   prepTimeMinutes: z.number().int().min(1).max(180),
   /** We can dispatch an Uber courier. */
   uberDirectEnabled: z.boolean(),
+  /**
+   * We can dispatch a DoorDash Drive courier.
+   *
+   * Independent of Uber, and both can be on at once. When they are, we quote BOTH on
+   * every order and dispatch the cheaper — which is worth real money, because courier
+   * pricing swings with surge and driver supply and the winner is not knowable in
+   * advance. It is also the failover: one courier having a bad afternoon no longer
+   * strands an order that is already paid for and cooked.
+   */
+  doorDashEnabled: z.boolean().default(false),
   /**
    * The restaurant has their own driver. If BOTH are on, the dashboard asks per
    * order rather than guessing — the right answer depends on distance and who's on

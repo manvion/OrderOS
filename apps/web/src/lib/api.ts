@@ -586,7 +586,10 @@ export type DeliveryQuote =
   | {
       deliverable: true;
       customerFeeCents: number;
-      uberFeeCents: number | null;
+      /** What the COURIER charges the restaurant — Uber or DoorDash, whoever won. */
+      courierFeeCents: number | null;
+      /** Which courier gave us this price. Null for self-delivery. */
+      provider?: 'UBER' | 'DOORDASH';
       quoteId?: string;
       dropoffEta?: string;
       selfDelivery?: boolean;
@@ -709,6 +712,7 @@ export interface Restaurant {
   onboardingStep: string;
   stripeChargesEnabled: boolean;
   uberDirectEnabled: boolean;
+  doorDashEnabled: boolean;
   /** The restaurant has their own driver. Both on = the dashboard asks per order. */
   selfDeliveryEnabled: boolean;
   pickupEnabled: boolean;

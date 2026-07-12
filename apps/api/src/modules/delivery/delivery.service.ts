@@ -6,8 +6,8 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
-import type { DeliveryStatus, Order, Restaurant } from '@prisma/client';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { DeliveryProvider, DeliveryStatus, Order, Restaurant } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -15,6 +15,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SmsService } from '../notifications/sms.service';
 import { OrdersService } from '../orders/orders.service';
 import { GeocodingService, distanceMeters, type GeoPoint, type GeocodableAddress } from './geocoding.service';
+import { CourierRouter } from './courier.router';
+import {
+  CourierDeclinedError,
+  type CourierDelivery,
+  type CourierStatus,
+} from './courier.interface';
+import { mapUberStatus } from './uber.courier';
+import { mapDoorDashStatus } from './doordash.client';
 import {
   UberClient,
   UberClientError,
@@ -97,6 +105,7 @@ export class DeliveryService {
     private readonly uber: UberClient,
     // Makes deliveryRadiusMeters real: without coordinates it was decorative.
     private readonly geocoding: GeocodingService,
+    private readonly couriers: CourierRouter,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     // Escalation wakes a human up by text.
@@ -119,12 +128,11 @@ export class DeliveryService {
     dropoff: { street: string; city: string; state: string; postalCode: string; country: string; latitude?: number; longitude?: number },
     orderValueCents: number,
   ) {
-    this.uber.assertConfigured();
-
     const restaurant = await this.prisma.restaurant.findUnique({ where: { id: restaurantId } });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
-    if (!restaurant.uberDirectEnabled) {
-      throw new BadRequestException('This restaurant does not use Uber Direct');
+
+    if (this.couriers.enabledFor(restaurant).length === 0) {
+      throw new BadRequestException('This restaurant does not dispatch couriers');
     }
 
     // The restaurant's own radius, checked before we spend an Uber call on it.
@@ -149,43 +157,52 @@ export class DeliveryService {
       };
     }
 
-    try {
-      const quote = await this.uber.createQuote({
-        pickup_address: UberClient.formatAddress(restaurant),
-        dropoff_address: UberClient.formatAddress(dropoff),
-        pickup_latitude: restaurant.latitude ?? undefined,
-        pickup_longitude: restaurant.longitude ?? undefined,
-        dropoff_latitude: dropoff.latitude,
-        dropoff_longitude: dropoff.longitude,
-        pickup_ready_dt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000).toISOString(),
-        manifest_total_value: orderValueCents,
-      });
+    /**
+     * Quote every courier the restaurant has switched on and take the cheapest.
+     *
+     * With both Uber and DoorDash enabled this is worth real money: courier pricing
+     * swings with surge and driver supply, the winner is not knowable in advance, and
+     * the gap is routinely a dollar or two — on every single delivery, to a business
+     * running on single-digit margins. It is also the failover: one courier having a
+     * bad afternoon no longer means a paid order cannot be delivered.
+     */
+    const { quote, declineReason } = await this.couriers.bestQuote(restaurant, {
+      pickup: restaurant,
+      dropoff,
+      pickupReadyAt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000),
+      orderValueCents,
+      // Not yet dispatched, so there is no order id to key on. DoorDash requires an
+      // external id even to quote; this one is thrown away unless the quote is taken.
+      externalId: `quote_${randomUUID()}`,
+    });
 
+    if (!quote) {
+      // Nobody will take it. `declineReason` is the sentence a working courier
+      // actually gave us ("outside our delivery zone"), which is specific and
+      // actionable. Its absence means every courier was BROKEN rather than
+      // declining — the customer can't act on that, so they get the neutral line.
       return {
-        quoteId: quote.id,
-        /** What the restaurant will be charged by Uber. */
-        uberFeeCents: quote.fee,
-        /** What the customer pays. Set by the restaurant, not by Uber. */
-        customerFeeCents: restaurant.deliveryFeeCents,
-        currency: quote.currency,
-        expiresAt: quote.expires,
-        dropoffEta: quote.dropoff_eta,
-        durationMinutes: quote.duration,
-        deliverable: true as const,
+        deliverable: false as const,
+        reason:
+          declineReason ??
+          'We could not arrange a courier to that address right now. Please try pickup, or call us.',
       };
-    } catch (err) {
-      // A 4xx here almost always means "we don't deliver to that address" — which
-      // is a normal, expected answer, not an error. Tell the customer plainly
-      // instead of 500ing the checkout page.
-      if (err instanceof UberClientError) {
-        this.logger.log(`Uber declined a quote for ${restaurant.slug}: ${err.message}`);
-        return {
-          deliverable: false as const,
-          reason: this.humanizeUberError(err),
-        };
-      }
-      throw err;
     }
+
+    return {
+      quoteId: quote.quoteId,
+      /** Which courier won, so dispatch goes back to the one that gave us this price. */
+      provider: quote.provider,
+      /** What the restaurant will be charged by the courier. */
+      courierFeeCents: quote.feeCents,
+      /** What the customer pays. Set by the restaurant, not by the courier. */
+      customerFeeCents: restaurant.deliveryFeeCents,
+      currency: quote.currency,
+      expiresAt: quote.expiresAt,
+      dropoffEta: quote.dropoffEta,
+      durationMinutes: quote.durationMinutes,
+      deliverable: true as const,
+    };
   }
 
   /**
@@ -196,8 +213,9 @@ export class DeliveryService {
    * result in two couriers arriving for one bag of food.
    */
   async createDelivery(restaurantId: string, orderId: string, userId?: string) {
-    this.uber.assertConfigured();
-
+    // No blanket Uber check any more: a restaurant may run DoorDash only. Whether a
+    // courier can actually be dispatched is decided per-restaurant in dispatch(),
+    // which quotes whatever they have switched on.
     const release = await this.redis.acquireLock(`delivery:${orderId}`, 30);
     if (!release) {
       throw new BadRequestException('A delivery is already being arranged for this order');
@@ -216,7 +234,7 @@ export class DeliveryService {
       if (order.payment?.status !== 'PAID') {
         throw new BadRequestException('Cannot dispatch a courier for an unpaid order');
       }
-      if (order.delivery?.uberDeliveryId) {
+      if (order.delivery?.providerDeliveryId) {
         // Already dispatched. Idempotent: hand back what exists.
         return order.delivery;
       }
@@ -238,19 +256,24 @@ export class DeliveryService {
       });
 
       try {
-        const uberDelivery = await this.dispatch(order, order.restaurant, delivery.pickupCode);
+        const dispatched = await this.dispatch(order, order.restaurant, delivery.pickupCode);
 
         const updated = await this.prisma.delivery.update({
           where: { id: delivery.id },
           data: {
             status: 'CREATED',
-            uberDeliveryId: uberDelivery.id,
-            uberQuoteId: uberDelivery.quote_id,
-            trackingUrl: uberDelivery.tracking_url,
-            feeCents: uberDelivery.fee,
-            currency: uberDelivery.currency,
-            pickupEta: uberDelivery.pickup_eta ? new Date(uberDelivery.pickup_eta) : null,
-            dropoffEta: uberDelivery.dropoff_eta ? new Date(uberDelivery.dropoff_eta) : null,
+            // WHICH courier rode. Everything downstream — tracking, cancellation, the
+            // watchdog, the webhook — has to know, because a DoorDash delivery id sent
+            // to Uber's API is a confusing 404 rather than an error that says what
+            // went wrong.
+            provider: dispatched.provider,
+            providerDeliveryId: dispatched.deliveryId,
+            providerQuoteId: dispatched.quoteId,
+            trackingUrl: dispatched.trackingUrl,
+            feeCents: dispatched.feeCents,
+            currency: dispatched.currency,
+            pickupEta: dispatched.pickupEta,
+            dropoffEta: dispatched.dropoffEta,
             lastError: null,
             // This attempt succeeded — nothing is pending any more. Cleared in the
             // same write that records the courier, so there is no window in which a
@@ -267,13 +290,15 @@ export class DeliveryService {
           entityId: updated.id,
           metadata: {
             orderNumber: order.orderNumber,
-            uberDeliveryId: uberDelivery.id,
-            uberFeeCents: uberDelivery.fee,
+            provider: dispatched.provider,
+            providerDeliveryId: dispatched.deliveryId,
+            courierFeeCents: dispatched.feeCents,
           },
         });
 
         this.logger.log(
-          `Uber delivery ${uberDelivery.id} created for order ${order.orderNumber} (fee ${uberDelivery.fee})`,
+          `${dispatched.provider} delivery ${dispatched.deliveryId} created for order ` +
+            `${order.orderNumber} (fee ${dispatched.feeCents})`,
         );
         return updated;
       } catch (err) {
@@ -285,55 +310,81 @@ export class DeliveryService {
     }
   }
 
+  /**
+   * Send a courier — the cheapest one that will actually come.
+   *
+   * Re-quotes at dispatch time rather than reusing the quote from checkout. Those are
+   * minutes apart (the customer paid, then the kitchen cooked), and a courier quote is
+   * only honoured for a few of them. Re-quoting also means the cheaper courier is
+   * chosen against conditions NOW, not against surge pricing that has since passed.
+   *
+   * Falls down the list on failure: if the cheapest courier rejects the dispatch — an
+   * expired quote, a driver shortage in the last thirty seconds — we try the next one
+   * rather than stranding an order that has already been paid for and cooked.
+   */
   private async dispatch(
     order: Order & { items: Array<{ name: string; quantity: number; totalCents: number }> },
     restaurant: Restaurant,
     pickupCode: string | null,
-  ): Promise<UberDelivery> {
-    return this.uber.createDelivery({
-      pickup_name: restaurant.name,
-      pickup_business_name: restaurant.name,
-      pickup_address: UberClient.formatAddress(restaurant),
-      pickup_phone_number: restaurant.phone,
-      pickup_latitude: restaurant.latitude ?? undefined,
-      pickup_longitude: restaurant.longitude ?? undefined,
-      // The courier reads these in their driver app when they arrive. Leading with
-      // the code is what lets staff say "read me your code" and get an answer.
-      pickup_notes: pickupCode
-        ? `PICKUP CODE: ${pickupCode} — order #${order.orderNumber}. Staff will ask you for this code.`
-        : `Order #${order.orderNumber}`,
+  ): Promise<CourierDelivery> {
+    const dropoff = {
+      street: order.deliveryStreet!,
+      city: order.deliveryCity!,
+      state: order.deliveryState!,
+      postalCode: order.deliveryPostalCode!,
+      country: order.deliveryCountry ?? restaurant.country,
+      latitude: order.deliveryLatitude,
+      longitude: order.deliveryLongitude,
+    };
 
-      dropoff_name: order.customerName,
-      dropoff_address: UberClient.formatAddress({
-        street: order.deliveryStreet!,
-        city: order.deliveryCity!,
-        state: order.deliveryState!,
-        postalCode: order.deliveryPostalCode!,
-        country: order.deliveryCountry ?? 'US',
-      }),
-      dropoff_phone_number: order.customerPhone,
-      dropoff_latitude: order.deliveryLatitude ?? undefined,
-      dropoff_longitude: order.deliveryLongitude ?? undefined,
-      dropoff_notes: order.deliveryNotes ?? order.notes ?? undefined,
+    const request = {
+      pickup: restaurant,
+      dropoff,
+      pickupReadyAt: new Date(),
+      orderValueCents: order.totalCents,
+      // Our order id. Both couriers echo it back on webhooks, which is how an inbound
+      // event maps to an order without trusting anything else in the payload. It is
+      // also DoorDash's idempotency key: a retried dispatch returns the delivery that
+      // already exists instead of sending a SECOND courier to the same bag of food.
+      externalId: order.id,
+      restaurantName: restaurant.name,
+      restaurantPhone: restaurant.phone,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      orderNumber: order.orderNumber,
+      dropoffNotes: order.deliveryNotes ?? order.notes,
+      pickupCode,
+      items: order.items.map((i) => ({ name: i.name, quantity: i.quantity })),
+    };
 
-      manifest_items: order.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        size: 'small' as const,
-        price: item.totalCents,
-      })),
-      manifest_total_value: order.totalCents,
-      // Shown to the courier as the thing they are collecting. Putting the code
-      // here means it appears in their app next to the restaurant's name, which is
-      // exactly where they'll be looking when staff ask for it.
-      manifest_reference: pickupCode
-        ? `${pickupCode} · #${order.orderNumber}`
-        : order.orderNumber,
+    const { quotes, declineReason } = await this.couriers.quoteAll(restaurant, request);
 
-      // Our order id. Uber echoes it on webhooks, which is how we map an inbound
-      // event back to an order without trusting anything else in the payload.
-      external_id: order.id,
-    });
+    if (quotes.length === 0) {
+      // Every courier said no. This order is paid for and cooked, so this is not a
+      // quiet failure — handleDispatchFailure escalates it to a human, who calls the
+      // customer. See the caller.
+      throw new CourierDeclinedError(
+        declineReason ?? 'No courier would accept this delivery',
+        'UBER',
+      );
+    }
+
+    let lastError: Error | null = null;
+
+    for (const quote of quotes) {
+      try {
+        const courier = this.couriers.forProvider(quote.provider);
+        return await courier.createDelivery({ ...request, quoteId: quote.quoteId });
+      } catch (err) {
+        lastError = err as Error;
+        this.logger.warn(
+          `${quote.provider} rejected the dispatch for order ${order.orderNumber} ` +
+            `(${lastError.message}). Trying the next courier.`,
+        );
+      }
+    }
+
+    throw lastError ?? new Error('Every courier rejected the dispatch');
   }
 
   /**
@@ -415,7 +466,9 @@ export class DeliveryService {
    * the lock and actually dispatches.
    */
   async processRetryQueue(): Promise<{ processed: number; succeeded: number }> {
-    if (!this.uber.isConfigured) return { processed: 0, succeeded: 0 };
+    // Nothing to dispatch TO. Checked here rather than per-order so an unconfigured
+    // deployment doesn't spin the queue pointlessly on every tick.
+    if (!this.couriers.anyConfigured) return { processed: 0, succeeded: 0 };
 
     const now = new Date();
 
@@ -425,7 +478,7 @@ export class DeliveryService {
         // Belt and braces. These should all be impossible with nextRetryAt set, but
         // "should be impossible" is how you dispatch a second courier for an order
         // that already has one.
-        uberDeliveryId: null,
+        providerDeliveryId: null,
         status: { notIn: ['FAILED', 'CANCELLED', 'DELIVERED'] },
         order: { status: { not: 'CANCELLED' } },
       },
@@ -485,16 +538,20 @@ export class DeliveryService {
     }
     if (delivery.status === 'CANCELLED') return delivery;
 
-    if (delivery.uberDeliveryId) {
+    if (delivery.providerDeliveryId) {
       try {
-        await this.uber.cancelDelivery(delivery.uberDeliveryId);
+        // Cancel against whoever we actually dispatched to. Handing a DoorDash
+        // delivery id to Uber's API is a 404 that reads like the delivery never
+        // existed — and would leave a real courier riding to a customer with a bag
+        // of food we believe we cancelled.
+        await this.couriers.forProvider(delivery.provider).cancelDelivery(delivery.providerDeliveryId);
       } catch (err) {
-        // Uber may refuse if the courier already has the food. Surface that
-        // honestly rather than marking it cancelled in our DB while a driver is
-        // still en route with the customer's dinner.
-        if (err instanceof UberClientError) {
+        // The courier may refuse if they already have the food. Surface that honestly
+        // rather than marking it cancelled in our DB while a driver is still en route
+        // with the customer's dinner.
+        if (err instanceof CourierDeclinedError) {
           throw new BadRequestException(
-            `Uber will not cancel this delivery: ${this.humanizeUberError(err)}`,
+            `${delivery.provider} will not cancel this delivery: ${err.message}`,
           );
         }
         throw err;
@@ -563,8 +620,8 @@ export class DeliveryService {
     });
 
     try {
-      const uberDeliveryId = payload.delivery_id ?? (payload.data?.id as string | undefined);
-      if (!uberDeliveryId) {
+      const providerDeliveryId = payload.delivery_id ?? (payload.data?.id as string | undefined);
+      if (!providerDeliveryId) {
         this.logger.warn('Uber webhook with no delivery_id — ignoring');
         await this.prisma.webhookEvent.update({
           where: { id: record.id },
@@ -574,12 +631,12 @@ export class DeliveryService {
       }
 
       const delivery = await this.prisma.delivery.findUnique({
-        where: { uberDeliveryId },
+        where: { providerDeliveryId },
         include: { order: { include: { restaurant: true } } },
       });
       if (!delivery) {
         // Not ours (or a test event from Uber's dashboard). Ack it so they stop.
-        this.logger.warn(`Uber webhook for unknown delivery ${uberDeliveryId}`);
+        this.logger.warn(`Uber webhook for unknown delivery ${providerDeliveryId}`);
         await this.prisma.webhookEvent.update({
           where: { id: record.id },
           data: { processedAt: new Date() },
@@ -597,7 +654,21 @@ export class DeliveryService {
         return { handled: false };
       }
 
-      await this.applyDeliveryUpdate(delivery, uberStatus, data);
+      // Flatten Uber's vocabulary at the edge, so everything downstream is
+      // provider-neutral. See applyDeliveryUpdate.
+      await this.applyDeliveryUpdate(delivery, 'UBER', mapUberStatus(uberStatus), {
+        trackingUrl: data.tracking_url,
+        dropoffEta: data.dropoff_eta ? new Date(data.dropoff_eta) : null,
+        courier: data.courier
+          ? {
+              name: data.courier.name ?? null,
+              phone: data.courier.phone_number ?? null,
+              vehicle: data.courier.vehicle_type ?? null,
+              latitude: data.courier.location?.lat ?? null,
+              longitude: data.courier.location?.lng ?? null,
+            }
+          : null,
+      });
 
       await this.prisma.webhookEvent.update({
         where: { id: record.id },
@@ -613,12 +684,116 @@ export class DeliveryService {
     }
   }
 
+  /**
+   * DoorDash Drive's webhook.
+   *
+   * Same shape of job as the Uber one — dedupe, find the delivery, apply the update —
+   * but DoorDash agrees with Uber on no field names whatsoever, so the parsing is
+   * separate and the state machine below is shared.
+   *
+   * Drive does not send a stable event id, so we synthesise one from the delivery and
+   * its status. That is exactly the dedupe key we want: DoorDash retries the SAME
+   * status transition, and re-applying "picked_up" twice would re-notify the customer.
+   * Two genuinely different transitions hash differently and both get through.
+   */
+  async handleDoorDashWebhook(payload: Record<string, unknown>): Promise<{ handled: boolean }> {
+    const externalId = payload.external_delivery_id as string | undefined;
+    const rawStatus = (payload.delivery_status ?? payload.event_name) as string | undefined;
+
+    if (!externalId || !rawStatus) {
+      this.logger.warn('DoorDash webhook with no delivery id or status — ignoring');
+      return { handled: false };
+    }
+
+    const eventId = `${externalId}:${rawStatus}`;
+
+    const record = await this.prisma.webhookEvent.upsert({
+      where: { provider_eventId: { provider: 'doordash', eventId } },
+      create: {
+        provider: 'doordash',
+        eventId,
+        eventType: rawStatus,
+        payload: payload as object,
+        attempts: 1,
+      },
+      update: { attempts: { increment: 1 } },
+    });
+
+    // Already applied. Ack and stop — replaying it would re-text the customer.
+    if (record.processedAt) return { handled: false };
+
+    try {
+      const delivery = await this.prisma.delivery.findUnique({
+        where: { providerDeliveryId: externalId },
+        include: { order: { include: { restaurant: true } } },
+      });
+
+      if (!delivery) {
+        // Not ours, or a test event from DoorDash's dashboard. Ack it so they stop.
+        this.logger.warn(`DoorDash webhook for unknown delivery ${externalId}`);
+        await this.prisma.webhookEvent.update({
+          where: { id: record.id },
+          data: { processedAt: new Date() },
+        });
+        return { handled: false };
+      }
+
+      const dasher = payload.dasher_name as string | undefined;
+      const location = payload.dasher_location as { lat: number; lng: number } | undefined;
+
+      await this.applyDeliveryUpdate(delivery, 'DOORDASH', mapDoorDashStatus(rawStatus), {
+        trackingUrl: payload.tracking_url as string | undefined,
+        dropoffEta: payload.dropoff_time_estimated
+          ? new Date(payload.dropoff_time_estimated as string)
+          : null,
+        courier: dasher
+          ? {
+              name: dasher,
+              phone: (payload.dasher_phone_number as string | undefined) ?? null,
+              vehicle: (payload.dasher_vehicle_make as string | undefined) ?? null,
+              latitude: location?.lat ?? null,
+              longitude: location?.lng ?? null,
+            }
+          : null,
+      });
+
+      await this.prisma.webhookEvent.update({
+        where: { id: record.id },
+        data: { processedAt: new Date(), error: null },
+      });
+      return { handled: true };
+    } catch (err) {
+      await this.prisma.webhookEvent.update({
+        where: { id: record.id },
+        data: { error: (err as Error).message },
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * One courier lifecycle event, applied to our own state.
+   *
+   * Provider-NEUTRAL by design. Uber and DoorDash disagree about almost everything on
+   * the wire, but by the time an event reaches here it has been flattened to a
+   * CourierStatus by the adapter that received it. That matters more than it looks:
+   * this method also drives order transitions, customer notifications, and the
+   * automatic hunt for a replacement courier. Any of those living on the Uber side of
+   * the fence would mean a DoorDash delivery silently never notifying the customer and
+   * never being re-dispatched when it fell through — which is the exact failure of a
+   * paid order sitting at CREATED forever while the food goes nowhere.
+   */
   private async applyDeliveryUpdate(
     delivery: { id: string; status: DeliveryStatus; trackingUrl: string | null; order: Order & { restaurant: Restaurant } },
-    uberStatus: UberDeliveryStatus,
-    data: Partial<UberDelivery>,
+    provider: DeliveryProvider,
+    courierStatus: CourierStatus,
+    data: {
+      trackingUrl?: string | null;
+      dropoffEta?: Date | null;
+      courier?: CourierDelivery['courier'];
+    },
   ): Promise<void> {
-    const status = this.mapStatus(uberStatus);
+    const status = this.mapCourierStatus(courierStatus);
     const courier = data.courier;
     const now = new Date();
 
@@ -626,55 +801,60 @@ export class DeliveryService {
       where: { id: delivery.id },
       data: {
         status,
-        ...(data.tracking_url ? { trackingUrl: data.tracking_url } : {}),
+        ...(data.trackingUrl ? { trackingUrl: data.trackingUrl } : {}),
         ...(courier
           ? {
               courierName: courier.name ?? undefined,
-              courierPhone: courier.phone_number ?? undefined,
-              courierVehicle: courier.vehicle_type ?? undefined,
-              courierLatitude: courier.location?.lat,
-              courierLongitude: courier.location?.lng,
+              courierPhone: courier.phone ?? undefined,
+              courierVehicle: courier.vehicle ?? undefined,
+              courierLatitude: courier.latitude ?? undefined,
+              courierLongitude: courier.longitude ?? undefined,
             }
           : {}),
-        ...(data.dropoff_eta ? { dropoffEta: new Date(data.dropoff_eta) } : {}),
-        ...(uberStatus === 'pickup_complete' ? { pickedUpAt: now } : {}),
-        ...(uberStatus === 'delivered' ? { deliveredAt: now } : {}),
-        ...(uberStatus === 'canceled' ? { cancelledAt: now } : {}),
+        ...(data.dropoffEta ? { dropoffEta: data.dropoffEta } : {}),
+        ...(courierStatus === 'PICKED_UP' ? { pickedUpAt: now } : {}),
+        ...(courierStatus === 'DELIVERED' ? { deliveredAt: now } : {}),
+        ...(courierStatus === 'CANCELLED' ? { cancelledAt: now } : {}),
       },
     });
 
     // Breadcrumb the courier's position so the customer's map can draw the route
     // the driver actually took, rather than teleporting a pin around.
-    await this.recordCourierPing(delivery.id, courier?.location);
+    await this.recordCourierPing(
+      delivery.id,
+      courier?.latitude != null && courier.longitude != null
+        ? { lat: courier.latitude, lng: courier.longitude }
+        : undefined,
+    );
 
     const order = delivery.order;
     const restaurant = order.restaurant;
 
-    // Mirror Uber's courier lifecycle onto the order's own status. If the
-    // transition is illegal (a late webhook for an order the restaurant already
-    // cancelled), skip it quietly — throwing would make Uber retry forever.
+    // Mirror the courier's lifecycle onto the order's own status. If the transition is
+    // illegal (a late webhook for an order the restaurant already cancelled), skip it
+    // quietly — throwing would make the courier retry the webhook forever.
     const targetOrderStatus =
-      uberStatus === 'pickup'
+      courierStatus === 'COURIER_ASSIGNED'
         ? 'DRIVER_ASSIGNED'
-        : uberStatus === 'pickup_complete' || uberStatus === 'dropoff'
+        : courierStatus === 'PICKED_UP'
           ? 'OUT_FOR_DELIVERY'
-          : uberStatus === 'delivered'
+          : courierStatus === 'DELIVERED'
             ? 'DELIVERED'
             : null;
 
     if (targetOrderStatus) {
       try {
-        // The notification engine already knows how to say "Marcus is picking up
-        // your order, follow him live" — it reads the courier's name and Uber's
-        // tracking URL from the Delivery row we just updated. So we do NOT suppress
-        // the notification here; a second bespoke send would double-text the customer.
+        // The notification engine already knows how to say "Marcus is picking up your
+        // order, follow him live" — it reads the courier's name and the tracking URL
+        // from the Delivery row we just updated. So we do NOT suppress the
+        // notification here; a second bespoke send would double-text the customer.
         await this.orders.transition(order.restaurantId, order.id, targetOrderStatus, {
-          source: 'uber',
-          note: `Uber: ${uberStatus}`,
+          source: provider.toLowerCase(),
+          note: `${provider}: ${courierStatus}`,
         });
       } catch (err) {
         this.logger.warn(
-          `Ignoring Uber status ${uberStatus} for order ${order.orderNumber}: ${(err as Error).message}`,
+          `Ignoring ${provider} status ${courierStatus} for order ${order.orderNumber}: ${(err as Error).message}`,
         );
       }
     }
@@ -691,29 +871,45 @@ export class DeliveryService {
      * noticing, as many times as it takes — up to a cap, after which a human must
      * take over (see escalate()).
      */
-    if (uberStatus === 'canceled' && order.status !== 'CANCELLED') {
+    if (courierStatus === 'CANCELLED' && order.status !== 'CANCELLED') {
       this.logger.warn(
-        `Uber CANCELLED the courier for order ${order.orderNumber} — finding another one`,
+        `${provider} CANCELLED the courier for order ${order.orderNumber} — finding another one`,
       );
-      await this.redispatch(delivery.id, 'Uber cancelled the courier');
+      // Note this can now cross providers: an Uber cancellation re-quotes BOTH
+      // couriers, so the replacement may well be a DoorDash rider. That is the point.
+      await this.redispatch(delivery.id, `${provider} cancelled the courier`);
     }
 
-    // Uber gave up entirely: the courier couldn't deliver and the food is coming
-    // back. A retry might genuinely work (bad address typo, customer now home), so
-    // we try — but this is also the case most likely to need a human.
-    if (uberStatus === 'returned') {
+    // The courier gave up entirely: they couldn't deliver and the food is coming back.
+    // A retry might genuinely work (bad address typo, customer now home), so we try —
+    // but this is also the case most likely to need a human.
+    if (courierStatus === 'FAILED') {
       this.logger.error(
-        `Uber RETURNED order ${order.orderNumber} — food is coming back to the restaurant`,
+        `${provider} RETURNED order ${order.orderNumber} — food is coming back to the restaurant`,
       );
       await this.audit.log({
         restaurantId: order.restaurantId,
         action: 'delivery.returned',
         entityType: 'Delivery',
         entityId: delivery.id,
-        metadata: { orderNumber: order.orderNumber },
+        metadata: { orderNumber: order.orderNumber, provider },
       });
-      await this.redispatch(delivery.id, 'Uber returned the order undelivered');
+      await this.redispatch(delivery.id, `${provider} returned the order undelivered`);
     }
+  }
+
+  /** CourierStatus -> our own DeliveryStatus. */
+  private mapCourierStatus(status: CourierStatus): DeliveryStatus {
+    const map: Record<CourierStatus, DeliveryStatus> = {
+      PENDING: 'PENDING',
+      CREATED: 'CREATED',
+      COURIER_ASSIGNED: 'PICKUP_ENROUTE',
+      PICKED_UP: 'DROPOFF_ENROUTE',
+      DELIVERED: 'DELIVERED',
+      CANCELLED: 'CANCELLED',
+      FAILED: 'FAILED',
+    };
+    return map[status] ?? 'CREATED';
   }
 
   /**
@@ -753,8 +949,8 @@ export class DeliveryService {
         // The old Uber delivery is dead. Null the ids so a fresh one can be created
         // — and so createDelivery's "already dispatched" idempotency check doesn't
         // see a stale id and refuse to try again.
-        uberDeliveryId: null,
-        uberQuoteId: null,
+        providerDeliveryId: null,
+        providerQuoteId: null,
         trackingUrl: null,
         courierName: null,
         courierPhone: null,
@@ -911,7 +1107,7 @@ export class DeliveryService {
     if (order.payment?.status !== 'PAID') {
       throw new BadRequestException('Cannot dispatch an unpaid order');
     }
-    if (order.delivery?.uberDeliveryId) {
+    if (order.delivery?.providerDeliveryId) {
       throw new BadRequestException(
         'An Uber courier is already on the way for this order. Cancel that first.',
       );
@@ -1128,19 +1324,32 @@ export class DeliveryService {
     return delivery;
   }
 
-  /** Poll Uber directly. A manual "refresh" button for when a webhook was missed. */
+  /**
+   * Poll the courier directly. A manual "refresh" button for when a webhook was
+   * missed — asked of whichever courier actually has the food.
+   */
   async refreshStatus(restaurantId: string, orderId: string) {
     const delivery = await this.getByOrder(restaurantId, orderId);
-    if (!delivery.uberDeliveryId) return delivery;
+    if (!delivery.providerDeliveryId) return delivery;
+    // The restaurant's own driver has no API to poll. Their status is whatever staff
+    // last told us it was, which is already in the row.
+    if (delivery.provider === 'SELF') return delivery;
 
-    const uberDelivery = await this.uber.getDelivery(delivery.uberDeliveryId);
+    const current = await this.couriers
+      .forProvider(delivery.provider)
+      .getDelivery(delivery.providerDeliveryId);
+
     const full = await this.prisma.delivery.findUnique({
       where: { id: delivery.id },
       include: { order: { include: { restaurant: true } } },
     });
     if (!full) throw new NotFoundException('Delivery not found');
 
-    await this.applyDeliveryUpdate(full, uberDelivery.status, uberDelivery);
+    await this.applyDeliveryUpdate(full, current.provider, current.status, {
+      trackingUrl: current.trackingUrl,
+      dropoffEta: current.dropoffEta,
+      courier: current.courier,
+    });
     return this.prisma.delivery.findUnique({ where: { id: delivery.id } });
   }
 }
