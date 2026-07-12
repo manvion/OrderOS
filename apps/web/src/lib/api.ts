@@ -196,6 +196,15 @@ export function createDashboardApi(
       form.append('file', file);
       return call<{ logoUrl: string }>('/restaurants/current/logo', { method: 'POST', body: form });
     },
+    /** The hero image. The endpoint has existed since day one with nothing calling it. */
+    uploadCover: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return call<{ coverImageUrl: string }>('/restaurants/current/cover', {
+        method: 'POST',
+        body: form,
+      });
+    },
     getPublishReadiness: () => call<PublishReadiness>('/restaurants/current/publish-readiness'),
     publish: () => call<Restaurant>('/restaurants/current/publish', { method: 'POST' }),
 
@@ -583,7 +592,10 @@ export interface Restaurant {
   state: string;
   postalCode: string;
   logoUrl: string | null;
+  /** The hero image at the top of their page. */
+  coverImageUrl: string | null;
   brandPrimaryColor: string;
+  brandAccentColor: string;
   timezone: string;
   currency: string;
   isPublished: boolean;

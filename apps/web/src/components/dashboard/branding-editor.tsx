@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Upload } from 'lucide-react';
+import { ImagePlus, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
@@ -13,48 +13,77 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/primitives';
 
 /**
- * Logo and brand colours.
+ * Logo, cover image, and brand colours.
  *
- * The upload endpoint has existed since the first commit with nothing calling it —
- * so every restaurant on the platform was logo-less, and the setup checklist told
- * them to "add your logo" while offering no way to do it. That is worse than not
- * having the feature: it's a promise the product can't keep.
+ * Both upload endpoints have existed since the first commit. The LOGO one had
+ * nothing calling it, so every restaurant was logo-less while the setup checklist
+ * told them to "add your logo" and offered no way to do it. The COVER one was the
+ * same, except worse: the storefront homepage already renders `coverImageUrl` as its
+ * hero, so the feature was visible, working, and unreachable — every restaurant on
+ * the platform got the fallback gradient and no way to change it.
  *
- * The colour set here is what drives `--brand` across the storefront, the widget
- * and every email we send, which is why a live preview matters more than it looks
- * like it should.
+ * A promise the product can't keep is worse than a missing feature.
+ *
+ * The primary colour drives `--brand` across the storefront, the widget and every
+ * email we send — which is why the previews here matter more than they look like
+ * they should. It is the button customers press to spend money.
  */
 export function BrandingEditor() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
-  const fileRef = useRef<HTMLInputElement>(null);
+
+  const logoRef = useRef<HTMLInputElement>(null);
+  const coverRef = useRef<HTMLInputElement>(null);
 
   const [primary, setPrimary] = useState(restaurant?.brandPrimaryColor ?? '#EA580C');
+  const [accent, setAccent] = useState(restaurant?.brandAccentColor ?? '#0F172A');
 
-  const upload = useMutation({
+  const uploadLogo = useMutation({
     mutationFn: (file: File) => api.uploadLogo(file),
     onSuccess: () => {
       void queryClient.invalidateQueries();
       toast.success('Logo updated — it appears on your page, emails and receipts.');
     },
     onError: (err) =>
-      // The API enforces type and size (5MB, jpg/png/webp/svg) and says which
-      // rule was broken. Pass that through rather than a generic failure.
+      // The API enforces type and size (5MB, jpg/png/webp/svg) and says which rule
+      // was broken. Pass that through rather than a generic failure.
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not upload the logo'),
   });
 
-  const saveColor = useMutation({
-    mutationFn: () => api.updateCurrent({ brandPrimaryColor: primary }),
+  const uploadCover = useMutation({
+    mutationFn: (file: File) => api.uploadCover(file),
     onSuccess: () => {
       void queryClient.invalidateQueries();
-      toast.success('Brand colour saved');
+      toast.success('Cover photo updated — it is the first thing customers see.');
     },
-    onError: () => toast.error('Could not save the colour'),
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not upload the photo'),
+  });
+
+  const saveColors = useMutation({
+    mutationFn: () =>
+      api.updateCurrent({ brandPrimaryColor: primary, brandAccentColor: accent }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Brand colours saved');
+    },
+    onError: () => toast.error('Could not save the colours'),
   });
 
   if (!restaurant) return null;
   const readOnly = !can('MANAGER');
+
+  const colorsChanged =
+    primary !== restaurant.brandPrimaryColor || accent !== restaurant.brandAccentColor;
+
+  /** Both uploads behave identically; only the endpoint differs. */
+  const onPick = (mutate: (f: File) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) mutate(file);
+    // Reset, so picking the SAME file again after a failed upload still fires.
+    e.target.value = '';
+  };
 
   return (
     <Card>
@@ -66,7 +95,65 @@ export function BrandingEditor() {
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8">
+        {/* ---------- Cover photo ---------- */}
+        <div className="space-y-2">
+          <Label>Cover photo</Label>
+
+          <div className="relative overflow-hidden rounded-xl border">
+            {restaurant.coverImageUrl ? (
+              <Image
+                src={restaurant.coverImageUrl}
+                alt=""
+                width={800}
+                height={240}
+                className="h-40 w-full object-cover"
+              />
+            ) : (
+              // The SAME gradient the storefront hero falls back to (140deg, primary
+              // -> accent), so what they see here is literally what a customer sees.
+              <div
+                className="flex h-40 w-full items-center justify-center"
+                style={{
+                  background: `linear-gradient(140deg, ${primary} 0%, ${accent} 100%)`,
+                }}
+              >
+                <p className="text-sm font-medium text-white/90">
+                  No photo yet — customers see this gradient
+                </p>
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={coverRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={onPick((f) => uploadCover.mutate(f))}
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => coverRef.current?.click()}
+              disabled={readOnly || uploadCover.isPending}
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              {uploadCover.isPending
+                ? 'Uploading…'
+                : restaurant.coverImageUrl
+                  ? 'Replace photo'
+                  : 'Add a cover photo'}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Wide, not tall — around 1600×600. A photo of the food beats a photo of the building.
+            </p>
+          </div>
+        </div>
+
+        {/* ---------- Logo ---------- */}
         <div className="flex flex-wrap items-center gap-5">
           {restaurant.logoUrl ? (
             <Image
@@ -74,12 +161,12 @@ export function BrandingEditor() {
               alt=""
               width={72}
               height={72}
-              className="h-18 w-18 rounded-2xl border object-cover"
+              className="rounded-2xl border object-cover"
               style={{ width: 72, height: 72 }}
             />
           ) : (
             <div
-              className="flex h-18 w-18 items-center justify-center rounded-2xl text-2xl font-bold text-white"
+              className="flex items-center justify-center rounded-2xl text-2xl font-bold text-white"
               style={{ width: 72, height: 72, background: primary }}
             >
               {restaurant.name.charAt(0)}
@@ -88,27 +175,21 @@ export function BrandingEditor() {
 
           <div className="space-y-1.5">
             <input
-              ref={fileRef}
+              ref={logoRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/svg+xml"
               className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) upload.mutate(file);
-                // Reset, so picking the SAME file again after a failed upload
-                // still fires a change event.
-                e.target.value = '';
-              }}
+              onChange={onPick((f) => uploadLogo.mutate(f))}
             />
 
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fileRef.current?.click()}
-              disabled={readOnly || upload.isPending}
+              onClick={() => logoRef.current?.click()}
+              disabled={readOnly || uploadLogo.isPending}
             >
               <Upload className="h-3.5 w-3.5" />
-              {upload.isPending
+              {uploadLogo.isPending
                 ? 'Uploading…'
                 : restaurant.logoUrl
                   ? 'Replace logo'
@@ -120,41 +201,83 @@ export function BrandingEditor() {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="brand-color">Brand colour</Label>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              id="brand-color"
-              type="color"
-              value={primary}
-              onChange={(e) => setPrimary(e.target.value.toUpperCase())}
-              disabled={readOnly}
-              className="h-10 w-12 cursor-pointer rounded-lg border"
-            />
-            <Input
-              value={primary}
-              onChange={(e) => setPrimary(e.target.value.toUpperCase())}
-              disabled={readOnly}
-              className="w-32 font-mono"
-            />
-
-            {/* Live preview of the one thing this colour actually does: the button
-                customers press to spend money. */}
-            <span
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
-              style={{ background: primary }}
-            >
-              Add to cart
-            </span>
-
-            {!readOnly && primary !== restaurant.brandPrimaryColor && (
-              <Button size="sm" onClick={() => saveColor.mutate()} disabled={saveColor.isPending}>
-                {saveColor.isPending ? 'Saving…' : 'Save'}
-              </Button>
-            )}
-          </div>
+        {/* ---------- Colours ---------- */}
+        <div className="grid gap-6 sm:grid-cols-2">
+          <ColorField
+            id="brand-color"
+            label="Brand colour"
+            hint="Buttons, links, and highlights."
+            value={primary}
+            onChange={setPrimary}
+            disabled={readOnly}
+          />
+          <ColorField
+            id="accent-color"
+            label="Accent colour"
+            hint="The second colour in the gradient above, when you have no cover photo."
+            value={accent}
+            onChange={setAccent}
+            disabled={readOnly}
+          />
         </div>
+
+        {/* The live preview of the one thing these colours actually do: the button a
+            customer presses to spend money, on the surface it sits on. */}
+        <div className="flex flex-wrap items-center gap-4 rounded-xl p-5" style={{ background: accent }}>
+          <span className="text-sm font-semibold text-white">The Classic · $12.00</span>
+          <span
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            style={{ background: primary }}
+          >
+            Add to cart
+          </span>
+        </div>
+
+        {!readOnly && colorsChanged && (
+          <Button size="sm" onClick={() => saveColors.mutate()} disabled={saveColors.isPending}>
+            {saveColors.isPending ? 'Saving…' : 'Save colours'}
+          </Button>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function ColorField({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          id={id}
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          disabled={disabled}
+          className="h-10 w-12 cursor-pointer rounded-lg border"
+        />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          disabled={disabled}
+          className="w-32 font-mono"
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
   );
 }
