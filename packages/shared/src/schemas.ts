@@ -133,6 +133,16 @@ export const updateRestaurantSchema = z.object({
   logoUrl: z.string().url().nullable().optional(),
   coverImageUrl: z.string().url().nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
+
+  /**
+   * The About page, in the restaurant's own words.
+   *
+   * PLAIN TEXT. Blank lines separate paragraphs; that is the entire formatting
+   * model. It is never parsed as HTML or markdown — see aboutParagraphs().
+   */
+  aboutHeadline: z.string().max(120).nullable().optional(),
+  aboutBody: z.string().max(4000).nullable().optional(),
+
   businessHours: businessHoursSchema.optional(),
   orderingMode: z.enum(['WEBSITE', 'QR_ONLY']).optional(),
   brandPrimaryColor: z

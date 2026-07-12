@@ -135,6 +135,32 @@ export class RestaurantsController {
     return this.restaurants.uploadCover(restaurantId, file);
   }
 
+  // --- About page gallery ----------------------------------------------------
+
+  @Get('current/gallery')
+  listGallery(@TenantId() restaurantId: string) {
+    return this.restaurants.listGallery(restaurantId);
+  }
+
+  @Post('current/gallery')
+  @Roles('MANAGER')
+  @UseInterceptors(FileInterceptor('file'))
+  @Audit('restaurant.gallery_image_added', 'GalleryImage')
+  addGalleryImage(
+    @TenantId() restaurantId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('caption') caption?: string,
+  ) {
+    return this.restaurants.addGalleryImage(restaurantId, file, caption);
+  }
+
+  @Delete('current/gallery/:id')
+  @Roles('MANAGER')
+  @Audit('restaurant.gallery_image_removed', 'GalleryImage')
+  removeGalleryImage(@TenantId() restaurantId: string, @Param('id') id: string) {
+    return this.restaurants.removeGalleryImage(restaurantId, id);
+  }
+
   @Get('current/publish-readiness')
   async readiness(@TenantId() restaurantId: string) {
     return this.restaurants.getPublishReadiness(restaurantId);

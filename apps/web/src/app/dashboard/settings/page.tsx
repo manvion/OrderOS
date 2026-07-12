@@ -7,6 +7,7 @@ import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Rocket } from 'luc
 import { toast } from 'sonner';
 import type { BusinessHours } from '@orderos/shared';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';
 import { HoursEditor } from '@/components/dashboard/hours-editor';
 import { ApiRequestError } from '@/lib/api';
@@ -195,6 +196,11 @@ export default function SettingsPage() {
           nothing calling it, so every restaurant was logo-less while the setup
           checklist told them to add one. */}
       <BrandingEditor />
+
+      {/* The one part of their site they write themselves. Everything else on the
+          storefront is generated from data they already keep current — but nobody can
+          generate "we've ground the beef ourselves since 1998". */}
+      <AboutEditor />
 
       {/*
         Opening hours. Load-bearing, not cosmetic: isOpenAt() gates whether the

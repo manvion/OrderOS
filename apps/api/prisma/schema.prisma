@@ -147,6 +147,16 @@ model Restaurant {
   brandPrimaryColor String  @default("#EA580C")
   brandAccentColor  String  @default("#0F172A")
 
+  /// Their About page, in their own words.
+  ///
+  /// PLAIN TEXT, not HTML or markdown, and it is rendered as escaped paragraphs.
+  /// Letting a tenant store HTML that we then inject into a page served on
+  /// *.orderos.ai is stored XSS with extra steps — one restaurant could run script
+  /// on another's domain, or on ours. Blank lines separate paragraphs. That is the
+  /// whole formatting model, and it is enough for "we opened in 1998".
+  aboutHeadline String?
+  aboutBody     String? @db.Text
+
   /// BusinessHours JSON — see packages/shared/src/hours.ts for the shape.
   businessHours Json
 
@@ -227,9 +237,33 @@ model Restaurant {
   staffInvites        StaffInvite[]
   notifications       NotificationLog[]
   customDomains       CustomDomain[]
+  galleryImages       GalleryImage[]
 
   @@index([isPublished, isActive])
   @@map("restaurants")
+}
+
+/// A photo on the restaurant's About page.
+///
+/// A separate table rather than a JSON array on Restaurant, because each image has a
+/// storage key that must be deleted from blob storage when the row goes — and an
+/// orphaned blob nobody can find is a bill that grows forever.
+model GalleryImage {
+  id String @id @default(cuid())
+
+  url String
+  /// The blob key, so deleting the row can delete the file.
+  storageKey String
+  caption    String?
+  sortOrder  Int     @default(0)
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, sortOrder])
+  @@map("gallery_images")
 }
 
 // ---------------------------------------------------------------------------

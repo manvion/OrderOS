@@ -205,6 +205,20 @@ export function createDashboardApi(
         body: form,
       });
     },
+
+    // About page photos
+    listGallery: () => call<RestaurantGalleryImage[]>('/restaurants/current/gallery'),
+    addGalleryImage: (file: File, caption?: string) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (caption) form.append('caption', caption);
+      return call<RestaurantGalleryImage>('/restaurants/current/gallery', {
+        method: 'POST',
+        body: form,
+      });
+    },
+    removeGalleryImage: (id: string) =>
+      call<{ success: boolean }>(`/restaurants/current/gallery/${id}`, { method: 'DELETE' }),
     getPublishReadiness: () => call<PublishReadiness>('/restaurants/current/publish-readiness'),
     publish: () => call<Restaurant>('/restaurants/current/publish', { method: 'POST' }),
 
@@ -433,12 +447,24 @@ export interface Address {
  */
 export type OrderingMode = 'WEBSITE' | 'QR_ONLY';
 
+export interface RestaurantGalleryImage {
+  id: string;
+  url: string;
+  caption: string | null;
+  sortOrder: number;
+}
+
 export interface StorefrontRestaurant {
   id: string;
   slug: string;
   name: string;
   description: string | null;
   orderingMode: OrderingMode;
+
+  /** The About page, in their own words. PLAIN TEXT — never render it as HTML. */
+  aboutHeadline: string | null;
+  aboutBody: string | null;
+  galleryImages: RestaurantGalleryImage[];
   phone: string;
   street: string;
   city: string;
@@ -596,6 +622,9 @@ export interface Restaurant {
   coverImageUrl: string | null;
   brandPrimaryColor: string;
   brandAccentColor: string;
+  /** About page content. Plain text, never HTML. */
+  aboutHeadline: string | null;
+  aboutBody: string | null;
   timezone: string;
   currency: string;
   isPublished: boolean;

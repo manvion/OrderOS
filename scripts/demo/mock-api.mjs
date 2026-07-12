@@ -47,6 +47,13 @@ const RESTAURANT = {
   // WEBSITE: the full storefront. A QR_ONLY restaurant would redirect this page
   // straight to the menu and publish no website at all.
   orderingMode: 'WEBSITE',
+
+  // The About page, in the restaurant's own words. PLAIN TEXT — the storefront
+  // renders it as escaped paragraphs, never as HTML.
+  aboutHeadline: 'Ground fresh. Smashed hard.',
+  aboutBody:
+    'We opened on the corner of Mission and 1st in 1998 with one griddle, two stools and a queue that went round the block by Friday.\n\nWe still grind the chuck ourselves every morning, and we still smash every patty by hand. It takes longer. It is better. That is the whole argument.',
+  galleryImages: [],
   pickupEnabled: true,
   deliveryEnabled: true,
   dineInEnabled: true,

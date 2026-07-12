@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { headers } from 'next/headers';
 import { ArrowRight, Clock, Mail, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
-import { WEEKDAYS, isOpenAt, type BusinessHours } from '@orderos/shared';
+import { WEEKDAYS, aboutParagraphs, isOpenAt, type BusinessHours } from '@orderos/shared';
 import { storefrontApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 
@@ -16,9 +16,13 @@ export const revalidate = 300;
  * deliver. Answering them here is not decoration — it is the page that stops the
  * kitchen's phone ringing during service.
  *
- * Entirely generated from data the restaurant has already entered. There is
- * nothing extra for them to fill in, which is the only reason it will actually be
- * accurate a year from now.
+ * The facts — hours, address, how they serve — are generated from data the
+ * restaurant has already entered, which is the only reason they will still be
+ * accurate a year from now. Nobody maintains a page they have to remember to update.
+ *
+ * On top of that, and entirely optional, sits what only they can write: a headline,
+ * their story, and their photos. That part is PLAIN TEXT rendered as text nodes —
+ * see packages/shared/src/about.ts for why it is not, and must never become, HTML.
  */
 export default async function AboutPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -29,6 +33,10 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
 
   const hours = restaurant.businessHours as BusinessHours;
   const today = WEEKDAYS[new Date().getDay()];
+
+  /** Their words and their photos. Both optional — the page works without either. */
+  const story = aboutParagraphs(restaurant.aboutBody);
+  const gallery = restaurant.galleryImages ?? [];
 
   const options = [
     restaurant.pickupEnabled && {
@@ -54,7 +62,7 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
       <section className="border-b bg-muted/30">
         <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-20">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            About {restaurant.name}
+            {restaurant.aboutHeadline?.trim() || `About ${restaurant.name}`}
           </h1>
           {restaurant.description && (
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
@@ -65,6 +73,48 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
       </section>
 
       <div className="mx-auto max-w-3xl space-y-16 px-5 py-16 sm:px-8">
+        {/*
+          Their story, in their own words.
+
+          Rendered as TEXT NODES. `aboutParagraphs` returns strings and this maps them
+          into <p> children — there is no dangerouslySetInnerHTML here and there must
+          never be one. A tenant who types a <script> tag gets a paragraph that
+          visibly reads "<script>", which is exactly right.
+        */}
+        {story.length > 0 && (
+          <section className="space-y-4">
+            {story.map((paragraph, i) => (
+              <p key={i} className="text-lg leading-relaxed text-foreground/90">
+                {paragraph}
+              </p>
+            ))}
+          </section>
+        )}
+
+        {/* Their photos. */}
+        {gallery.length > 0 && (
+          <section>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {gallery.map((image) => (
+                <figure key={image.id} className="overflow-hidden rounded-2xl border">
+                  <Image
+                    src={image.url}
+                    alt={image.caption ?? ''}
+                    width={600}
+                    height={400}
+                    className="h-56 w-full object-cover"
+                  />
+                  {image.caption && (
+                    <figcaption className="px-4 py-3 text-sm text-muted-foreground">
+                      {image.caption}
+                    </figcaption>
+                  )}
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Hours. The single most-asked question, answered first, with today
             highlighted — because "what are your hours" almost always means
             "are you open right now". */}

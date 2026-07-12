@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import {
   DEFAULT_BUSINESS_HOURS,
+  GALLERY_MAX_IMAGES,
   buildSetupChecklist,
   isOpenAt,
   publishBlockers,
@@ -186,6 +187,16 @@ export class RestaurantsService {
         coverImageUrl: true,
         brandPrimaryColor: true,
         brandAccentColor: true,
+
+        // The About page, in their words. Plain text — the storefront renders it as
+        // escaped paragraphs and never as HTML.
+        aboutHeadline: true,
+        aboutBody: true,
+        galleryImages: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true, url: true, caption: true, sortOrder: true },
+        },
+
         businessHours: true,
         // The storefront needs this to know whether it is a WEBSITE or an ordering
         // terminal reached by scanning a code — see the OrderingMode enum.
@@ -307,6 +318,66 @@ export class RestaurantsService {
     });
     await this.invalidateCache(restaurant.slug);
     return { coverImageUrl: url };
+  }
+
+  // --- About page gallery ----------------------------------------------------
+
+  listGallery(restaurantId: string) {
+    return this.prisma.galleryImage.findMany({
+      where: { restaurantId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, url: true, caption: true, sortOrder: true },
+    });
+  }
+
+  async addGalleryImage(restaurantId: string, file: Express.Multer.File, caption?: string) {
+    const count = await this.prisma.galleryImage.count({ where: { restaurantId } });
+    if (count >= GALLERY_MAX_IMAGES) {
+      throw new BadRequestException(
+        `You can have up to ${GALLERY_MAX_IMAGES} photos. Remove one to add another.`,
+      );
+    }
+
+    // StorageService validates the MIME type and the 5MB cap and says which rule
+    // was broken, so a bad upload fails BEFORE we write a row pointing at nothing.
+    const { url, key } = await this.storage.upload(
+      file.buffer,
+      file.mimetype,
+      `restaurants/${restaurantId}/gallery`,
+    );
+
+    const image = await this.prisma.galleryImage.create({
+      data: {
+        restaurantId,
+        url,
+        storageKey: key,
+        caption: caption?.slice(0, 200) || null,
+        sortOrder: count,
+      },
+      select: { id: true, url: true, caption: true, sortOrder: true },
+    });
+
+    const restaurant = await this.findById(restaurantId);
+    await this.invalidateCache(restaurant.slug);
+
+    return image;
+  }
+
+  async removeGalleryImage(restaurantId: string, id: string) {
+    // Scoped by restaurantId, not just by id: an id alone would let a manager at one
+    // restaurant delete another restaurant's photo.
+    const image = await this.prisma.galleryImage.findFirst({ where: { id, restaurantId } });
+    if (!image) throw new NotFoundException('Photo not found');
+
+    await this.prisma.galleryImage.delete({ where: { id } });
+    // Delete the blob too. A row removed while its file lingers is a bill that grows
+    // forever and a photo nobody can see or find.
+    await this.storage.delete(image.storageKey);
+
+    const restaurant = await this.findById(restaurantId);
+    await this.invalidateCache(restaurant.slug);
+
+    return { success: true };
   }
 
   /**
