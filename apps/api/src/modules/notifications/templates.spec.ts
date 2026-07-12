@@ -47,6 +47,24 @@ describe('customer SMS', () => {
     expect(delivery).toContain('driver');
   });
 
+  it('puts the handoff code in the pickup READY text — it IS the walk to the counter', () => {
+    // This message is the moment the customer stands up and leaves. If the code is
+    // not in it, they arrive at a queue and start digging through old texts for the
+    // tracking link, which is exactly the fumbling at the counter we set out to fix.
+    const message = customerSms('READY', ctx({ fulfillment: 'PICKUP', handoffCode: 'K7M2' }));
+    expect(message).toContain('K7M2');
+    expect(message).toContain('counter');
+  });
+
+  it('still reads correctly for an order placed before handoff codes existed', () => {
+    // Nullable column: these orders have no code. The text must not say "give code
+    // null at the counter", and must not print a code that is not on the bag.
+    const message = customerSms('READY', ctx({ fulfillment: 'PICKUP', handoffCode: null }));
+    expect(message).toContain('READY for pickup');
+    expect(message).not.toContain('code');
+    expect(message).not.toContain('null');
+  });
+
   it('names the courier and links Uber\'s live map when one is assigned', () => {
     const message = customerSms(
       'DRIVER_ASSIGNED',

@@ -83,6 +83,17 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Order #{order.orderNumber}
+            {/*
+              The code the customer just read out at the counter. Staff work
+              backwards from it — someone says "K7M2", and this is where they
+              confirm it is the order in front of them. Monospace, because it is
+              read character by character and not as a word.
+            */}
+            {order.handoffCode && (
+              <span className="rounded-md border-2 border-dashed px-2 py-0.5 font-mono text-base font-black tracking-widest">
+                {order.handoffCode}
+              </span>
+            )}
             <Badge variant="secondary">{order.status.replace(/_/g, ' ').toLowerCase()}</Badge>
           </DialogTitle>
           <DialogDescription>
