@@ -12,11 +12,15 @@ import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import {
   DEFAULT_BUSINESS_HOURS,
+  buildSetupChecklist,
   isOpenAt,
+  publishBlockers,
+  setupProgress,
   totalTaxBps,
   type BusinessHours,
   type CreateRestaurantInput,
   type DeliverySettingsInput,
+  type SetupStep,
   type UpdateRestaurantInput,
 } from '@orderos/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -313,42 +317,52 @@ export class RestaurantsService {
    */
   async getPublishReadiness(restaurantId: string) {
     const restaurant = await this.findById(restaurantId);
-    const [productCount, categoryCount, qrCount] = await Promise.all([
+    const steps = await this.setupSteps(restaurantId, restaurant);
+    const blockers = publishBlockers(steps);
+
+    return {
+      ready: blockers.length === 0,
+      /** The whole checklist, done and not — the owner needs to see both. */
+      steps,
+      progress: setupProgress(steps),
+      // Kept as strings for older callers. `steps` is the real answer.
+      blockers: blockers.map((s) => s.label),
+      warnings: steps.filter((s) => !s.required && !s.done).map((s) => s.why),
+      isPublished: restaurant.isPublished,
+      storefrontUrl: this.storefrontUrl(restaurant.slug),
+    };
+  }
+
+  /**
+   * The one place that answers "what is left to do before this restaurant can take
+   * money" — see packages/shared/src/setup.ts for why it lives there and not here.
+   * The admin console calls this too, so support sees exactly what the owner sees.
+   */
+  async setupSteps(
+    restaurantId: string,
+    loaded?: Awaited<ReturnType<RestaurantsService['findById']>>,
+  ): Promise<SetupStep[]> {
+    const restaurant = loaded ?? (await this.findById(restaurantId));
+
+    const [availableProductCount, categoryCount, activeQrCount] = await Promise.all([
       this.prisma.product.count({ where: { restaurantId, isAvailable: true } }),
       this.prisma.category.count({ where: { restaurantId, isActive: true } }),
       this.prisma.qRCode.count({ where: { restaurantId, isActive: true } }),
     ]);
 
-    const blockers: string[] = [];
-    if (categoryCount === 0) blockers.push('Add at least one menu category');
-    if (productCount === 0) blockers.push('Add at least one available product');
-    if (!restaurant.stripeChargesEnabled) {
-      blockers.push('Connect Stripe so you can accept payments');
-    }
-    if (!restaurant.pickupEnabled && !restaurant.deliveryEnabled && !restaurant.dineInEnabled) {
-      blockers.push('Enable at least one fulfillment method');
-    }
-
-    /**
-     * A QR-only restaurant has no website — the code IS the front door. Publishing
-     * one with no codes printed gives customers literally no way to order, and it
-     * would look to the owner like the product simply doesn't work.
-     */
-    if (restaurant.orderingMode === 'QR_ONLY' && qrCount === 0) {
-      blockers.push('Generate at least one QR code — it is the only way in without a website');
-    }
-
-    const warnings: string[] = [];
-    if (!restaurant.logoUrl) warnings.push('Add a logo — your page will look unfinished without one');
-    if (restaurant.taxRateBps === 0) warnings.push('Tax rate is 0% — confirm this is correct');
-
-    return {
-      ready: blockers.length === 0,
-      blockers,
-      warnings,
+    return buildSetupChecklist({
+      orderingMode: restaurant.orderingMode,
+      categoryCount,
+      availableProductCount,
+      activeQrCount,
+      stripeChargesEnabled: restaurant.stripeChargesEnabled,
+      pickupEnabled: restaurant.pickupEnabled,
+      deliveryEnabled: restaurant.deliveryEnabled,
+      dineInEnabled: restaurant.dineInEnabled,
+      hasLogo: Boolean(restaurant.logoUrl),
+      taxRateBps: restaurant.taxRateBps,
       isPublished: restaurant.isPublished,
-      storefrontUrl: this.storefrontUrl(restaurant.slug),
-    };
+    });
   }
 
   async publish(restaurantId: string, userId?: string) {

@@ -607,8 +607,32 @@ export interface Restaurant {
 
 export type RestaurantWithRole = Restaurant & { role: 'OWNER' | 'MANAGER' | 'STAFF' };
 
+/**
+ * One step on the road to taking money. Defined once, in
+ * packages/shared/src/setup.ts, and used by the owner's setup page, the publish
+ * gate AND the platform console — so when an owner phones up saying "it won't let
+ * me go live", support is looking at the identical list.
+ */
+export interface SetupStep {
+  id: string;
+  label: string;
+  /** Why it matters. A checklist without reasons is a chore list. */
+  why: string;
+  done: boolean;
+  /** Required steps block publishing. The rest is advice, and advice never blocks. */
+  required: boolean;
+  href: string;
+}
+
+export interface SetupProgress {
+  done: number;
+  total: number;
+}
+
 export interface PublishReadiness {
   ready: boolean;
+  steps: SetupStep[];
+  progress: SetupProgress;
   blockers: string[];
   warnings: string[];
   isPublished: boolean;
@@ -908,6 +932,11 @@ export interface AdminRestaurant {
   platformFeeBps: number;
   createdAt: string;
   _count: { orders: number; products: number; users: number };
+
+  /** How far through setup they are. Required steps only. */
+  setupProgress: SetupProgress;
+  /** Exactly what is stopping them going live. The reason to call them. */
+  publishBlockers: string[];
 }
 
 export interface AdminRestaurantDetail extends AdminRestaurant {

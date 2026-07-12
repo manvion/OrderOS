@@ -6,11 +6,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import type { CreateRestaurantInput } from '@orderos/shared';
+import {
+  buildSetupChecklist,
+  publishBlockers,
+  setupProgress,
+  type CreateRestaurantInput,
+} from '@orderos/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { EmailService } from '../notifications/email.service';
 import { StaffInvitesService } from '../restaurants/staff-invites.service';
+import { RestaurantsService } from '../restaurants/restaurants.service';
 import type { PlatformAdminUser } from '../../common/auth/platform-admin.guard';
 
 /** How long a support session lasts before it expires on its own. */
@@ -34,6 +40,9 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly email: EmailService,
     private readonly invites: StaffInvitesService,
+    // Borrowed for ONE thing: the setup checklist, so support and the owner are
+    // looking at the same list rather than two that drift apart.
+    private readonly restaurants: RestaurantsService,
   ) {}
 
   // --- The platform at a glance ---------------------------------------------
@@ -168,14 +177,79 @@ export class AdminService {
         stripeChargesEnabled: true,
         platformFeeBps: true,
         createdAt: true,
-        _count: { select: { orders: true, products: true, users: true } },
+
+        // Everything the setup checklist needs, so the list can show WHY each
+        // restaurant is stuck without a query per row.
+        pickupEnabled: true,
+        deliveryEnabled: true,
+        dineInEnabled: true,
+        logoUrl: true,
+        taxRateBps: true,
+
+        _count: {
+          select: {
+            orders: true,
+            products: true,
+            users: true,
+            categories: { where: { isActive: true } },
+            // Filtered relation counts — an unavailable product sells nothing, and
+            // counting it would tell an owner their menu is done when it isn't.
+            qrCodes: { where: { isActive: true } },
+          },
+        },
       },
     });
 
-    const hasMore = restaurants.length > take;
+    /**
+     * Attach the checklist to every row.
+     *
+     * "3 restaurants signed up and never went live" is a statistic. "North Sea Fish
+     * Bar is one step away — they just never connected Stripe" is a phone call you
+     * can actually make. The second one is the entire point of this screen.
+     */
+    /**
+     * Available products for the whole page in ONE query.
+     *
+     * Prisma's filtered relation counts don't cover this cheaply, and a count per
+     * row is an N+1 that gets slower with every restaurant that signs up — which is
+     * to say, it degrades exactly as the business succeeds.
+     */
+    const availableCounts = new Map<string, number>(
+      (
+        await this.prisma.product.groupBy({
+          by: ['restaurantId'],
+          where: { restaurantId: { in: restaurants.map((r) => r.id) }, isAvailable: true },
+          _count: { _all: true },
+        })
+      ).map((row) => [row.restaurantId, row._count._all]),
+    );
+
+    const withSetup = restaurants.map((r) => {
+      const steps = buildSetupChecklist({
+        orderingMode: r.orderingMode,
+        categoryCount: r._count.categories,
+        availableProductCount: availableCounts.get(r.id) ?? 0,
+        activeQrCount: r._count.qrCodes,
+        stripeChargesEnabled: r.stripeChargesEnabled,
+        pickupEnabled: r.pickupEnabled,
+        deliveryEnabled: r.deliveryEnabled,
+        dineInEnabled: r.dineInEnabled,
+        hasLogo: Boolean(r.logoUrl),
+        taxRateBps: r.taxRateBps,
+        isPublished: r.isPublished,
+      });
+
+      return {
+        ...r,
+        setupProgress: setupProgress(steps),
+        publishBlockers: publishBlockers(steps).map((s) => s.label),
+      };
+    });
+
+    const hasMore = withSetup.length > take;
     return {
-      restaurants: hasMore ? restaurants.slice(0, take) : restaurants,
-      nextCursor: hasMore ? restaurants[take - 1].id : null,
+      restaurants: hasMore ? withSetup.slice(0, take) : withSetup,
+      nextCursor: hasMore ? withSetup[take - 1].id : null,
     };
   }
 
@@ -205,21 +279,24 @@ export class AdminService {
       }),
     ]);
 
-    // Why aren't they live? The same checks the owner sees — so when they phone us
-    // saying "it won't let me publish", we can see exactly what they see.
-    const blockers: string[] = [];
-    if (restaurant._count.products === 0) blockers.push('No menu items');
-    if (!restaurant.stripeChargesEnabled) blockers.push('Stripe not connected');
-    if (!restaurant.pickupEnabled && !restaurant.deliveryEnabled && !restaurant.dineInEnabled) {
-      blockers.push('No fulfillment method enabled');
-    }
+    /**
+     * Why aren't they live?
+     *
+     * Computed by the SAME function the owner's setup page uses, not a second copy.
+     * The second copy is what we had, and it had already drifted — it didn't know a
+     * restaurant needs a category as well as a product, so an owner could be blocked
+     * for a reason the support agent on the phone with them literally could not see.
+     */
+    const steps = await this.restaurants.setupSteps(id);
 
     return {
       ...restaurant,
       lifetimeGmvCents: revenue._sum.amountCents ?? 0,
       lifetimePlatformFeeCents: revenue._sum.platformFeeCents ?? 0,
       lastOrderAt: lastOrder?.createdAt ?? null,
-      publishBlockers: blockers,
+      setupSteps: steps,
+      setupProgress: setupProgress(steps),
+      publishBlockers: publishBlockers(steps).map((s) => s.label),
     };
   }
 

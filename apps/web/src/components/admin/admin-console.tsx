@@ -358,6 +358,23 @@ function RestaurantRow({
           {r.slug} · {r.city} · {r._count.orders} orders · {r._count.products} items ·{' '}
           {r._count.users} staff
         </p>
+
+        {/*
+          WHY they aren't live — not just that they aren't.
+
+          "3 restaurants never went live" is a statistic. "North Sea Fish Bar is one
+          step away, they just never connected Stripe" is a phone call you can make
+          this afternoon. This line is the difference between the two, and it is the
+          whole reason this screen exists.
+        */}
+        {!r.isPublished && r.isActive && r.publishBlockers?.length > 0 && (
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="font-medium text-amber-700">
+              {r.setupProgress.done}/{r.setupProgress.total} done —
+            </span>
+            <span className="text-muted-foreground">needs: {r.publishBlockers.join(', ')}</span>
+          </p>
+        )}
       </div>
 
       {/* Commission. SUPER_ADMIN only — a support agent must never be able to

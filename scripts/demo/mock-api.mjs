@@ -241,6 +241,8 @@ const ADMIN_RESTAURANTS = [
     stripeChargesEnabled: true,
     platformFeeBps: 300,
     createdAt: '2026-04-02T10:00:00.000Z',
+    setupProgress: { done: 3, total: 3 },
+    publishBlockers: [],
     _count: { orders: 842, products: 24, users: 6 },
   },
   {
@@ -257,6 +259,8 @@ const ADMIN_RESTAURANTS = [
     stripeChargesEnabled: true,
     platformFeeBps: 250,
     createdAt: '2026-05-19T09:30:00.000Z',
+    setupProgress: { done: 3, total: 3 },
+    publishBlockers: [],
     _count: { orders: 391, products: 58, users: 4 },
   },
   {
@@ -274,6 +278,9 @@ const ADMIN_RESTAURANTS = [
     stripeChargesEnabled: false,
     platformFeeBps: 300,
     createdAt: '2026-06-28T16:45:00.000Z',
+    // One step away. This is a phone call, not a statistic.
+    setupProgress: { done: 2, total: 3 },
+    publishBlockers: ['Connect Stripe'],
     _count: { orders: 0, products: 11, users: 1 },
   },
   {
@@ -291,6 +298,10 @@ const ADMIN_RESTAURANTS = [
     stripeChargesEnabled: false,
     platformFeeBps: 300,
     createdAt: '2026-07-04T12:15:00.000Z',
+    // QR-only, and barely started: 4 required steps because the codes are the only
+    // way in without a website.
+    setupProgress: { done: 1, total: 4 },
+    publishBlockers: ['Add your menu', 'Connect Stripe', 'Print your QR codes'],
     _count: { orders: 0, products: 0, users: 1 },
   },
   {
@@ -308,6 +319,8 @@ const ADMIN_RESTAURANTS = [
     stripeChargesEnabled: true,
     platformFeeBps: 300,
     createdAt: '2026-03-11T08:00:00.000Z',
+    setupProgress: { done: 3, total: 3 },
+    publishBlockers: [],
     _count: { orders: 75, products: 19, users: 3 },
   },
 ];
@@ -529,7 +542,7 @@ const server = createServer(async (req, res) => {
       return true;
     });
 
-    return send(res, 200, { restaurants, total: restaurants.length }, origin);
+    return send(res, 200, { restaurants, total: restaurants.length, nextCursor: null }, origin);
   }
 
   const adminMutation = path.match(/^\/api\/admin\/restaurants\/([^/]+)\/(fee|active|support-session)$/);

@@ -4,3 +4,4 @@ export * from './hours';
 export * from './schemas';
 export * from './widget';
 export * from './tax';
+export * from './setup';
