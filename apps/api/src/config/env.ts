@@ -51,7 +51,36 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().email().default('orders@orderos.ai'),
 
-  // --- Azure Blob Storage (optional; uploads fall back to a local disk driver) ---
+  /**
+   * --- Object storage: logos, menu photos, gallery images, rendered QR PNGs ---
+   *
+   * Two drivers, either of which works. Pick ONE.
+   *
+   * S3-COMPATIBLE (Cloudflare R2, AWS S3, Backblaze, MinIO, DigitalOcean Spaces).
+   * R2 is the easy answer: free to 10GB, no egress fees, two-minute signup.
+   *
+   * AZURE BLOB, if you already live in Azure.
+   *
+   * In production ONE of them is required. Without it, uploads fall back to the
+   * container's local disk — which a redeploy throws away, so every restaurant's
+   * logo and menu photos silently disappear and it looks like the product lost them.
+   */
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /** R2 ignores regions but the SDK insists on one. 'auto' is correct for R2. */
+  S3_REGION: z.string().default('auto'),
+  /**
+   * The PUBLIC base URL the files are served from. NOT the API endpoint.
+   *
+   * These two being different is the thing that catches everyone on R2: you upload
+   * to `https://<account>.r2.cloudflarestorage.com` but customers read from
+   * `https://pub-<hash>.r2.dev` (or your own CDN domain). Get this wrong and every
+   * image 403s while the upload itself reports success.
+   */
+  S3_PUBLIC_URL: z.string().url().optional(),
+
   AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
   AZURE_STORAGE_CONTAINER: z.string().default('orderos-media'),
   /** Public CDN base in front of the blob container, if any. */

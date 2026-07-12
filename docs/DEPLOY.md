@@ -316,12 +316,48 @@ pickup and dine-in.
 | --- | --- | --- |
 | SMS | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | No order-status texts. Sends become no-ops and log. |
 | Email | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | No receipts, **and no staff invitations** — which means you cannot onboard a restaurant owner. |
-| Image uploads | `AZURE_STORAGE_CONNECTION_STRING` | Logos are written to local disk, which a container throws away on restart. |
+| Image uploads | `S3_*` (Cloudflare R2) **or** `AZURE_STORAGE_CONNECTION_STRING` | **The API refuses to boot in production without one.** See below. |
 | Delivery radius | `GOOGLE_MAPS_API_KEY` or `MAPBOX_TOKEN` | Falls back to Nominatim, which is rate-limited and not acceptable for production traffic. |
 | Custom domains | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | The "bring your own domain" feature is disabled and says so. |
 
 Note the email one: **without Resend, invitations don't send**, and the whole
 onboarding flow depends on the owner receiving one.
+
+## Object storage — Cloudflare R2 (5 minutes)
+
+The API **refuses to boot in production** without object storage, on purpose. Without
+it, uploads go to the container's disk, which works perfectly right up until the
+redeploy that silently erases every image every restaurant has ever uploaded.
+
+R2 is the easy option: free to 10GB, no egress fees.
+
+1. Cloudflare → **R2** → **Create bucket**, name it `orderos-media`.
+2. **Manage R2 API Tokens** → **Create API token** → *Object Read & Write* → copy the
+   **Access Key ID** and **Secret Access Key**, and note the **endpoint**
+   (`https://<account-id>.r2.cloudflarestorage.com`).
+3. Bucket → **Settings** → **Public access** → enable the **r2.dev subdomain**. Copy
+   that URL (`https://pub-<hash>.r2.dev`).
+4. On the API:
+
+```ini
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com   # where we UPLOAD
+S3_BUCKET=orderos-media
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_REGION=auto
+S3_PUBLIC_URL=https://pub-<hash>.r2.dev                     # where the world READS
+```
+
+**`S3_ENDPOINT` and `S3_PUBLIC_URL` are different URLs.** That is the one thing people
+get wrong: uploads succeed, and every image 403s. The boot check refuses to start
+without `S3_PUBLIC_URL` for exactly this reason.
+
+Any S3-compatible store works — AWS S3, Backblaze B2, MinIO, DigitalOcean Spaces — or
+use `AZURE_STORAGE_CONNECTION_STRING` if you already live in Azure.
+
+Check: upload a logo in the dashboard, then hard-refresh the storefront. If the image
+renders, storage is correct. If it downloads instead of displaying, the content type
+is wrong; if it 403s, `S3_PUBLIC_URL` is wrong.
 
 ---
 
