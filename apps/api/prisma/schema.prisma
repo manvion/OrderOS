@@ -923,6 +923,22 @@ model Delivery {
   lastAttemptAt DateTime?
 
   /**
+   * When to try dispatching a courier again. NULL means nothing is pending.
+   *
+   * THIS COLUMN IS THE RETRY QUEUE. It used to be a Redis sorted set, which meant
+   * the only record that an order still needed a courier lived in a cache — and a
+   * Redis eviction, restart or flush silently forgot it. The order then sat there
+   * with no courier and nothing anywhere to wake it up, which surfaces as a
+   * customer phoning about food that never came.
+   *
+   * A queue whose loss is invisible is not a queue. So it lives in Postgres, next
+   * to the delivery it belongs to, inside the same transaction that records the
+   * failure. Redis is now only a cache and a lock, and losing it costs nothing but
+   * a slow minute.
+   */
+  nextRetryAt DateTime?
+
+  /**
    * How many times we have had to find a NEW courier for this order.
    *
    * Distinct from attemptCount, which counts failures to reach Uber at all. This
@@ -959,6 +975,9 @@ model Delivery {
   @@index([restaurantId, status])
   /// The watchdog sweeps these every minute hunting for stranded orders.
   @@index([status, escalatedAt, updatedAt])
+  /// The retry drain runs every 30 seconds and asks "what is due?". Without this,
+  /// that question is a full scan of every delivery ever made, twice a minute.
+  @@index([nextRetryAt])
   @@map("deliveries")
 }
 

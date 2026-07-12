@@ -11,8 +11,18 @@ Budget roughly: 1–2 hours for Phase 0, another 2–3 hours for the rest.
 | --- | --- | --- |
 | `apps/web` (Next.js) | **Vercel** | Edge middleware does the tenant routing, and Vercel's API is what attaches restaurants' custom domains. |
 | `apps/api` (NestJS) | **A container host** — Railway, Render, Fly, Azure Container Apps | It runs BullMQ workers and cron jobs. A cron that fires every five minutes needs a process that is still alive in five minutes; serverless is not that. |
-| Postgres | Neon / Supabase / RDS | |
-| Redis | Upstash / Elasticache | Queues, caching, rate limiting. |
+| Postgres | Neon / Supabase / RDS | Everything that must survive. Including the delivery retry queue — see below. |
+| Redis | Upstash / Elasticache | The dispatch lock, rate limiting, and caches. **No durable state.** |
+
+Redis holds nothing you cannot afford to lose. The delivery retry queue used to live
+in a Redis sorted set, which meant an eviction or a restart silently forgot that an
+order still needed a courier — a failure whose first symptom is a customer phoning
+about food that never came. It is a Postgres column now (`deliveries.nextRetryAt`),
+written in the same statement that records the failure. Losing Redis costs you a slow
+minute and nothing else.
+
+Redis is still **required**: it holds the lock that stops two API instances
+dispatching two couriers for one order, and it backs the rate limiter.
 
 **One deployment serves every restaurant.** `joes.orderos.ai`, `marias.orderos.ai` and
 `joesburgers.com` all hit the same Vercel deployment;

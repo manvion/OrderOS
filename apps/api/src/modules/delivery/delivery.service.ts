@@ -23,9 +23,21 @@ import {
   type UberDeliveryStatus,
 } from './uber.client';
 
-/** Redis sorted set: member = deliveryId, score = epoch ms of next attempt. */
-export const RETRY_QUEUE_KEY = 'uber:retry_queue';
 const MAX_ATTEMPTS = 5;
+
+/**
+ * Backoff between dispatch attempts: 30s, 60s, 2m, 4m, 8m.
+ *
+ * Capped at 8 minutes on purpose. This is a bag of hot food sitting on the pass,
+ * not a background job — an hour-long backoff is indistinguishable from having
+ * dropped the order entirely, except that the food is now cold as well as late.
+ *
+ * Exported and pure so the schedule can be tested without a database, a Redis or an
+ * Uber account.
+ */
+export function retryDelayMs(attemptCount: number): number {
+  return Math.min(30_000 * 2 ** Math.max(0, attemptCount - 1), 8 * 60_000);
+}
 
 /**
  * How many DIFFERENT couriers we will chase before a human must take over.
@@ -240,6 +252,10 @@ export class DeliveryService {
             pickupEta: uberDelivery.pickup_eta ? new Date(uberDelivery.pickup_eta) : null,
             dropoffEta: uberDelivery.dropoff_eta ? new Date(uberDelivery.dropoff_eta) : null,
             lastError: null,
+            // This attempt succeeded — nothing is pending any more. Cleared in the
+            // same write that records the courier, so there is no window in which a
+            // dispatched delivery is also still queued for dispatch.
+            nextRetryAt: null,
           },
         });
 
@@ -255,9 +271,6 @@ export class DeliveryService {
             uberFeeCents: uberDelivery.fee,
           },
         });
-
-        // Remove from the retry queue: this attempt succeeded.
-        await this.redis.client.zrem(RETRY_QUEUE_KEY, delivery.id);
 
         this.logger.log(
           `Uber delivery ${uberDelivery.id} created for order ${order.orderNumber} (fee ${uberDelivery.fee})`,
@@ -370,7 +383,8 @@ export class DeliveryService {
     if (delivery.attemptCount >= MAX_ATTEMPTS) {
       await this.prisma.delivery.update({
         where: { id: deliveryId },
-        data: { status: 'FAILED' },
+        // nextRetryAt cleared: nothing should pick this up again.
+        data: { status: 'FAILED', nextRetryAt: null },
       });
       this.logger.error(
         `Giving up on Uber delivery for order ${order.orderNumber} after ${MAX_ATTEMPTS} attempts`,
@@ -378,12 +392,16 @@ export class DeliveryService {
       return;
     }
 
-    // Exponential backoff: 30s, 60s, 2m, 4m, 8m — capped so a long Uber outage
-    // doesn't leave a bag of food sitting on the pass for an hour.
-    const delayMs = Math.min(30_000 * 2 ** (delivery.attemptCount - 1), 8 * 60_000);
-    const nextAttemptAt = Date.now() + delayMs;
+    const delayMs = retryDelayMs(delivery.attemptCount);
 
-    await this.redis.client.zadd(RETRY_QUEUE_KEY, nextAttemptAt, deliveryId);
+    // The queue IS this column. Written to Postgres, next to the delivery it
+    // belongs to — not to a Redis set whose eviction would silently lose the only
+    // record that this order still needs a courier.
+    await this.prisma.delivery.update({
+      where: { id: deliveryId },
+      data: { nextRetryAt: new Date(Date.now() + delayMs) },
+    });
+
     this.logger.warn(
       `Queued delivery ${deliveryId} for retry ${delivery.attemptCount + 1}/${MAX_ATTEMPTS} in ${delayMs / 1000}s`,
     );
@@ -399,37 +417,60 @@ export class DeliveryService {
   async processRetryQueue(): Promise<{ processed: number; succeeded: number }> {
     if (!this.uber.isConfigured) return { processed: 0, succeeded: 0 };
 
-    const now = Date.now();
-    const due = await this.redis.client.zrangebyscore(RETRY_QUEUE_KEY, 0, now, 'LIMIT', 0, 20);
+    const now = new Date();
+
+    const due = await this.prisma.delivery.findMany({
+      where: {
+        nextRetryAt: { lte: now },
+        // Belt and braces. These should all be impossible with nextRetryAt set, but
+        // "should be impossible" is how you dispatch a second courier for an order
+        // that already has one.
+        uberDeliveryId: null,
+        status: { notIn: ['FAILED', 'CANCELLED', 'DELIVERED'] },
+        order: { status: { not: 'CANCELLED' } },
+      },
+      select: { id: true, restaurantId: true, orderId: true },
+      orderBy: { nextRetryAt: 'asc' },
+      take: 20,
+    });
+
     if (due.length === 0) return { processed: 0, succeeded: 0 };
 
+    let processed = 0;
     let succeeded = 0;
 
-    for (const deliveryId of due) {
-      // Pop it first: if this process dies mid-retry, handleDispatchFailure will
-      // re-queue it. Leaving it in the set would let another instance double-fire.
-      await this.redis.client.zrem(RETRY_QUEUE_KEY, deliveryId);
-
-      const delivery = await this.prisma.delivery.findUnique({
-        where: { id: deliveryId },
-        include: { order: true },
+    for (const delivery of due) {
+      /**
+       * CLAIM the row before touching Uber.
+       *
+       * `updateMany` with `nextRetryAt` still in the WHERE is a compare-and-set: two
+       * API instances draining at the same second both see the row, both try to
+       * claim it, and exactly one gets count === 1. The loser skips.
+       *
+       * Postgres does this atomically, which is the property the Redis `zrem` used
+       * to provide. Without it, every added API instance multiplies the couriers
+       * dispatched — and each one is a real driver, arriving at a real restaurant,
+       * charged to a real card.
+       */
+      const claim = await this.prisma.delivery.updateMany({
+        where: { id: delivery.id, nextRetryAt: { lte: now } },
+        data: { nextRetryAt: null },
       });
+      if (claim.count === 0) continue;
 
-      // The order may have been cancelled while the retry was pending. Drop it.
-      if (!delivery || delivery.uberDeliveryId || delivery.status === 'FAILED') continue;
-      if (delivery.order.status === 'CANCELLED') continue;
+      processed++;
 
       try {
         await this.createDelivery(delivery.restaurantId, delivery.orderId);
         succeeded++;
-        this.logger.log(`Retry succeeded for delivery ${deliveryId}`);
+        this.logger.log(`Retry succeeded for delivery ${delivery.id}`);
       } catch (err) {
-        // createDelivery already recorded the failure and re-queued if it should.
-        this.logger.warn(`Retry failed for delivery ${deliveryId}: ${(err as Error).message}`);
+        // createDelivery already recorded the failure and re-scheduled if it should.
+        this.logger.warn(`Retry failed for delivery ${delivery.id}: ${(err as Error).message}`);
       }
     }
 
-    return { processed: due.length, succeeded };
+    return { processed, succeeded };
   }
 
   async cancelDelivery(restaurantId: string, orderId: string, userId?: string) {
@@ -461,7 +502,10 @@ export class DeliveryService {
     }
 
     // Make sure a queued retry doesn't resurrect a cancelled delivery.
-    await this.redis.client.zrem(RETRY_QUEUE_KEY, delivery.id);
+    await this.prisma.delivery.update({
+      where: { id: delivery.id },
+      data: { nextRetryAt: null },
+    });
 
     const updated = await this.prisma.delivery.update({
       where: { id: delivery.id },
@@ -717,6 +761,11 @@ export class DeliveryService {
         courierVehicle: null,
         redispatchCount: { increment: 1 },
         lastError: reason,
+        // Straight back on the queue — due immediately. The retry processor picks
+        // it up within 30 seconds. Written in the SAME statement that clears the
+        // dead courier, so there is no instant in which this order has neither a
+        // courier nor a pending retry: that gap is a lost dinner.
+        nextRetryAt: new Date(),
         // Note we deliberately KEEP the pickupCode: the bag label is already
         // printed and stuck to the bag. A new code would mean a courier reading
         // out something that doesn't match what staff are looking at.
@@ -734,9 +783,6 @@ export class DeliveryService {
         attempt: delivery.redispatchCount + 1,
       },
     });
-
-    // Straight back on the queue. The retry processor picks it up within 30s.
-    await this.redis.client.zadd(RETRY_QUEUE_KEY, Date.now(), deliveryId);
 
     this.logger.log(
       `Re-dispatching order ${delivery.order.orderNumber} (courier ${delivery.redispatchCount + 1} of ${MAX_REDISPATCHES})`,
@@ -764,11 +810,14 @@ export class DeliveryService {
 
     await this.prisma.delivery.update({
       where: { id: deliveryId },
-      data: { status: 'FAILED', escalatedAt: new Date(), escalationReason: reason },
+      data: {
+        status: 'FAILED',
+        escalatedAt: new Date(),
+        escalationReason: reason,
+        // Off the queue — it is now a person's job, not a cron's.
+        nextRetryAt: null,
+      },
     });
-
-    // Take it off the queue — it is now a person's job, not a cron's.
-    await this.redis.client.zrem(RETRY_QUEUE_KEY, deliveryId);
 
     const order = delivery.order;
     const restaurant = order.restaurant;
@@ -883,13 +932,12 @@ export class DeliveryService {
         status: 'CREATED',
         driverName: driver.name,
         driverPhone: driver.phone,
+        // A queued Uber retry must not resurrect a delivery the restaurant has
+        // decided to handle themselves — that sends a courier to collect food their
+        // own driver already took. Cleared in the same write that claims it as SELF.
+        nextRetryAt: null,
       },
     });
-
-    // Make sure a queued Uber retry can't resurrect a delivery the restaurant has
-    // decided to handle themselves — that would send a courier to collect food
-    // their own driver already took.
-    await this.redis.client.zrem(RETRY_QUEUE_KEY, delivery.id);
 
     await this.orders.transition(restaurantId, orderId, 'DRIVER_ASSIGNED', {
       userId,
