@@ -8,6 +8,7 @@ import {
   BarChart3,
   ExternalLink,
   Globe,
+  ChefHat,
   LayoutDashboard,
   Link2,
   QrCode,
@@ -25,6 +26,9 @@ import { Select } from '@/components/ui/input';
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/setup', label: 'Get set up', icon: Rocket },
+  // The screen staff actually live in, on a tablet by the pass. High in the list
+  // because during service it is the only one that matters.
+  { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat },
   { href: '/dashboard/orders', label: 'Orders', icon: Receipt },
   { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed },
   { href: '/dashboard/customers', label: 'Customers', icon: Users },

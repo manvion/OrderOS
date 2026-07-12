@@ -112,6 +112,44 @@ export function OrderTracker({
         </h1>
       </header>
 
+      {/*
+        THE CODE. Given to the kitchen and to the customer, so both are looking at
+        the same four characters.
+
+        Pickup: they read it out at the counter, and "order for John" stops being a
+        problem when there are two Johns. Dine-in: it's on the ticket with the table
+        number. Delivery: the courier reads it off their app and staff match it to
+        the bag — the failure this prevents is the expensive one, where the food is
+        gone, two customers are furious, and neither order can be remade for free.
+
+        Hidden once the food is delivered or collected: at that point it is clutter.
+      */}
+      {order.handoffCode && !isCancelled && !isUnpaid && !isDone && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border-2 border-dashed p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              {order.fulfillment === 'PICKUP'
+                ? 'Give this code at the counter'
+                : order.fulfillment === 'DINE_IN'
+                  ? 'Your order code'
+                  : 'Your driver will confirm this code'}
+            </p>
+            <p className="mt-1.5 font-mono text-4xl font-black tracking-widest">
+              {order.handoffCode}
+            </p>
+          </div>
+
+          {order.fulfillment === 'DINE_IN' && order.tableNumber && (
+            <div className="shrink-0 text-right">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Table
+              </p>
+              <p className="mt-1.5 text-4xl font-black">{order.tableNumber}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {isUnpaid && (
         <Card className="mb-6 border-amber-300 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-900">
