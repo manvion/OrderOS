@@ -108,7 +108,7 @@ export class DeliveryWatchdog {
     const stalled = await this.prisma.delivery.findMany({
       where: {
         status: 'PENDING',
-        uberDeliveryId: null,
+        providerDeliveryId: null,
         provider: 'UBER',
         escalatedAt: null,
         createdAt: { lt: cutoff },
@@ -151,7 +151,7 @@ export class DeliveryWatchdog {
       where: {
         provider: 'UBER',
         status: { in: ['CREATED', 'PICKUP_ENROUTE', 'DROPOFF_ENROUTE'] },
-        uberDeliveryId: { not: null },
+        providerDeliveryId: { not: null },
         escalatedAt: null,
         updatedAt: { lt: cutoff },
         order: { status: { notIn: ['DELIVERED', 'COMPLETED', 'CANCELLED'] } },

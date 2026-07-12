@@ -19,6 +19,7 @@ import { Audit, CurrentUser, Public, TenantId } from '../../common/auth/decorato
 import type { AuthUser } from '../../common/auth/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { DeliveryService } from './delivery.service';
+import { DoorDashClient } from './doordash.client';
 import { UberClient } from './uber.client';
 
 const selfDeliverySchema = z.object({
@@ -59,6 +60,7 @@ export class DeliveryController {
   constructor(
     private readonly delivery: DeliveryService,
     private readonly uber: UberClient,
+    private readonly doordash: DoorDashClient,
   ) {}
 
   @Get('orders/:orderId')
@@ -187,6 +189,38 @@ export class DeliveryController {
     }
 
     await this.delivery.handleWebhook(body);
+    return { received: true };
+  }
+
+  /**
+   * DoorDash Drive's webhook.
+   *
+   * A sibling of the Uber one, not a branch inside it: the two sign differently
+   * (different header, different secret) and their payloads share no field names, so
+   * a single endpoint sniffing which courier sent it would be guessing about
+   * authentication — which is the one thing here that must never be a guess.
+   *
+   * Lives under /webhook/* so main.ts's raw-body carve-out for `/api/delivery/webhook`
+   * covers it by prefix. Verifying a signature against a re-serialized body fails on
+   * key order alone.
+   */
+  @Post('webhook/doordash')
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 500, ttl: 60_000 } })
+  async doorDashWebhook(
+    @Req() req: RawBodyRequest,
+    @Headers('x-doordash-signature') signature: string | undefined,
+    @Body() body: Record<string, unknown>,
+  ) {
+    if (!req.rawBody) {
+      throw new ForbiddenException('Raw body unavailable — webhook parsing is misconfigured');
+    }
+    if (!this.doordash.verifyWebhookSignature(req.rawBody, { 'x-doordash-signature': signature })) {
+      throw new ForbiddenException('Invalid webhook signature');
+    }
+
+    await this.delivery.handleDoorDashWebhook(body);
     return { received: true };
   }
 }

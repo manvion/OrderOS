@@ -531,17 +531,20 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                     ))}
                   </Select>
                 </Field>
-                <Field
-                  label="Currency"
-                  hint={`Set from your country. Change it only if you charge in something else.`}
-                >
-                  <Select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-                    {[...new Set(COUNTRIES.map((c) => c.currency))].sort().map((cur) => (
-                      <option key={cur} value={cur}>
-                        {cur}
-                      </option>
-                    ))}
-                  </Select>
+                {/*
+                  Currency is SHOWN, not chosen.
+
+                  It used to be a dropdown of every currency we support, which reads as a
+                  helpful option and is actually a trap: picking USD for a Toronto
+                  restaurant does not convert anything, it just relabels every price on
+                  the menu — the same numbers, now meaning 35% less money. There is no
+                  legitimate reason for a restaurant to be paid in a currency other than
+                  the one where it stands, and Stripe would refuse the payout anyway.
+                */}
+                <Field label="Currency" hint="Set by your country. Your menu prices are in this.">
+                  <p className="flex h-10 items-center text-sm font-medium">
+                    {country.currencySymbol} {country.currency}
+                  </p>
                 </Field>
               </div>
             </>
@@ -754,11 +757,9 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                 region={taxRegion}
                 components={taxComponents}
                 indiaHotel={indiaHotel}
-                onCountry={(c) => {
-                  setTaxCountry(c);
-                  const next = resolveTaxProfile(c, taxRegion, { indiaHotelRate: indiaHotel });
-                  setTaxComponents(next.components);
-                }}
+                // No onCountry: the tax country IS the business country, and it is set
+                // by the country picker on the business-details step. Two ways to set
+                // one fact is how a Toronto restaurant ends up filed as a US business.
                 onRegion={(r) => {
                   setTaxRegion(r);
                   const next = resolveTaxProfile(taxCountry, r, { indiaHotelRate: indiaHotel });

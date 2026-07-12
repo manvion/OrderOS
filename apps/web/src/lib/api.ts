@@ -9,6 +9,8 @@
  *    works at two restaurants can say which one they're acting as.
  */
 
+import type { TaxComponent } from '@orderos/shared';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export interface ApiError {
@@ -83,6 +85,29 @@ export const storefrontApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  /**
+   * Address suggestions as the customer types.
+   *
+   * `session` groups every keystroke of one address search into a single billable
+   * Google Places session — mint one per address field and reuse it until the
+   * customer picks something. See AddressAutocompleteService on the API side.
+   *
+   * `available: false` means no geocoder key is configured; the form must fall back
+   * to plain manual entry rather than showing a picker that never suggests.
+   */
+  suggestAddresses: (slug: string, q: string, session: string) =>
+    storefrontApi.request<{ available: boolean; suggestions: AddressSuggestion[] }>(
+      `/storefront/address/suggest?q=${encodeURIComponent(q)}&session=${encodeURIComponent(session)}`,
+      slug,
+    ),
+
+  /** Expand a picked suggestion into a full, geocoded address. */
+  resolveAddress: (slug: string, id: string, session: string) =>
+    storefrontApi.request<{ address: ResolvedAddress | null }>(
+      `/storefront/address/resolve?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`,
+      slug,
+    ),
 
   createOrder: (slug: string, body: unknown) =>
     storefrontApi.request<CreateOrderResponse>('/storefront/orders', slug, {
@@ -439,6 +464,35 @@ export interface Address {
   longitude?: number;
 }
 
+/** One row in the address autocomplete dropdown. `id` is opaque — pass it back as-is. */
+export interface AddressSuggestion {
+  id: string;
+  /** The bold line: "221B Baker Street". */
+  primary: string;
+  /** The grey line: "London, UK". */
+  secondary: string;
+}
+
+/**
+ * A suggestion the customer picked, expanded into a real address with coordinates.
+ *
+ * Deliberately NOT `extends Address`: the geocoder can return a match it cannot pin
+ * to a point, so lat/lng are explicitly nullable here, whereas on `Address` they are
+ * merely optional. Widening them in an extends clause is a type error, and papering
+ * over it with `?` would hide the one case the caller has to handle.
+ */
+export interface ResolvedAddress {
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+  /** The provider's one-line rendering — what they actually clicked on. */
+  formatted: string;
+}
+
 /**
  * WEBSITE — the full storefront: homepage, about page, menu.
  * QR_ONLY — no website. The only way in is scanning a code on the table, so the
@@ -470,6 +524,12 @@ export interface StorefrontRestaurant {
   city: string;
   state: string;
   postalCode: string;
+  /**
+   * ISO-3166 alpha-2. The API has always returned this; it just wasn't on the type,
+   * so the checkout form defaulted every customer's address to 'US'. It drives the
+   * address default, the geocoder's country bias, and the tax regime.
+   */
+  country: string;
   logoUrl: string | null;
   coverImageUrl: string | null;
   brandPrimaryColor: string;
@@ -526,7 +586,10 @@ export type DeliveryQuote =
   | {
       deliverable: true;
       customerFeeCents: number;
-      uberFeeCents: number | null;
+      /** What the COURIER charges the restaurant — Uber or DoorDash, whoever won. */
+      courierFeeCents: number | null;
+      /** Which courier gave us this price. Null for self-delivery. */
+      provider?: 'UBER' | 'DOORDASH';
       quoteId?: string;
       dropoffEta?: string;
       selfDelivery?: boolean;
@@ -557,6 +620,9 @@ export interface TrackedOrder {
   /** The unguessable key to this order's tracking page. */
   trackingToken: string;
   orderNumber: string;
+  /** The code the customer reads out at the counter, or the courier matches to the bag. */
+  handoffCode: string | null;
+  tableNumber: string | null;
   status: string;
   fulfillment: string;
   totalCents: number;
@@ -617,6 +683,16 @@ export interface Restaurant {
   city: string;
   state: string;
   postalCode: string;
+  /** Drives currency, timezone, tax regime, Stripe eligibility, and the tax-number format. */
+  country: string;
+  /**
+   * The legal identity behind the brand: the entity a receipt is issued BY, and the
+   * tax number that makes that receipt valid. Null for a restaurant below a
+   * registration threshold, and for everyone who signed up before we asked.
+   */
+  legalName: string | null;
+  taxId: string | null;
+  businessNumber: string | null;
   logoUrl: string | null;
   /** The hero image at the top of their page. */
   coverImageUrl: string | null;
@@ -626,11 +702,17 @@ export interface Restaurant {
   aboutHeadline: string | null;
   aboutBody: string | null;
   timezone: string;
+  /** Derived from the country, never chosen. See deriveLocaleDefaults in @orderos/shared. */
   currency: string;
+  /** The tax actually charged, as named lines. Null for a restaurant that never set it. */
+  taxComponents: TaxComponent[] | null;
+  taxCountry: string | null;
+  taxRegion: string | null;
   isPublished: boolean;
   onboardingStep: string;
   stripeChargesEnabled: boolean;
   uberDirectEnabled: boolean;
+  doorDashEnabled: boolean;
   /** The restaurant has their own driver. Both on = the dashboard asks per order. */
   selfDeliveryEnabled: boolean;
   pickupEnabled: boolean;
@@ -720,6 +802,8 @@ export interface Order {
   deliveryStreet: string | null;
   deliveryCity: string | null;
   tableNumber: string | null;
+  /** The code that gets the right food to the right person. Every order has one. */
+  handoffCode: string | null;
   notes: string | null;
   scheduledFor: string | null;
   createdAt: string;

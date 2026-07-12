@@ -44,6 +44,24 @@ const envSchema = z.object({
   /** Shared secret Uber signs delivery webhooks with (HMAC-SHA256). */
   UBER_WEBHOOK_SECRET: z.string().optional(),
 
+  /**
+   * --- DoorDash Drive (optional; a second courier, quoted against Uber) ---
+   *
+   * Auth is a self-signed JWT, not OAuth, so there is no token endpoint and nothing
+   * to cache — these three credentials ARE the auth. All three or none: a partial
+   * set leaves the courier unconfigured and the router simply skips it.
+   *
+   * DOORDASH_SIGNING_SECRET is base64url text. It is decoded before use, NOT HMAC-ed
+   * as an ASCII string — doing the latter yields a well-formed token that DoorDash
+   * rejects every time with an unhelpful 401.
+   */
+  DOORDASH_DEVELOPER_ID: z.string().optional(),
+  DOORDASH_KEY_ID: z.string().optional(),
+  DOORDASH_SIGNING_SECRET: z.string().optional(),
+  DOORDASH_API_BASE_URL: z.string().url().default('https://openapi.doordash.com'),
+  /** Defaults to DOORDASH_SIGNING_SECRET when Drive isn't given a separate one. */
+  DOORDASH_WEBHOOK_SECRET: z.string().optional(),
+
   // --- Notifications (optional; sends become no-ops) ---
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),

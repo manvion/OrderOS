@@ -14,7 +14,10 @@ import {
   DEFAULT_BUSINESS_HOURS,
   GALLERY_MAX_IMAGES,
   buildSetupChecklist,
+  deriveLocaleDefaults,
+  getCountry,
   isOpenAt,
+  isValidTaxId,
   publishBlockers,
   setupProgress,
   totalTaxBps,
@@ -226,7 +229,50 @@ export class RestaurantsService {
   }
 
   async update(restaurantId: string, input: UpdateRestaurantInput, userId?: string) {
-    const { address, businessHours, ...rest } = input;
+    const { address, businessHours, taxComponents, ...rest } = input;
+
+    const current = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { country: true, state: true },
+    });
+
+    /** Whichever country this update LANDS on: the new one if the address is changing. */
+    const country = address?.country ?? current.country;
+    const region = address?.state ?? current.state;
+
+    /**
+     * A tax number goes on every receipt this restaurant will ever send. A typo here
+     * is not a bad form field — it is a year of invalid invoices discovered at audit,
+     * so it is worth rejecting now rather than at audit.
+     */
+    if (input.taxId?.trim() && !isValidTaxId(country, input.taxId)) {
+      const spec = getCountry(country).taxId;
+      throw new BadRequestException(
+        `That does not look like a valid ${spec.label} — expected something like ${spec.placeholder}`,
+      );
+    }
+
+    /**
+     * Move the restaurant, and its currency, timezone and tax move with it.
+     *
+     * These three are consequences of the address, not independent settings — see
+     * deriveLocaleDefaults(). Before this, they were schema defaults (USD,
+     * America/New_York, 0%) that no code path ever updated, so a restaurant in
+     * Bengaluru was priced in dollars and kept New York hours.
+     *
+     * Derived values NEVER overwrite an explicit one in the same request: if the owner
+     * is correcting their tax rate, the correction wins. Currency is the exception —
+     * the schema does not accept it at all, because it is not a choice.
+     */
+    const relocated = address !== undefined &&
+      (address.country !== current.country || address.state !== current.state);
+
+    const derived = relocated ? deriveLocaleDefaults(country, region) : null;
+
+    /** An explicit component list wins, and its combined rate must follow it. */
+    const explicitTax = taxComponents
+      ? { taxComponents, taxRateBps: totalTaxBps(taxComponents) }
+      : {};
 
     const restaurant = await this.prisma.restaurant.update({
       where: { id: restaurantId },
@@ -243,6 +289,24 @@ export class RestaurantsService {
               longitude: address.longitude,
             }
           : {}),
+        ...(derived
+          ? {
+              currency: derived.currency,
+              // Only if they haven't said otherwise: an owner in a six-timezone country
+              // who picked Denver does not want it reset to New York because they fixed
+              // a typo in their street.
+              ...(rest.timezone ? {} : { timezone: derived.timezone }),
+              ...(taxComponents
+                ? {}
+                : {
+                    taxCountry: derived.taxCountry,
+                    taxRegion: derived.taxRegion,
+                    taxComponents: derived.taxComponents,
+                    taxRateBps: derived.taxRateBps,
+                  }),
+            }
+          : {}),
+        ...explicitTax,
         ...(businessHours ? { businessHours: businessHours as unknown as object } : {}),
       },
     });

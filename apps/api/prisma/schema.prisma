@@ -96,6 +96,7 @@ enum QRCodeType {
 /// with the moped rather than pay a courier fee.
 enum DeliveryProvider {
   UBER
+  DOORDASH
   SELF
 }
 
@@ -141,6 +142,28 @@ model Restaurant {
   timezone String @default("America/New_York")
   currency String @default("USD")
 
+  /**
+   * Who the restaurant is to a tax authority, as opposed to who it is to a customer.
+   *
+   * `legalName` is the entity that issues the invoice ("1187456 Ontario Inc."), which
+   * is very often not the name on the awning ("Bella Burger"). A receipt must carry
+   * the legal entity, not the brand.
+   *
+   * `taxId` is whatever that country calls it — GSTIN in India, GST/HST number in
+   * Canada, VAT number in the UK, ABN in Australia. See packages/shared/src/countries.ts
+   * for the shape and, more importantly, for whether a receipt is even VALID without
+   * it: in Canada, India, the UK and Australia it is not.
+   *
+   * `businessNumber` is the company registration number, where it differs from the tax
+   * number. Never printed — it exists because accountants ask for it.
+   *
+   * All nullable: restaurants below a registration threshold genuinely have no number,
+   * and every restaurant that signed up before this existed has none either.
+   */
+  legalName      String?
+  taxId          String?
+  businessNumber String?
+
   // Branding
   logoUrl           String?
   coverImageUrl     String?
@@ -170,6 +193,12 @@ model Restaurant {
   scheduledOrdersEnabled  Boolean @default(false)
   /// We can dispatch an Uber courier.
   uberDirectEnabled       Boolean @default(false)
+  /// We can dispatch a DoorDash Drive courier.
+  ///
+  /// Independent of uberDirectEnabled, and both can be on at once. When they are,
+  /// we quote BOTH and dispatch the cheaper one — which is the whole point of
+  /// running two couriers, and is worth real money on every single order.
+  doorDashEnabled         Boolean @default(false)
   /// The restaurant has their own driver.
   ///
   /// If BOTH this and uberDirectEnabled are on, the dashboard asks per order
@@ -683,6 +712,18 @@ model Order {
   notes       String?
   tableNumber String?
 
+  /**
+   * The code that gets the right food to the right person. EVERY order has one.
+   *
+   * Pickup: the customer reads it out at the counter. Dine-in: it's on the ticket
+   * next to the table. Delivery: the courier reads it off their phone and staff
+   * match it to the bag.
+   *
+   * Deliberately not the order number — sequential numbers look identical at a
+   * glance on a bag label (0712-014 vs 0712-041). See packages/shared/src/handoff.ts.
+   */
+  handoffCode String?
+
   /// Null = ASAP. Set = customer picked a future slot.
   scheduledFor DateTime?
 
@@ -858,7 +899,10 @@ model Delivery {
   id     String         @id @default(cuid())
   status DeliveryStatus @default(PENDING)
 
-  /// UBER = a courier we dispatched. SELF = the restaurant's own driver.
+  /// UBER / DOORDASH = a courier we dispatched. SELF = the restaurant's own driver.
+  ///
+  /// This is the field that says which API the identifiers below belong to, and which
+  /// client can cancel or track the delivery. Read it before you touch them.
   provider DeliveryProvider @default(UBER)
 
   // The restaurant's own driver. Only set when provider = SELF. Kept here rather
@@ -868,12 +912,21 @@ model Delivery {
   driverName  String?
   driverPhone String?
 
-  // Uber Direct identifiers
-  uberQuoteId    String?
-  uberDeliveryId String? @unique
-  trackingUrl    String?
+  /**
+   * The courier's own identifiers, whichever courier that is. Interpret them
+   * against `provider` above — a DoorDash delivery id means nothing to Uber's API,
+   * and handing one to the wrong client is a confusing 404 rather than an error
+   * that says what went wrong.
+   *
+   * These were `uberQuoteId` / `uberDeliveryId` until DoorDash Drive was added.
+   * Renamed rather than duplicated: two nullable id columns where only one is ever
+   * populated is a schema that invites reading the wrong one.
+   */
+  providerQuoteId    String?
+  providerDeliveryId String? @unique
+  trackingUrl        String?
 
-  /// What Uber charges US for the delivery. May differ from what the customer
+  /// What the COURIER charges us for the delivery. May differ from what the customer
   /// paid (Order.deliveryFeeCents) — the difference is the restaurant's margin
   /// or subsidy, and the analytics page surfaces it.
   feeCents Int?

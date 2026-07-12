@@ -6,8 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { OrderStatus, Prisma } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import {
   canTransition,
+  generateHandoffCode,
   isOpenAt,
   priceOrder,
   type TaxComponent,
@@ -140,6 +142,10 @@ export class OrdersService {
       const created = await tx.order.create({
         data: {
           orderNumber,
+          // The code that gets the right food to the right person, on EVERY order —
+          // read out at a counter, printed next to a table number, or matched against
+          // a bag by a courier. See packages/shared/src/handoff.ts.
+          handoffCode: generateHandoffCode((n) => randomBytes(n)),
           restaurantId,
           customerId: customer.id,
           status: 'PENDING',

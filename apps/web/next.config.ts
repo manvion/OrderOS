@@ -31,8 +31,13 @@ const config: NextConfig = {
       // Azure Blob.
       { protocol: 'https', hostname: '**.blob.core.windows.net' },
       { protocol: 'https', hostname: '**.azureedge.net' },
-      // Local dev: uploads are served straight off the API.
-      { protocol: 'http', hostname: 'localhost' },
+      // Local dev: uploads are served straight off the API, which listens on a PORT.
+      // `port` is not optional-meaning-any here: omitting it matches ONLY an empty
+      // port, so a bare localhost entry silently fails to match the one URL the local
+      // storage driver actually produces (http://localhost:4000/uploads/...). That is
+      // the same silent non-render as an unlisted host, and it looked exactly like
+      // uploads were being lost. Keep this in step with API_URL's port.
+      { protocol: 'http', hostname: 'localhost', port: '4000' },
       // Your own CDN domain, if you put one in front of the bucket.
       ...(process.env.NEXT_PUBLIC_MEDIA_HOSTNAME
         ? [{ protocol: 'https' as const, hostname: process.env.NEXT_PUBLIC_MEDIA_HOSTNAME }]
