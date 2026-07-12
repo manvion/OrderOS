@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { storefrontApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,21 @@ export const revalidate = 60;
 export default async function StorefrontHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const restaurant = await storefrontApi.getRestaurant(slug);
+
+  /**
+   * A QR-only restaurant has no website, on purpose — they never wanted one. The
+   * customer is standing at a table holding a phone that just scanned a code, and a
+   * hero image with an "Order now" button is one pointless tap between them and the
+   * menu. Send them straight there.
+   *
+   * This is a redirect rather than a hidden page because the homepage would still
+   * exist and still be linkable otherwise, which is precisely the half-finished site
+   * they were promised they wouldn't get.
+   */
+  if (restaurant.orderingMode === 'QR_ONLY') {
+    const base = (await headers()).get('x-restaurant-slug') ? '' : `/s/${slug}`;
+    redirect(`${base}/menu`);
+  }
 
   /**
    * Same rule as the layout: on a real subdomain the storefront IS the site root,

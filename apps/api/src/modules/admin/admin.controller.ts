@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { addressSchema, slugSchema } from '@orderos/shared';
+import { createRestaurantSchema } from '@orderos/shared';
 import { z } from 'zod';
 import {
   PlatformAdminGuard,
@@ -21,16 +21,19 @@ import { Public } from '../../common/auth/decorators';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AdminService } from './admin.service';
 
-const createRestaurantSchema = z.object({
-  name: z.string().min(2).max(120),
-  slug: slugSchema,
-  /** The person who will OWN this restaurant. They get an invite; we never set their password. */
+/**
+ * Onboarding a restaurant on their behalf, on a phone call.
+ *
+ * It takes the SAME input as the self-serve signup wizard — hours, fulfillment,
+ * tax, ordering mode — and adds the two things only we can set. Sharing the schema
+ * is the point: when the admin form and the signup form drift apart, the restaurant
+ * we onboarded by hand is the one that goes live charging no sales tax, because
+ * nobody was asked. That happened, and this is the fix.
+ */
+const adminCreateRestaurantSchema = createRestaurantSchema.extend({
+  /** The person who will OWN this. They get an invite; we never set their password. */
   ownerEmail: z.string().email(),
-  phone: z.string().min(7).max(20),
-  email: z.string().email(),
-  address: addressSchema,
-  timezone: z.string().default('America/New_York'),
-  currency: z.string().length(3).default('USD'),
+  /** Our commission. Only we can see or set this. */
   platformFeeBps: z.number().int().min(0).max(3000).optional(),
 });
 
@@ -98,8 +101,8 @@ export class AdminController {
   @PlatformRoles('SUPER_ADMIN')
   createRestaurant(
     @Req() req: PlatformRequest,
-    @Body(new ZodValidationPipe(createRestaurantSchema))
-    body: z.infer<typeof createRestaurantSchema>,
+    @Body(new ZodValidationPipe(adminCreateRestaurantSchema))
+    body: z.infer<typeof adminCreateRestaurantSchema>,
   ) {
     return this.admin.createRestaurantForOwner(body, req.admin!);
   }

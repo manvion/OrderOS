@@ -183,6 +183,9 @@ export class RestaurantsService {
         brandPrimaryColor: true,
         brandAccentColor: true,
         businessHours: true,
+        // The storefront needs this to know whether it is a WEBSITE or an ordering
+        // terminal reached by scanning a code — see the OrderingMode enum.
+        orderingMode: true,
         pickupEnabled: true,
         deliveryEnabled: true,
         dineInEnabled: true,
@@ -310,9 +313,10 @@ export class RestaurantsService {
    */
   async getPublishReadiness(restaurantId: string) {
     const restaurant = await this.findById(restaurantId);
-    const [productCount, categoryCount] = await Promise.all([
+    const [productCount, categoryCount, qrCount] = await Promise.all([
       this.prisma.product.count({ where: { restaurantId, isAvailable: true } }),
       this.prisma.category.count({ where: { restaurantId, isActive: true } }),
+      this.prisma.qRCode.count({ where: { restaurantId, isActive: true } }),
     ]);
 
     const blockers: string[] = [];
@@ -323,6 +327,15 @@ export class RestaurantsService {
     }
     if (!restaurant.pickupEnabled && !restaurant.deliveryEnabled && !restaurant.dineInEnabled) {
       blockers.push('Enable at least one fulfillment method');
+    }
+
+    /**
+     * A QR-only restaurant has no website — the code IS the front door. Publishing
+     * one with no codes printed gives customers literally no way to order, and it
+     * would look to the owner like the product simply doesn't work.
+     */
+    if (restaurant.orderingMode === 'QR_ONLY' && qrCount === 0) {
+      blockers.push('Generate at least one QR code — it is the only way in without a website');
     }
 
     const warnings: string[] = [];

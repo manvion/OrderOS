@@ -44,6 +44,27 @@ enum FulfillmentType {
   DINE_IN
 }
 
+/// How a restaurant is reached by customers.
+///
+/// WEBSITE  — the full storefront at <slug>.orderos.ai (or their own domain):
+///            homepage, about page, menu, the lot. Their online presence.
+///
+/// QR_ONLY  — no website at all. The ONLY way in is scanning a QR code on the
+///            table or the counter. Plenty of restaurants have a Facebook page and
+///            no site, and do not want one; giving them a homepage they will never
+///            link to is a page that ranks for their name and shows a half-finished
+///            site. So in this mode the storefront root sends the customer straight
+///            to the menu, the marketing pages are gone, and the whole thing is
+///            noindexed — it isn't a website, it's an ordering terminal that lives
+///            in the customer's pocket.
+///
+/// The widget (their existing site) is orthogonal: it is a WebsiteIntegration, and
+/// a restaurant can run it alongside either mode.
+enum OrderingMode {
+  WEBSITE
+  QR_ONLY
+}
+
 enum PaymentStatus {
   PENDING
   PAID
@@ -128,6 +149,9 @@ model Restaurant {
 
   /// BusinessHours JSON — see packages/shared/src/hours.ts for the shape.
   businessHours Json
+
+  /// How customers reach this restaurant. See the OrderingMode enum.
+  orderingMode OrderingMode @default(WEBSITE)
 
   // Fulfillment configuration
   pickupEnabled           Boolean @default(true)

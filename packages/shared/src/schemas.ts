@@ -101,6 +101,12 @@ export const createRestaurantSchema = z.object({
   deliveryEnabled: z.boolean().optional(),
   dineInEnabled: z.boolean().optional(),
 
+  /**
+   * WEBSITE (default) or QR_ONLY — a restaurant that wants no website at all and
+   * takes every order through a scanned code. See the OrderingMode enum.
+   */
+  orderingMode: z.enum(['WEBSITE', 'QR_ONLY']).optional(),
+
   /** Basis points. Asked explicitly, never assumed — see above. */
   taxRateBps: z.number().int().min(0).max(3000).optional(),
 
@@ -128,6 +134,7 @@ export const updateRestaurantSchema = z.object({
   coverImageUrl: z.string().url().nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
   businessHours: businessHoursSchema.optional(),
+  orderingMode: z.enum(['WEBSITE', 'QR_ONLY']).optional(),
   brandPrimaryColor: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Must be a hex colour like #FF5722')

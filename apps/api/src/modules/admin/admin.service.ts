@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import type { CreateRestaurantInput } from '@orderos/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { EmailService } from '../notifications/email.service';
@@ -14,6 +15,15 @@ import type { PlatformAdminUser } from '../../common/auth/platform-admin.guard';
 
 /** How long a support session lasts before it expires on its own. */
 const SUPPORT_SESSION_MINUTES = 60;
+
+/**
+ * Everything the signup wizard asks a restaurant, plus the two things only the
+ * platform can set: who owns it, and what we charge them.
+ */
+export type AdminCreateRestaurantInput = CreateRestaurantInput & {
+  ownerEmail: string;
+  platformFeeBps?: number;
+};
 
 @Injectable()
 export class AdminService {
@@ -151,6 +161,7 @@ export class AdminService {
         email: true,
         phone: true,
         city: true,
+        orderingMode: true,
         isActive: true,
         isPublished: true,
         onboardingStep: true,
@@ -226,28 +237,29 @@ export class AdminService {
    * ever have to accept.
    */
   async createRestaurantForOwner(
-    input: {
-      name: string;
-      slug: string;
-      ownerEmail: string;
-      phone: string;
-      email: string;
-      address: { street: string; city: string; state: string; postalCode: string; country: string };
-      timezone: string;
-      currency: string;
-      platformFeeBps?: number;
-    },
+    input: AdminCreateRestaurantInput,
     admin: PlatformAdminUser,
   ) {
     const existing = await this.prisma.restaurant.findUnique({ where: { slug: input.slug } });
     if (existing) throw new BadRequestException(`The address "${input.slug}" is already taken`);
 
-    const { DEFAULT_BUSINESS_HOURS } = await import('@orderos/shared');
+    const { DEFAULT_BUSINESS_HOURS, totalTaxBps } = await import('@orderos/shared');
 
+    /**
+     * A QR-only restaurant serves people who are standing in the building. Dine-in
+     * is therefore on by default, and delivery is meaningless unless someone asks
+     * for it — but every one of these is still overridable, because "QR-only" and
+     * "takeaway counter with a QR on it" are both real and only the operator knows
+     * which one they are.
+     */
+    const qrOnly = input.orderingMode === 'QR_ONLY';
+
+    const taxComponents = input.taxComponents ?? [];
     const restaurant = await this.prisma.restaurant.create({
       data: {
         name: input.name,
         slug: input.slug,
+        description: input.description,
         email: input.email,
         phone: input.phone,
         street: input.address.street,
@@ -257,7 +269,29 @@ export class AdminService {
         country: input.address.country,
         timezone: input.timezone,
         currency: input.currency,
-        businessHours: DEFAULT_BUSINESS_HOURS as unknown as object,
+
+        businessHours: (input.businessHours ?? DEFAULT_BUSINESS_HOURS) as unknown as object,
+        orderingMode: qrOnly ? 'QR_ONLY' : 'WEBSITE',
+
+        pickupEnabled: input.pickupEnabled ?? !qrOnly,
+        deliveryEnabled: input.deliveryEnabled ?? false,
+        dineInEnabled: input.dineInEnabled ?? qrOnly,
+
+        /**
+         * Tax is asked, never assumed. `taxRateBps` is the combined rate we keep for
+         * display; the components are what actually gets charged and printed, because
+         * Quebec must show GST and QST separately and India CGST and SGST.
+         */
+        taxComponents: taxComponents.length ? (taxComponents as unknown as object) : undefined,
+        taxRateBps: taxComponents.length ? totalTaxBps(taxComponents) : (input.taxRateBps ?? 0),
+        taxCountry: input.taxCountry,
+        taxRegion: input.taxRegion,
+
+        deliveryFeeCents: input.deliveryFeeCents,
+        serviceFeeCents: input.serviceFeeCents,
+        minOrderCents: input.minOrderCents,
+        prepTimeMinutes: input.prepTimeMinutes,
+
         platformFeeBps: input.platformFeeBps ?? 0,
         onboardingStep: 'BUSINESS_DETAILS',
       },

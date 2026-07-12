@@ -44,6 +44,9 @@ const RESTAURANT = {
   timezone: 'America/Los_Angeles',
   isOpen: true,
   acceptingOrders: true,
+  // WEBSITE: the full storefront. A QR_ONLY restaurant would redirect this page
+  // straight to the menu and publish no website at all.
+  orderingMode: 'WEBSITE',
   pickupEnabled: true,
   deliveryEnabled: true,
   dineInEnabled: true,
@@ -231,6 +234,7 @@ const ADMIN_RESTAURANTS = [
     email: 'hello@bellaburger.com',
     phone: '+14155550123',
     city: 'San Francisco',
+    orderingMode: 'WEBSITE',
     isActive: true,
     isPublished: true,
     onboardingStep: 'DONE',
@@ -246,6 +250,7 @@ const ADMIN_RESTAURANTS = [
     email: 'orders@saffronhouse.in',
     phone: '+919845012345',
     city: 'Bengaluru',
+    orderingMode: 'WEBSITE',
     isActive: true,
     isPublished: true,
     onboardingStep: 'DONE',
@@ -261,6 +266,7 @@ const ADMIN_RESTAURANTS = [
     email: 'chris@northseafish.co.uk',
     phone: '+447700900123',
     city: 'Leeds',
+    orderingMode: 'WEBSITE',
     isActive: true,
     // Signed up, built a menu, never turned it on. This is the phone call.
     isPublished: false,
@@ -277,6 +283,8 @@ const ADMIN_RESTAURANTS = [
     email: 'luna@taquerialuna.mx',
     phone: '+525512345678',
     city: 'Toronto',
+    // No website at all — a taqueria with a Facebook page and QR codes on the tables.
+    orderingMode: 'QR_ONLY',
     isActive: true,
     isPublished: false,
     onboardingStep: 'PAYMENTS',
@@ -292,6 +300,7 @@ const ADMIN_RESTAURANTS = [
     email: 'ops@pizzaco.com',
     phone: '+13125550188',
     city: 'Chicago',
+    orderingMode: 'WEBSITE',
     // Suspended, not deleted. Their data is intact and it can be undone.
     isActive: false,
     isPublished: true,

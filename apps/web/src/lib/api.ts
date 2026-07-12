@@ -416,11 +416,20 @@ export interface Address {
   longitude?: number;
 }
 
+/**
+ * WEBSITE — the full storefront: homepage, about page, menu.
+ * QR_ONLY — no website. The only way in is scanning a code on the table, so the
+ *           root redirects to the menu, the marketing pages are gone, and the page
+ *           is noindexed.
+ */
+export type OrderingMode = 'WEBSITE' | 'QR_ONLY';
+
 export interface StorefrontRestaurant {
   id: string;
   slug: string;
   name: string;
   description: string | null;
+  orderingMode: OrderingMode;
   phone: string;
   street: string;
   city: string;
@@ -890,6 +899,8 @@ export interface AdminRestaurant {
   email: string;
   phone: string;
   city: string;
+  /** QR_ONLY restaurants have no website — the printed code is the only way in. */
+  orderingMode: OrderingMode;
   isActive: boolean;
   isPublished: boolean;
   onboardingStep: string;

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
@@ -6,6 +7,35 @@ import { storefrontApi } from '@/lib/api';
 import { AccountButton } from '@/components/storefront/account-button';
 import { CartButton } from '@/components/storefront/cart-button';
 import { TenantProvider } from '@/components/storefront/tenant-provider';
+
+/**
+ * Title, description, and — the part that matters — whether Google is allowed to
+ * index this at all.
+ *
+ * A QR-only restaurant asked us NOT to give them a website. Letting search engines
+ * index the ordering terminal would hand them one anyway: a page that ranks for
+ * their own name, that they never chose, cannot edit, and would find customers
+ * arriving at from Google expecting a website. So it is noindexed.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+
+  try {
+    const restaurant = await storefrontApi.getRestaurant(slug);
+
+    return {
+      title: restaurant.name,
+      description: restaurant.description ?? `Order from ${restaurant.name}`,
+      robots: restaurant.orderingMode === 'QR_ONLY' ? { index: false, follow: false } : undefined,
+    };
+  } catch {
+    return { title: 'Not found' };
+  }
+}
 
 /**
  * The storefront shell for one restaurant.
@@ -54,6 +84,17 @@ export default async function StorefrontLayout({
 
   const href = (path: string) => `${basePath}${path === '/' ? '' : path}` || '/';
 
+  /**
+   * QR-only: this is not a website, it is an ordering terminal that happens to run
+   * in a browser. The customer arrived by scanning a code at a table — they are not
+   * browsing, and "About us" is not why they took their phone out. So the marketing
+   * nav goes away, and the logo stops being a link to a homepage that redirects.
+   *
+   * "My orders" stays: closing the tab mid-order and having no way back is the one
+   * failure that ends with them phoning the kitchen that is cooking their food.
+   */
+  const isQrOnly = restaurant.orderingMode === 'QR_ONLY';
+
   return (
     <TenantProvider restaurant={restaurant} basePath={basePath}>
       <div
@@ -67,7 +108,7 @@ export default async function StorefrontLayout({
       >
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
           <div className="container flex h-16 items-center justify-between gap-4">
-            <Link href={href('/')} className="flex min-w-0 items-center gap-3">
+            <Link href={href(isQrOnly ? '/menu' : '/')} className="flex min-w-0 items-center gap-3">
               {restaurant.logoUrl ? (
                 <Image
                   src={restaurant.logoUrl}
@@ -91,14 +132,16 @@ export default async function StorefrontLayout({
               >
                 Menu
               </Link>
+              {!isQrOnly && (
+                <Link
+                  href={href('/about')}
+                  className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
+                >
+                  About
+                </Link>
+              )}
               {/* The way back to an order after closing the tab or losing the SMS.
                   Without it, the only route is phoning the kitchen that's cooking it. */}
-              <Link
-                href={href('/about')}
-                className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
-              >
-                About
-              </Link>
               <Link
                 href={href('/orders')}
                 className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"

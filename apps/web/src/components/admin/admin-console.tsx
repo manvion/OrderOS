@@ -8,11 +8,20 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Building2,
+  ChevronDown,
+  Clock,
+  Code2,
+  CreditCard,
   ExternalLink,
+  Globe,
   LifeBuoy,
+  Palette,
   Percent,
   Power,
+  QrCode,
   Search,
+  UtensilsCrossed,
+  Wrench,
 } from 'lucide-react';
 import { formatMoney } from '@orderos/shared';
 import { toast } from 'sonner';
@@ -60,14 +69,28 @@ export function AdminConsole() {
     enabled: Boolean(me),
   });
 
+  /**
+   * Set anything up on a restaurant's behalf: menu, branding, hours, QR codes,
+   * widget, domain, Stripe.
+   *
+   * It opens a time-boxed support session and drops us into THEIR dashboard, at the
+   * page we asked for. That is deliberately not a second, admin-flavoured copy of
+   * the menu editor: one implementation means a bug fixed for them is fixed for us,
+   * and it means we are looking at exactly the screen we are about to talk them
+   * through on the phone.
+   *
+   * The session needs a written reason, expires in an hour, and lands on their audit
+   * log. A support tool the customer cannot see us using is a surveillance tool.
+   */
   const support = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.adminStartSupport(id, reason),
-    onSuccess: () => {
+    mutationFn: ({ id, reason }: { id: string; reason: string; page?: string }) =>
+      api.adminStartSupport(id, reason),
+    onSuccess: (_data, vars) => {
       toast.success('Support session open for 1 hour. It is on their audit log.', {
         duration: 8000,
       });
       // The dashboard reads X-Restaurant-Id; the session makes it resolve.
-      window.open('/dashboard', '_blank');
+      window.open(vars.page ?? '/dashboard', '_blank');
     },
     onError: (err) =>
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not open a session'),
@@ -231,7 +254,7 @@ export function AdminConsole() {
                     key={r.id}
                     restaurant={r}
                     isSuper={isSuper}
-                    onSupport={(reason) => support.mutate({ id: r.id, reason })}
+                    onSupport={(reason, page) => support.mutate({ id: r.id, reason, page })}
                     onSetFee={(bps) => setFee.mutate({ id: r.id, bps })}
                     onSetActive={(isActive, reason) =>
                       setActive.mutate({ id: r.id, isActive, reason })
@@ -262,14 +285,49 @@ function RestaurantRow({
 }: {
   restaurant: AdminRestaurant;
   isSuper: boolean;
-  onSupport: (reason: string) => void;
+  onSupport: (reason: string, page?: string) => void;
   onSetFee: (bps: number) => void;
   onSetActive: (isActive: boolean, reason: string) => void;
 }) {
   const [fee, setFee] = useState((r.platformFeeBps / 100).toFixed(2));
+  const [setupOpen, setSetupOpen] = useState(false);
+
+  const isQrOnly = r.orderingMode === 'QR_ONLY';
+
+  /**
+   * Every one of these opens THEIR dashboard, at that page, through a support
+   * session. Same screens they use, so there is one menu editor in this product and
+   * not two.
+   */
+  const SETUP: Array<{ label: string; page: string; icon: typeof Percent; note?: string }> = [
+    { label: 'Menu', page: '/dashboard/menu', icon: UtensilsCrossed },
+    { label: 'Branding & about', page: '/dashboard/settings', icon: Palette },
+    { label: 'Hours & fulfillment', page: '/dashboard/settings', icon: Clock },
+    {
+      label: 'QR codes',
+      page: '/dashboard/qr',
+      icon: QrCode,
+      note: isQrOnly ? 'the only way in' : undefined,
+    },
+    { label: 'Payments (Stripe)', page: '/dashboard/setup', icon: CreditCard },
+    ...(isQrOnly
+      ? []
+      : [
+          { label: 'Widget for their site', page: '/dashboard/website', icon: Code2 },
+          { label: 'Custom domain', page: '/dashboard/domain', icon: Globe },
+        ]),
+  ];
+
+  const openSetup = (page: string, label: string) => {
+    const reason = prompt(
+      `Set up ${label} for ${r.name}?\n\nWhy do you need access? This is recorded on their audit log, where they can see it.`,
+    );
+    if (reason?.trim()) onSupport(reason.trim(), page);
+  };
 
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-xl border p-4">
+    <div className="rounded-xl border p-4">
+     <div className="flex flex-wrap items-center gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{r.name}</span>
@@ -280,6 +338,13 @@ function RestaurantRow({
             <Badge variant="success">live</Badge>
           ) : (
             <Badge variant="warning">not live</Badge>
+          )}
+
+          {isQrOnly && (
+            <Badge variant="outline" className="gap-1 text-[10px]">
+              <QrCode className="h-3 w-3" />
+              QR only
+            </Badge>
           )}
 
           {!r.stripeChargesEnabled && (
@@ -313,8 +378,16 @@ function RestaurantRow({
       )}
 
       <div className="flex items-center gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => setSetupOpen((o) => !o)}>
+          <Wrench className="h-3.5 w-3.5" />
+          Set up
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${setupOpen ? 'rotate-180' : ''}`}
+          />
+        </Button>
+
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() => {
             // A written reason is mandatory — it lands on THEIR audit log.
@@ -328,7 +401,7 @@ function RestaurantRow({
           Help
         </Button>
 
-        {r.isPublished && (
+        {r.isPublished && !isQrOnly && (
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
             <a
               href={`http://${r.slug}.localhost:3000`}
@@ -363,6 +436,43 @@ function RestaurantRow({
           </Button>
         )}
       </div>
+     </div>
+
+      {setupOpen && (
+        <div className="mt-4 border-t pt-4">
+          <p className="mb-3 text-xs text-muted-foreground">
+            Opens <strong>their</strong> dashboard at that page, through a support session — one
+            hour, a written reason, and it appears on their audit log.
+          </p>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {SETUP.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => openSetup(s.page, s.label)}
+                className="flex items-center gap-2.5 rounded-lg border p-2.5 text-left text-sm transition-colors hover:bg-accent"
+              >
+                <s.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{s.label}</span>
+                  {s.note && (
+                    <span className="block truncate text-[11px] text-amber-700">{s.note}</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {isQrOnly && (
+            <p className="mt-3 rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
+              This restaurant has <strong>no website</strong> — they chose QR-only. There is no
+              homepage, nothing is indexed, and the printed codes are the only way a customer can
+              order. Publishing is blocked until at least one code exists.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

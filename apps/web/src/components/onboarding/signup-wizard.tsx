@@ -2,8 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@clerk/nextjs';
-import { ArrowLeft, ArrowRight, Check, Loader2, ShoppingBag, Truck, UtensilsCrossed, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Globe,
+  Loader2,
+  QrCode,
+  ShoppingBag,
+  Truck,
+  UtensilsCrossed,
+  X,
+} from 'lucide-react';
 import {
   DEFAULT_BUSINESS_HOURS,
   WEEKDAYS,
@@ -15,7 +25,8 @@ import {
 } from '@orderos/shared';
 import { TaxStep } from './tax-step';
 import { toast } from 'sonner';
-import { ApiRequestError, createDashboardApi } from '@/lib/api';
+import { ApiRequestError, createDashboardApi, type OrderingMode } from '@/lib/api';
+import { useAuthToken } from '@/lib/auth-compat';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -52,9 +63,21 @@ const STEPS = ['Your restaurant', 'Where you are', 'When you open', 'How you ser
  * What we deliberately DON'T ask here: the menu and Stripe. Those are real work,
  * they need their own screens, and blocking someone's account creation behind them
  * is how you lose a restaurant that just wanted to look around first.
+ *
+ * ONE wizard, two callers:
+ *
+ *   mode="self"  — a restaurant signing themselves up.
+ *   mode="admin" — us, onboarding them on a phone call. Same questions, plus who
+ *                  owns it and what we charge.
+ *
+ * They are the same form on purpose. The admin panel used to have its own, shorter
+ * form that never asked about tax or hours — so a restaurant WE onboarded by hand
+ * went live on default hours charging 0% tax, while one that signed itself up did
+ * not. Two forms means the second one is always the one that's wrong.
  */
-export function SignupWizard() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
+  const isAdmin = mode === 'admin';
+  const { getToken } = useAuthToken();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -78,9 +101,17 @@ export function SignupWizard() {
     timezone: 'America/New_York',
     currency: 'USD',
 
+    /** WEBSITE or QR_ONLY — see the OrderingMode enum. */
+    orderingMode: 'WEBSITE' as OrderingMode,
+
     pickupEnabled: true,
     deliveryEnabled: false,
     dineInEnabled: false,
+
+    // Admin-only. Ignored entirely in self-signup: the person filling the form IS
+    // the owner, and they cannot set their own commission.
+    ownerEmail: '',
+    feePercent: '0',
 
     prepTimeMinutes: 20,
     deliveryFeeCents: 499,
@@ -119,8 +150,17 @@ export function SignupWizard() {
     }));
   }, [form.name, slugTouched]);
 
-  // Availability check, debounced — it hits the database on every call.
+  /**
+   * Availability check, debounced — it hits the database on every call.
+   *
+   * Skipped for an admin: `/restaurants/slug-available` is tenant-guarded, and a
+   * platform admin holds no membership, so it would 403 on every keystroke and show
+   * a permanent red cross on a name that is perfectly free. They get the answer from
+   * the API on submit instead ("that address is already taken"), which is one round
+   * trip rather than a lie.
+   */
   useEffect(() => {
+    if (isAdmin) return;
     if (form.slug.length < 3) {
       setSlugStatus('idle');
       return;
@@ -142,13 +182,22 @@ export function SignupWizard() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [form.slug, getToken]);
+  }, [form.slug, getToken, isAdmin]);
 
   const anyFulfillment = form.pickupEnabled || form.deliveryEnabled || form.dineInEnabled;
 
+  // An admin cannot check the slug (see above), so format is the bar; the server has
+  // the final word. A self-signup must see a green tick before moving on.
+  const slugOk = isAdmin ? form.slug.trim().length > 2 : slugStatus === 'free';
+
   /** Can they leave this step? */
   const stepValid = [
-    form.name.trim().length > 1 && slugStatus === 'free' && form.phone.length > 6 && form.email.includes('@'),
+    form.name.trim().length > 1 &&
+      slugOk &&
+      form.phone.length > 6 &&
+      form.email.includes('@') &&
+      // The owner's own email. We invite them; we never set their password.
+      (!isAdmin || form.ownerEmail.includes('@')),
     form.street.length > 2 && form.city.length > 1 && form.state.length > 1 && form.postalCode.length > 2,
     // Hours are always valid — a restaurant that's closed every day is odd, but
     // it's their business, and blocking them here helps nobody.
@@ -178,6 +227,7 @@ export function SignupWizard() {
       timezone: form.timezone,
       currency: form.currency,
       businessHours: hours,
+      orderingMode: form.orderingMode,
       pickupEnabled: form.pickupEnabled,
       deliveryEnabled: form.deliveryEnabled,
       dineInEnabled: form.dineInEnabled,
@@ -204,6 +254,21 @@ export function SignupWizard() {
 
     try {
       const api = createDashboardApi(getToken);
+
+      if (isAdmin) {
+        await api.adminCreateRestaurant({
+          ...parsed.data,
+          ownerEmail: form.ownerEmail.trim(),
+          platformFeeBps: Math.round(parseFloat(form.feePercent || '0') * 100),
+        });
+        toast.success(
+          `Created. ${form.ownerEmail} has been emailed an invitation — they set their own password.`,
+          { duration: 10_000 },
+        );
+        router.push('/admin');
+        return;
+      }
+
       await api.createRestaurant(parsed.data);
       toast.success('Your restaurant is set up. Now add your menu.');
       router.push('/dashboard/setup');
@@ -218,14 +283,15 @@ export function SignupWizard() {
     }
   };
 
-  if (!isLoaded) return null;
-  if (!isSignedIn) {
-    router.replace('/sign-in');
-    return null;
-  }
-
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
+      {isAdmin && (
+        <Button variant="ghost" size="sm" className="mb-4" onClick={() => router.push('/admin')}>
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to the console
+        </Button>
+      )}
+
       {/* Progress. Concrete steps, not a percentage. */}
       <div className="mb-8">
         <div className="flex gap-1.5">
@@ -318,6 +384,47 @@ export function SignupWizard() {
                   />
                 </Field>
               </div>
+
+              {/*
+                Admin only: who owns this, and what we charge them.
+
+                We create the restaurant; we do NOT create their account. The owner
+                gets an invitation at this address and sets their own password. An
+                account whose password we chose is an account we can silently log in
+                as, and "the platform can become me without my knowledge" is not
+                something a business holding its revenue with us should have to
+                accept.
+              */}
+              {isAdmin && (
+                <div className="space-y-4 rounded-xl border border-dashed p-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Platform only — the owner never sees this
+                  </p>
+
+                  <Field
+                    label="Owner's email"
+                    hint="We email them an invitation. They set their own password — we never see it."
+                  >
+                    <Input
+                      type="email"
+                      value={form.ownerEmail}
+                      onChange={(e) => set('ownerEmail', e.target.value)}
+                      placeholder="joe@joesburgers.com"
+                    />
+                  </Field>
+
+                  <Field label="Our commission (%)" hint="Applies to orders from the moment they go live.">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="30"
+                      value={form.feePercent}
+                      onChange={(e) => set('feePercent', e.target.value)}
+                    />
+                  </Field>
+                </div>
+              )}
             </>
           )}
 
@@ -459,6 +566,51 @@ export function SignupWizard() {
                 body="Pick everything that applies. You can change any of this later."
               />
 
+              {/*
+                WEBSITE or QR-ONLY.
+
+                Plenty of restaurants have a Facebook page, no website, and no
+                intention of getting one. Handing them a homepage they will never
+                link to is not a gift — it's a page that ranks for their name and
+                shows a half-finished site with a stock photo on it.
+
+                So QR-only is a real mode, not a setting: no homepage, no about page,
+                noindexed, and the only way in is the code on the table. Choosing it
+                turns dine-in on, because the customer is standing in the room.
+              */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Mode
+                  icon={Globe}
+                  label="Website + QR"
+                  hint="An ordering page at their own web address, plus QR codes if they want them."
+                  checked={form.orderingMode === 'WEBSITE'}
+                  onSelect={() => set('orderingMode', 'WEBSITE')}
+                />
+                <Mode
+                  icon={QrCode}
+                  label="QR only — no website"
+                  hint="Customers scan a code at the table or counter. Nothing is published or indexed."
+                  checked={form.orderingMode === 'QR_ONLY'}
+                  onSelect={() => {
+                    setForm((f) => ({
+                      ...f,
+                      orderingMode: 'QR_ONLY',
+                      // They're in the building. Still overridable — a takeaway
+                      // counter with a QR on it is also QR-only.
+                      dineInEnabled: true,
+                    }));
+                  }}
+                />
+              </div>
+
+              {form.orderingMode === 'QR_ONLY' && (
+                <p className="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
+                  No website will be published. Print the QR codes from the dashboard and put them on
+                  the tables — scanning one opens the menu straight away. They can switch a website on
+                  later without losing anything.
+                </p>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-3">
                 <Method
                   icon={ShoppingBag}
@@ -581,7 +733,7 @@ export function SignupWizard() {
                   </>
                 ) : (
                   <>
-                    Create my restaurant
+                    {isAdmin ? 'Create and invite the owner' : 'Create my restaurant'}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -625,6 +777,41 @@ function Field({
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/** A one-of-two choice, unlike Method which is a toggle. */
+function Mode({
+  icon: Icon,
+  label,
+  hint,
+  checked,
+  onSelect,
+}: {
+  icon: typeof Truck;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={checked}
+      className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
+        checked ? 'border-brand-subtle bg-brand-subtle' : 'hover:bg-accent/50'
+      }`}
+    >
+      <Icon className="mt-0.5 h-5 w-5 shrink-0" />
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          {label}
+          {checked && <Check className="h-3.5 w-3.5 text-brand" />}
+        </span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{hint}</span>
+      </span>
+    </button>
   );
 }
 
