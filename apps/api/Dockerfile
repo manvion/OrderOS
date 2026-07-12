@@ -79,4 +79,14 @@ EXPOSE 4000
 # Migrations run at startup rather than at build time, because the database does not exist
 # when the image is built. `migrate deploy` is the production-safe variant: it applies
 # pending migrations and never generates, resets or prompts.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/apps/api/src/main.js"]
+# ABSOLUTE paths, and `exec` on the final process.
+#
+# A host that overrides the working directory (Railway does) turns a relative path
+# into a file that isn't there — and `node` exits so fast, and so quietly, that the
+# logs show the migration succeeding and then simply stop. Nothing says "I could not
+# find main.js". Absolute paths cannot be broken by someone else's cwd.
+#
+# `exec` replaces the shell with node, so node becomes PID 1 and actually receives
+# SIGTERM on shutdown. Without it the shell swallows the signal, the app never runs
+# its graceful shutdown, and in-flight orders are cut off mid-request on every deploy.
+CMD ["sh", "-c", "cd /app/apps/api && npx prisma migrate deploy && exec node /app/apps/api/dist/apps/api/src/main.js"]
