@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "build": "nest build && tsc-alias -p tsconfig.json",
-    "start": "nest start",
+    "start": "node dist/apps/api/src/main.js",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -20,7 +20,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
     "admin:create": "dotenv -e ../../.env -- ts-node prisma/create-admin.ts",
-    "db:studio": "dotenv -e ../../.env -- prisma studio"
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
+    "start:nest": "nest start"
   },
   "prisma": {
     "seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts"
