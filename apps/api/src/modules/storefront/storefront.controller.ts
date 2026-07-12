@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -36,6 +37,7 @@ const saveAddressSchema = addressSchema.extend({
 });
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AddressAutocompleteService } from '../delivery/address-autocomplete.service';
 import { DeliveryService } from '../delivery/delivery.service';
 import { MenuService } from '../menu/menu.service';
 import { OrdersService } from '../orders/orders.service';
@@ -45,6 +47,22 @@ import { RestaurantsService } from '../restaurants/restaurants.service';
 const quoteSchema = z.object({
   address: addressSchema,
   orderValueCents: z.number().int().min(0),
+});
+
+/**
+ * `session` is a Google Places session token minted by the client. It groups every
+ * keystroke of one address search plus the final details call into ONE billable
+ * unit; without it Google bills per keystroke. It is opaque to us — we only pass it
+ * through — so any non-empty string is acceptable.
+ */
+const suggestSchema = z.object({
+  q: z.string().min(1).max(200),
+  session: z.string().min(1).max(100),
+});
+
+const resolveSchema = z.object({
+  id: z.string().min(1).max(400),
+  session: z.string().min(1).max(100),
 });
 
 /**
@@ -63,6 +81,7 @@ export class StorefrontController {
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
     private readonly delivery: DeliveryService,
+    private readonly addresses: AddressAutocompleteService,
     private readonly prisma: PrismaService,
     private readonly accounts: CustomerAccountService,
   ) {}
@@ -117,6 +136,55 @@ export class StorefrontController {
     }
 
     return this.delivery.getQuote(restaurantId, body.address, body.orderValueCents);
+  }
+
+  /**
+   * Address autocomplete, as the customer types.
+   *
+   * The country is taken from the RESTAURANT, never from the caller. It scopes the
+   * provider search, and letting an anonymous caller choose it would turn this into
+   * a free worldwide geocoder running on our API key.
+   *
+   * Throttled tighter than the quote endpoint because it fires per keystroke (the
+   * client debounces, but we do not get to rely on a client we don't control), and
+   * every call that reaches a provider is billable.
+   */
+  @Get('address/suggest')
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
+  async addressSuggest(
+    @TenantId() restaurantId: string,
+    @Query(new ZodValidationPipe(suggestSchema)) query: z.infer<typeof suggestSchema>,
+  ) {
+    if (!this.addresses.available) {
+      // No provider key configured. Say so plainly so the checkout form can render a
+      // manual address entry instead of a picker that would silently never suggest.
+      return { available: false as const, suggestions: [] };
+    }
+
+    const { country } = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { country: true },
+    });
+
+    return {
+      available: true as const,
+      suggestions: await this.addresses.suggest(query.q, country, query.session),
+    };
+  }
+
+  /**
+   * Turn the suggestion the customer clicked into a full, geocoded address.
+   *
+   * Returns `null` when the suggestion has expired or is unknown. The client must
+   * then keep whatever the customer typed — quietly blanking their address because
+   * our cache dropped an entry would be far worse than an unverified one.
+   */
+  @Get('address/resolve')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async addressResolve(
+    @Query(new ZodValidationPipe(resolveSchema)) query: z.infer<typeof resolveSchema>,
+  ) {
+    return { address: await this.addresses.resolve(query.id, query.session) };
   }
 
   /**

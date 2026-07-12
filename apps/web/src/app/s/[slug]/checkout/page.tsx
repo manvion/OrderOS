@@ -6,8 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { formatMoney } from '@orderos/shared';
 import { toast } from 'sonner';
-import { storefrontApi, ApiRequestError, type DeliveryQuote } from '@/lib/api';
+import { storefrontApi, ApiRequestError, type Address, type DeliveryQuote } from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';
+import { AddressAutocomplete } from '@/components/storefront/address-autocomplete';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
 import { useCustomerAuth } from '@/components/storefront/customer-auth';
 import { Button } from '@/components/ui/button';
@@ -55,12 +56,15 @@ export default function CheckoutPage() {
     enabled: Boolean(isSignedIn),
     staleTime: 5 * 60_000,
   });
-  const [address, setAddress] = useState({
+  // Default to the RESTAURANT's country, not 'US'. A Toronto restaurant's customers
+  // are overwhelmingly in Canada, and a hardcoded 'US' meant every one of them was
+  // geocoded, quoted and taxed against the wrong country until they noticed the field.
+  const [address, setAddress] = useState<Address>({
     street: '',
     city: '',
     state: '',
     postalCode: '',
-    country: 'US',
+    country: restaurant.country ?? 'US',
   });
   const [notes, setNotes] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
@@ -419,20 +423,19 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="street">Street address</Label>
-              <Input
-                id="street"
-                value={address.street}
-                onChange={(e) => {
-                  // Typing a new address means they aren't using the saved one.
-                  setSelectedAddressId(null);
-                  setAddress({ ...address, street: e.target.value });
-                }}
-                required
-                autoComplete="street-address"
-              />
-            </div>
+            {/* Picking a suggestion fills city/state/postcode AND gives us the
+                provider's exact coordinates, so the delivery quote below is measured
+                against a real point rather than a re-guess of the prose. Typing by
+                hand still works everywhere — see AddressAutocomplete. */}
+            <AddressAutocomplete
+              slug={restaurant.slug}
+              value={address}
+              onChange={(next) => {
+                // Typing or picking a new address means they aren't using the saved one.
+                setSelectedAddressId(null);
+                setAddress(next);
+              }}
+            />
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
