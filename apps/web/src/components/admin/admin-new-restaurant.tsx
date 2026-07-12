@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@clerk/nextjs';
 import { useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ApiRequestError, createDashboardApi } from '@/lib/api';
+import { useAuthToken } from '@/lib/auth-compat';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
@@ -34,7 +34,7 @@ const TIMEZONES = [
  * business owner should ever have to accept from a company holding their revenue.
  */
 export function AdminNewRestaurant() {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthToken();
   const router = useRouter();
   const api = createDashboardApi(getToken);
 

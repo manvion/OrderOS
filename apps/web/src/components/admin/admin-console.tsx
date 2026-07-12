@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuthToken } from '@/lib/auth-compat';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -35,7 +35,7 @@ import { Badge, Skeleton } from '@/components/ui/primitives';
  *     or switch them off.
  */
 export function AdminConsole() {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthToken();
   const queryClient = useQueryClient();
   const api = createDashboardApi(getToken);
 

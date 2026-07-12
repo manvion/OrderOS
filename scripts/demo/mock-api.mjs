@@ -215,6 +215,94 @@ for (const category of MENU) {
   }
 }
 
+/**
+ * The tenants, as the PLATFORM console sees them.
+ *
+ * Deliberately not all healthy. A console that only ever shows green rows teaches
+ * you nothing about the console: the interesting rows are the restaurant that
+ * signed up and never went live, and the one with no Stripe account — because those
+ * are the two ways a signup quietly turns into no revenue for anybody.
+ */
+const ADMIN_RESTAURANTS = [
+  {
+    id: 'r_bella',
+    name: 'Bella Burger',
+    slug: 'bellaburger',
+    email: 'hello@bellaburger.com',
+    phone: '+14155550123',
+    city: 'San Francisco',
+    isActive: true,
+    isPublished: true,
+    onboardingStep: 'DONE',
+    stripeChargesEnabled: true,
+    platformFeeBps: 300,
+    createdAt: '2026-04-02T10:00:00.000Z',
+    _count: { orders: 842, products: 24, users: 6 },
+  },
+  {
+    id: 'r_saffron',
+    name: 'Saffron House',
+    slug: 'saffronhouse',
+    email: 'orders@saffronhouse.in',
+    phone: '+919845012345',
+    city: 'Bengaluru',
+    isActive: true,
+    isPublished: true,
+    onboardingStep: 'DONE',
+    stripeChargesEnabled: true,
+    platformFeeBps: 250,
+    createdAt: '2026-05-19T09:30:00.000Z',
+    _count: { orders: 391, products: 58, users: 4 },
+  },
+  {
+    id: 'r_northsea',
+    name: 'North Sea Fish Bar',
+    slug: 'northsea',
+    email: 'chris@northseafish.co.uk',
+    phone: '+447700900123',
+    city: 'Leeds',
+    isActive: true,
+    // Signed up, built a menu, never turned it on. This is the phone call.
+    isPublished: false,
+    onboardingStep: 'MENU',
+    stripeChargesEnabled: false,
+    platformFeeBps: 300,
+    createdAt: '2026-06-28T16:45:00.000Z',
+    _count: { orders: 0, products: 11, users: 1 },
+  },
+  {
+    id: 'r_taqueria',
+    name: 'Taqueria Luna',
+    slug: 'taquerialuna',
+    email: 'luna@taquerialuna.mx',
+    phone: '+525512345678',
+    city: 'Toronto',
+    isActive: true,
+    isPublished: false,
+    onboardingStep: 'PAYMENTS',
+    stripeChargesEnabled: false,
+    platformFeeBps: 300,
+    createdAt: '2026-07-04T12:15:00.000Z',
+    _count: { orders: 0, products: 0, users: 1 },
+  },
+  {
+    id: 'r_pizzaco',
+    name: 'Pizza Co',
+    slug: 'pizzaco',
+    email: 'ops@pizzaco.com',
+    phone: '+13125550188',
+    city: 'Chicago',
+    // Suspended, not deleted. Their data is intact and it can be undone.
+    isActive: false,
+    isPublished: true,
+    onboardingStep: 'DONE',
+    stripeChargesEnabled: true,
+    platformFeeBps: 300,
+    createdAt: '2026-03-11T08:00:00.000Z',
+    _count: { orders: 75, products: 19, users: 3 },
+  },
+];
+
 /** In-memory order store, keyed by tracking token. */
 const orders = new Map();
 /** Funnel events, so the demo can print the same numbers the dashboard shows. */
@@ -376,6 +464,80 @@ const server = createServer(async (req, res) => {
   <p class="note">The real integration sends you to checkout.stripe.com here. Stripe refuses to be
      framed, which is exactly why this opened in a new tab instead of inside the widget.</p>
 </div></body></html>`);
+  }
+
+  // --- Platform admin --------------------------------------------------------
+  //
+  // The console WE use, not the restaurants. In the real API every one of these is
+  // behind the PlatformAdmin table (a separate table, never a role on User — a
+  // support agent must not be one boolean away from owning a restaurant).
+  //
+  // The demo hands back a SUPER_ADMIN so the whole page is visible. The real thing
+  // 401s and renders "Not found", which is what /admin should tell a stranger.
+
+  if (path === '/api/admin/me') {
+    return send(res, 200, { id: 'pa_1', email: 'you@orderos.ai', role: 'SUPER_ADMIN' }, origin);
+  }
+
+  if (path === '/api/admin/overview') {
+    const live = ADMIN_RESTAURANTS.filter((r) => r.isPublished && r.isActive).length;
+    return send(
+      res,
+      200,
+      {
+        restaurants: {
+          total: ADMIN_RESTAURANTS.length,
+          live,
+          new: 3,
+          // The number that matters: signed up, never went live.
+          stuckInOnboarding: ADMIN_RESTAURANTS.filter((r) => !r.isPublished && r.isActive).length,
+        },
+        gmvCents: 4_182_900,
+        platformRevenueCents: 125_487,
+        orders: 1_308,
+        refundedCents: 21_400,
+        changes: { gmv: 18, platformRevenue: 22, orders: 14 },
+      },
+      origin,
+    );
+  }
+
+  if (path === '/api/admin/restaurants' && req.method === 'GET') {
+    const q = (url.searchParams.get('search') ?? '').toLowerCase();
+    const status = url.searchParams.get('status') ?? '';
+
+    const restaurants = ADMIN_RESTAURANTS.filter((r) => {
+      if (q && !`${r.name} ${r.slug} ${r.email}`.toLowerCase().includes(q)) return false;
+      if (status === 'live') return r.isPublished && r.isActive;
+      if (status === 'draft') return !r.isPublished && r.isActive;
+      if (status === 'suspended') return !r.isActive;
+      return true;
+    });
+
+    return send(res, 200, { restaurants, total: restaurants.length }, origin);
+  }
+
+  const adminMutation = path.match(/^\/api\/admin\/restaurants\/([^/]+)\/(fee|active|support-session)$/);
+  if (adminMutation && req.method === 'POST') {
+    const [, id, action] = adminMutation;
+    const body = await readBody(req);
+    const target = ADMIN_RESTAURANTS.find((r) => r.id === id);
+    if (!target) return send(res, 404, { message: 'Not found' }, origin);
+
+    if (action === 'support-session') {
+      // A written reason is mandatory, and it lands on THEIR audit log.
+      return send(
+        res,
+        200,
+        { id: 'sup_1', expiresAt: new Date(Date.now() + 3_600_000).toISOString() },
+        origin,
+      );
+    }
+
+    if (action === 'fee') target.platformFeeBps = Number(body.platformFeeBps ?? target.platformFeeBps);
+    if (action === 'active') target.isActive = Boolean(body.isActive);
+
+    return send(res, 200, target, origin);
   }
 
   // --- Storefront API --------------------------------------------------------
