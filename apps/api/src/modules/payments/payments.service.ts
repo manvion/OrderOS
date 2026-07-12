@@ -51,7 +51,11 @@ export class PaymentsService {
         type: 'express',
         country: restaurant.country,
         email: restaurant.email,
-        business_type: 'company',
+        // business_type is deliberately NOT set. It used to be hardcoded to
+        // 'company', which a sole trader — most independent restaurants — cannot
+        // satisfy, and they got stuck part-way through Stripe's form with no way
+        // back. Stripe asks them directly, and it knows the rules for their country
+        // better than we do.
         business_profile: {
           name: restaurant.name,
           mcc: '5812', // Eating places / restaurants
@@ -72,11 +76,24 @@ export class PaymentsService {
     }
 
     const webUrl = this.config.getOrThrow<string>('WEB_URL');
+
+    /**
+     * Where Stripe drops them when they finish (or bail).
+     *
+     * These MUST be real routes. They used to point at /dashboard/settings/payments,
+     * which does not exist — so a restaurant completed Stripe's entire onboarding
+     * form and was returned to a 404. From their side the product simply broke at
+     * the exact moment they handed over their bank details, which is the worst
+     * possible moment for it to look broken.
+     *
+     * /dashboard/setup is the setup checklist: it re-reads Stripe status on load, so
+     * they land on a page that shows them the step going green.
+     */
     const link = await this.stripe.accountLinks.create({
       account: accountId,
-      // Stripe sends them back here if the link expires mid-flow; we just mint a new one.
-      refresh_url: `${webUrl}/dashboard/settings/payments?refresh=1`,
-      return_url: `${webUrl}/dashboard/settings/payments?connected=1`,
+      // Stripe sends them here if the link expires mid-flow; we just mint a new one.
+      refresh_url: `${webUrl}/dashboard/setup?stripe=refresh`,
+      return_url: `${webUrl}/dashboard/setup?stripe=connected`,
       type: 'account_onboarding',
     });
 

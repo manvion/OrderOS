@@ -6,3 +6,4 @@ export * from './widget';
 export * from './tax';
 export * from './setup';
 export * from './about';
+export * from './countries';

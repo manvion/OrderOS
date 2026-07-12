@@ -15,8 +15,10 @@ import {
   X,
 } from 'lucide-react';
 import {
+  COUNTRIES,
   DEFAULT_BUSINESS_HOURS,
   WEEKDAYS,
+  getCountry,
   createRestaurantSchema,
   resolveTaxProfile,
   type BusinessHours,
@@ -31,17 +33,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label, Switch } from '@/components/ui/primitives';
-
-const TIMEZONES = [
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Australia/Sydney',
-];
 
 const STEPS = ['Your restaurant', 'Where you are', 'When you open', 'How you serve'] as const;
 
@@ -183,6 +174,10 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
       clearTimeout(t);
     };
   }, [form.slug, getToken, isAdmin]);
+
+  /** Everything on the address step follows from this: currency, timezones,
+   *  region label and list, and whether Stripe can pay them at all. */
+  const country = getCountry(form.country);
 
   const anyFulfillment = form.pickupEnabled || form.deliveryEnabled || form.dineInEnabled;
 
@@ -436,6 +431,61 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                 body="Used for pickup directions, and as the collection point for delivery couriers."
               />
 
+              {/*
+                COUNTRY FIRST, because everything else follows from it: the currency,
+                the timezones on offer, the states list, the tax regime, and whether
+                Stripe can pay this restaurant at all.
+
+                It used to be hardcoded to 'US' with no picker, while the tax step
+                asked for a country separately — so a restaurant in Toronto could set
+                Canadian tax and still be created as a US business, then fail Stripe
+                onboarding for a reason invisible to everyone involved.
+              */}
+              <Field label="Country">
+                <Select
+                  value={form.country}
+                  onChange={(e) => {
+                    const next = getCountry(e.target.value);
+                    setForm((f) => ({
+                      ...f,
+                      country: next.code,
+                      // Everything downstream follows the country. Overriding these
+                      // by hand is possible afterwards; guessing them is not.
+                      currency: next.currency,
+                      timezone: next.timezones[0],
+                      state: '',
+                    }));
+                    if (next.taxRegime) {
+                      setTaxCountry(next.taxRegime);
+                      setTaxComponents(resolveTaxProfile(next.taxRegime, '', {}).components);
+                      setTaxRegion('');
+                      setTaxConfirmed(false);
+                    }
+                  }}
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              {/*
+                Stripe Connect does not support payouts to businesses in every country
+                we can otherwise serve. Say so HERE, on the form, rather than letting
+                them find out after typing their bank details into Stripe's ten-minute
+                onboarding — which is exactly where the goodwill runs out.
+              */}
+              {!country.stripeSupported && (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
+                  <strong>Heads up:</strong> Stripe cannot pay out to businesses in{' '}
+                  {country.name} yet. You can set everything else up — menu, QR codes,
+                  orders — but online card payments will not work until that changes. Cash
+                  and in-person payment still do.
+                </p>
+              )}
+
               <Field label="Street address" error={errors['address.street']}>
                 <Input value={form.street} onChange={(e) => set('street', e.target.value)} autoFocus />
               </Field>
@@ -444,10 +494,26 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                 <Field label="City" error={errors['address.city']}>
                   <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
                 </Field>
-                <Field label="State" error={errors['address.state']}>
-                  <Input value={form.state} onChange={(e) => set('state', e.target.value)} />
+
+                {/* "State" in Texas, "Province" in Ontario, "County" in Kent. A form
+                    that calls it the wrong thing feels like it was built for somewhere
+                    else — because it was. */}
+                <Field label={country.regionLabel} error={errors['address.state']}>
+                  {country.regions.length > 0 ? (
+                    <Select value={form.state} onChange={(e) => set('state', e.target.value)}>
+                      <option value="">Choose…</option>
+                      {country.regions.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input value={form.state} onChange={(e) => set('state', e.target.value)} />
+                  )}
                 </Field>
-                <Field label="Postal code" error={errors['address.postalCode']}>
+
+                <Field label={country.postalLabel} error={errors['address.postalCode']}>
                   <Input
                     value={form.postalCode}
                     onChange={(e) => set('postalCode', e.target.value)}
@@ -458,20 +524,23 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Timezone" hint="Your opening hours are in this timezone.">
                   <Select value={form.timezone} onChange={(e) => set('timezone', e.target.value)}>
-                    {TIMEZONES.map((tz) => (
+                    {country.timezones.map((tz) => (
                       <option key={tz} value={tz}>
-                        {tz.replace(/_/g, ' ')}
+                        {tz.replace(/_/g, ' ').replace('America/', '').replace('Asia/', '')}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Currency">
+                <Field
+                  label="Currency"
+                  hint={`Set from your country. Change it only if you charge in something else.`}
+                >
                   <Select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-                    <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
-                    <option value="EUR">EUR</option>
-                    <option value="AUD">AUD</option>
-                    <option value="CAD">CAD</option>
+                    {[...new Set(COUNTRIES.map((c) => c.currency))].sort().map((cur) => (
+                      <option key={cur} value={cur}>
+                        {cur}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
               </div>

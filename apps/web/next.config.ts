@@ -7,11 +7,36 @@ const config: NextConfig = {
   // compiles it as part of the app so we don't need a watch-and-rebuild step.
   transpilePackages: ['@orderos/shared'],
 
+  /**
+   * Where uploaded images may be SERVED from.
+   *
+   * next/image refuses to render any remote host that is not on this list — and it
+   * fails SILENTLY: the upload succeeds, the URL is stored, and the picture simply
+   * never appears. It looks exactly like the file was lost. It wasn't; the browser
+   * was told not to fetch it.
+   *
+   * So this list must include wherever your object storage actually serves from.
+   * NEXT_PUBLIC_MEDIA_HOSTNAME covers a custom CDN domain; the rest are the defaults
+   * for the storage providers the API supports.
+   */
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '*.blob.core.windows.net' },
-      { protocol: 'https', hostname: '*.azureedge.net' },
+      // Cloudflare R2 — the public r2.dev subdomain, and the S3 endpoint.
+      { protocol: 'https', hostname: '**.r2.dev' },
+      { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
+      // AWS S3 / Backblaze / DigitalOcean Spaces.
+      { protocol: 'https', hostname: '**.amazonaws.com' },
+      { protocol: 'https', hostname: '**.backblazeb2.com' },
+      { protocol: 'https', hostname: '**.digitaloceanspaces.com' },
+      // Azure Blob.
+      { protocol: 'https', hostname: '**.blob.core.windows.net' },
+      { protocol: 'https', hostname: '**.azureedge.net' },
+      // Local dev: uploads are served straight off the API.
       { protocol: 'http', hostname: 'localhost' },
+      // Your own CDN domain, if you put one in front of the bucket.
+      ...(process.env.NEXT_PUBLIC_MEDIA_HOSTNAME
+        ? [{ protocol: 'https' as const, hostname: process.env.NEXT_PUBLIC_MEDIA_HOSTNAME }]
+        : []),
     ],
   },
 
