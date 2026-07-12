@@ -163,13 +163,32 @@ async function guestOnlyMiddleware(req: NextRequest) {
   return (await routeTenant(req)) ?? NextResponse.next();
 }
 
-/** With Clerk: the same routing, plus session protection on staff routes. */
+/**
+ * With Clerk: the same routing, plus session protection on staff routes.
+ *
+ * We redirect to /sign-in OURSELVES rather than calling `auth.protect()`.
+ *
+ * `auth.protect()` responds with a 404 when it cannot work out where to send an
+ * unauthenticated visitor — and it cannot, unless a sign-in URL is configured in the
+ * environment. So every protected route (/admin, /dashboard, /onboarding) returned
+ * "not found" on a perfectly healthy deployment, which reads like a broken build or
+ * a missing page rather than "you are signed out". It cost us an afternoon.
+ *
+ * An explicit redirect cannot do that. It also preserves where they were going, so
+ * signing in lands them back on the page they asked for instead of a generic home.
+ */
 const authenticatedMiddleware = clerkMiddleware(async (auth, req: NextRequest) => {
   const routed = await routeTenant(req);
   if (routed) return routed;
 
   if (isProtectedRoute(req)) {
-    await auth.protect();
+    const { userId } = await auth();
+
+    if (!userId) {
+      const signIn = new URL('/sign-in', req.url);
+      signIn.searchParams.set('redirect_url', req.nextUrl.pathname + req.nextUrl.search);
+      return NextResponse.redirect(signIn);
+    }
   }
 
   return NextResponse.next();
