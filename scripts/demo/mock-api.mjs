@@ -360,8 +360,14 @@ function send(res, status, body, origin) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': origin ?? '*',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Widget-Key',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    // Must list every header the app actually sends. A header that is missing here
+    // fails the PREFLIGHT, so the real request never leaves the browser — the app
+    // sees a network error, not a 403, and shows whatever it shows when the server
+    // is unreachable. That is what made the admin console say "Not found": its
+    // first call carries Authorization, which wasn't on this list.
+    'Access-Control-Allow-Headers':
+      'Content-Type, Authorization, X-Widget-Key, X-Restaurant-Slug, X-Restaurant-Id',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   });
   res.end(JSON.stringify(body));
 }
