@@ -4,8 +4,8 @@ import { z } from 'zod';
  * Tax.
  *
  * A single `taxRateBps` cannot express how the world actually taxes restaurant
- * food, and pretending otherwise produces receipts that are illegal in two of the
- * three countries we support:
+ * food, and pretending otherwise produces receipts that are illegal in most of the
+ * countries we support:
  *
  *  - CANADA: Quebec charges GST 5% + QST 9.975% as SEPARATE, separately-named lines.
  *    Ontario charges a single HST 13%. Both must be shown as they are charged.
@@ -13,6 +13,9 @@ import { z } from 'zod';
  *    tax invoice must itemise both.
  *  - US: one sales tax line, but the rate depends on the state (and, in truth, on
  *    the county and city too — see the honesty note below).
+ *  - GB / IE / AU / NZ / SG / AE: a single national VAT or GST line. Easy — but the
+ *    line still has to be NAMED correctly ("VAT", not "Tax"), because the name is
+ *    what makes it a claimable input credit for a business customer.
  *
  * So tax is a LIST of named components, not a number. The receipt shows what was
  * actually charged, under the names the law uses.
@@ -27,9 +30,21 @@ export const taxComponentSchema = z.object({
 
 export type TaxComponent = z.infer<typeof taxComponentSchema>;
 
+/**
+ * Countries whose tax we MODEL, as opposed to countries we merely operate in.
+ *
+ * Being on this list means we can pre-fill a defensible rate from the jurisdiction.
+ * A country not on it still works — the restaurant just enters its own rate, which
+ * is the honest fallback, and far better than inventing a number for them.
+ */
+export const SUPPORTED_TAX_COUNTRIES = [
+  'US', 'CA', 'IN', 'GB', 'IE', 'AU', 'NZ', 'SG', 'AE',
+] as const;
+export type TaxCountry = (typeof SUPPORTED_TAX_COUNTRIES)[number];
+
 export const taxProfileSchema = z.object({
-  country: z.enum(['US', 'CA', 'IN']),
-  /** State (US), province (CA), or state (IN). Free text — jurisdictions change. */
+  country: z.enum(SUPPORTED_TAX_COUNTRIES),
+  /** State, province, or — for the single-rate countries — empty. Free text: jurisdictions change. */
   region: z.string().max(40),
   components: z.array(taxComponentSchema).max(4),
 });
@@ -117,8 +132,37 @@ export const IN_GST_HOTEL: TaxComponent[] = [
   { name: 'SGST', rateBps: 900 },
 ];
 
-export const SUPPORTED_TAX_COUNTRIES = ['US', 'CA', 'IN'] as const;
-export type TaxCountry = (typeof SUPPORTED_TAX_COUNTRIES)[number];
+/**
+ * The single-rate countries: one national VAT/GST line, no regional variation.
+ *
+ * The NAME is not decoration. A UK receipt that says "Tax" instead of "VAT" is not a
+ * valid VAT invoice, and a business customer cannot reclaim against it. So each of
+ * these carries the name the law uses, and that name is what gets printed.
+ *
+ * The rate that applies to RESTAURANT FOOD, which is not always the headline rate:
+ *
+ *  - GB  20%    Standard-rated. Eat-in and hot takeaway food are both standard-rated;
+ *               only cold takeaway food is zero-rated. Restaurants are 20%.
+ *  - IE  13.5%  The REDUCED rate. Ireland taxes restaurant and catering services at
+ *               13.5%, not the 23% standard rate — using 23% would overcharge every
+ *               customer by nearly 10 points.
+ *  - AU  10%    GST. Flat, and food sold prepared for consumption is taxable.
+ *  - NZ  15%    GST. Flat, and famously applies to almost everything.
+ *  - SG   9%    GST. Raised from 8% to 9% on 1 January 2024.
+ *  - AE   5%    VAT.
+ *
+ * These are national rates set by statute and changed rarely, so unlike the US table
+ * below they are safe to pre-fill. They are still shown for confirmation, because a
+ * restaurant may be below a registration threshold and charging nothing at all.
+ */
+const SINGLE_RATE_COMPONENTS: Record<string, TaxComponent[]> = {
+  GB: [{ name: 'VAT', rateBps: 2000 }],
+  IE: [{ name: 'VAT', rateBps: 1350 }],
+  AU: [{ name: 'GST', rateBps: 1000 }],
+  NZ: [{ name: 'GST', rateBps: 1500 }],
+  SG: [{ name: 'GST', rateBps: 900 }],
+  AE: [{ name: 'VAT', rateBps: 500 }],
+};
 
 export const CA_PROVINCES = Object.keys(CA_PROVINCE_COMPONENTS);
 export const US_STATES = Object.keys(US_STATE_BASE_BPS);
@@ -151,6 +195,14 @@ export function resolveTaxProfile(
       region: key,
       components: opts.indiaHotelRate ? IN_GST_HOTEL : IN_GST_STANDARD,
     };
+  }
+
+  // One national rate, no regional variation. `region` is carried through unchanged
+  // rather than dropped — a UK restaurant still has a county, it just doesn't affect
+  // the tax, and throwing the address away here would be surprising.
+  const singleRate = SINGLE_RATE_COMPONENTS[country];
+  if (singleRate) {
+    return { country, region: key, components: singleRate };
   }
 
   // US. State base only — local tax is on top, and we say so in the UI.

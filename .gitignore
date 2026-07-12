@@ -16,3 +16,6 @@ next-env.d.ts
 
 # Vercel
 .vercel/
+
+# Local chat transcript export — not part of the product.
+chat-history.md

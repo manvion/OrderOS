@@ -1,43 +1,31 @@
 'use client';
 
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
-import {
-  CA_PROVINCES,
-  US_STATES,
-  type TaxComponent,
-  type TaxCountry,
-} from '@orderos/shared';
+import { getCountry, type TaxComponent, type TaxCountry } from '@orderos/shared';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/primitives';
-
-const COUNTRY_LABEL: Record<TaxCountry, string> = {
-  US: 'United States',
-  CA: 'Canada',
-  IN: 'India',
-};
-
-/** Indian states — the region matters for SGST attribution, not for the rate. */
-const IN_STATES = [
-  'Andhra Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat',
-  'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala',
-  'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Punjab', 'Rajasthan', 'Tamil Nadu',
-  'Telangana', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-];
 
 /**
  * Tax, per jurisdiction.
  *
  * The honest bit, which is stated to the user rather than hidden: we PRE-FILL from
- * a table and make them confirm. For Canada and India that table is reliable. For
- * the US it is the STATE base rate only — real sales tax on prepared food is state
- * + county + city, varies between neighbouring streets, and changes several times a
- * year across ~11,000 jurisdictions.
+ * a table and make them confirm. For Canada, India and the single-rate VAT/GST
+ * countries that table is reliable. For the US it is the STATE base rate only — real
+ * sales tax on prepared food is state + county + city, varies between neighbouring
+ * streets, and changes several times a year across ~11,000 jurisdictions.
  *
  * Any product that claims to know a US restaurant's exact tax rate from its state
  * alone is lying. So we don't: we show what we filled in, say plainly that local
  * tax may be on top, and require a tick that they've checked. The tick is the
  * feature.
+ *
+ * NOTE ON WHAT IS NOT HERE: this step used to have its own country dropdown, next to
+ * the one on the business-details step. Two pickers for one fact is one picker too
+ * many — a restaurant could be created as a US business while charging Canadian tax,
+ * which is precisely the bug the country picker was added to fix. The country now
+ * comes in as a prop, derived from the address, and this step only asks the question
+ * the address cannot answer: what do you ACTUALLY charge?
  */
 export function TaxStep({
   country,
@@ -45,25 +33,24 @@ export function TaxStep({
   components,
   indiaHotel,
   confirmed,
-  onCountry,
   onRegion,
   onIndiaHotel,
   onComponents,
   onConfirm,
 }: {
+  /** Derived from the business address. Not chosen here — see the note above. */
   country: TaxCountry;
   region: string;
   components: TaxComponent[];
   indiaHotel: boolean;
   confirmed: boolean;
-  onCountry: (c: TaxCountry) => void;
   onRegion: (r: string) => void;
   onIndiaHotel: (v: boolean) => void;
   onComponents: (c: TaxComponent[]) => void;
   onConfirm: (v: boolean) => void;
 }) {
-  const regions =
-    country === 'US' ? US_STATES : country === 'CA' ? CA_PROVINCES : IN_STATES;
+  const spec = getCountry(country);
+  const regions = spec.regions;
 
   const total = components.reduce((s, c) => s + c.rateBps, 0);
 
@@ -79,26 +66,15 @@ export function TaxStep({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/*
+        Only the countries with regional tax variation get a region picker. In the UK,
+        Ireland, New Zealand, Singapore and the UAE there is ONE national rate — asking
+        which county a London restaurant is in, and then ignoring the answer, is a
+        question that implies the answer matters.
+      */}
+      {regions.length > 0 && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Country</Label>
-          <Select
-            value={country}
-            onChange={(e) => onCountry(e.target.value as TaxCountry)}
-            className="h-9"
-          >
-            {(Object.keys(COUNTRY_LABEL) as TaxCountry[]).map((c) => (
-              <option key={c} value={c}>
-                {COUNTRY_LABEL[c]}
-              </option>
-            ))}
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">
-            {country === 'CA' ? 'Province' : 'State'}
-          </Label>
+          <Label className="text-xs">{spec.regionLabel}</Label>
           <Select value={region} onChange={(e) => onRegion(e.target.value)} className="h-9">
             <option value="">Select…</option>
             {regions.map((r) => (
@@ -108,7 +84,7 @@ export function TaxStep({
             ))}
           </Select>
         </div>
-      </div>
+      )}
 
       {/* India's 18% rate applies only to restaurants inside hotels with room
           tariffs above ₹7,500 — a fact only they know, so we have to ask. */}
@@ -184,9 +160,9 @@ export function TaxStep({
         </div>
       ) : (
         <p className="rounded-lg bg-background p-3 text-sm text-muted-foreground">
-          {region
+          {region || regions.length === 0
             ? 'No sales tax applies here by default. Add one if that’s wrong.'
-            : 'Pick your state or province and we’ll fill this in.'}
+            : `Pick your ${spec.regionLabel.toLowerCase()} and we’ll fill this in.`}
         </p>
       )}
 

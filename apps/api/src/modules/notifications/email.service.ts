@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import type { Order, Restaurant } from '@prisma/client';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney, getCountry } from '@orderos/shared';
 import type { OrderContext } from './templates';
 import type { SendResult } from './sms.service';
 
@@ -16,6 +16,17 @@ interface BrandedRestaurant {
   street?: string;
   city?: string;
   phone?: string;
+  /**
+   * The legal identity behind the brand. A receipt is a tax document, and in Canada,
+   * India, the UK and Australia it is not a valid one unless it names the entity that
+   * issued it and carries that entity's tax number.
+   *
+   * Optional because a restaurant below the registration threshold has neither, and
+   * because every restaurant that signed up before we asked has neither.
+   */
+  legalName?: string | null;
+  taxId?: string | null;
+  country?: string;
 }
 
 @Injectable()
@@ -399,6 +410,38 @@ export class EmailService {
    * staff invite) don't have to lie about it with a cast — and so the footer knows
    * to omit an address it wasn't given.
    */
+  /**
+   * The legal footer: who issued this, and under what tax number.
+   *
+   * Printed only when we actually have it — a receipt claiming a blank GSTIN is worse
+   * than one that stays quiet. The label comes from the country, because "Tax ID: …"
+   * is not a phrase that appears on any Indian or Canadian invoice; it says GSTIN, or
+   * it says GST/HST No.
+   *
+   * Deliberately in the footer of EVERY email rather than only the receipt: the
+   * confirmation and the thank-you are also documents a customer forwards to their
+   * accountant, and they are cheaper to make valid than to explain.
+   */
+  private legalIdentity(restaurant: BrandedRestaurant): string {
+    const lines: string[] = [];
+
+    // Only worth naming the entity when it differs from the trading name — otherwise
+    // it just prints the restaurant's name twice.
+    if (restaurant.legalName && restaurant.legalName !== restaurant.name) {
+      lines.push(this.escape(restaurant.legalName));
+    }
+
+    // Print the tax number only where the receipt needs it to be legal. A US EIN is
+    // collected for the restaurant's own accountant and must NOT be broadcast to
+    // every customer — that is their federal ID, not a line item.
+    const spec = getCountry(restaurant.country ?? 'US').taxId;
+    if (restaurant.taxId && spec.requiredOnReceipt) {
+      lines.push(`${this.escape(spec.label)}: ${this.escape(restaurant.taxId)}`);
+    }
+
+    return lines.length ? `<br />${lines.join(' · ')}` : '';
+  }
+
   private shell(restaurant: BrandedRestaurant, content: string): string {
     return `<!doctype html>
 <html>
@@ -421,6 +464,7 @@ export class EmailService {
                   : ''
               }
               ${restaurant.phone ? `<br />${this.escape(restaurant.phone)}` : ''}
+              ${this.legalIdentity(restaurant)}
             </p>
             <p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">Powered by OrderOS</p>
           </td></tr>
