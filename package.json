@@ -19,6 +19,7 @@
     "db:generate": "npm run db:generate --workspace=@orderos/api",
     "db:migrate": "npm run db:migrate --workspace=@orderos/api",
     "db:deploy": "npm run db:deploy --workspace=@orderos/api",
+    "db:status": "npm run db:status --workspace=@orderos/api",
     "db:seed": "npm run db:seed --workspace=@orderos/api",
     "admin:create": "npm run admin:create --workspace=@orderos/api --",
     "db:studio": "npm run db:studio --workspace=@orderos/api",

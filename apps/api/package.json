@@ -12,18 +12,18 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:status": "prisma migrate status",
+    "db:generate": "dotenv -e ../../.env -- prisma generate",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "db:status": "dotenv -e ../../.env -- prisma migrate status",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
-    "db:seed": "ts-node prisma/seed.ts",
-    "admin:create": "ts-node prisma/create-admin.ts",
-    "db:studio": "prisma studio"
+    "db:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
+    "admin:create": "dotenv -e ../../.env -- ts-node prisma/create-admin.ts",
+    "db:studio": "dotenv -e ../../.env -- prisma studio"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",
@@ -62,6 +62,7 @@
     "@types/node": "^22.12.0",
     "@types/qrcode": "^1.5.5",
     "@types/supertest": "^6.0.2",
+    "dotenv-cli": "^11.0.0",
     "jest": "^29.7.0",
     "prisma": "^6.3.0",
     "supertest": "^7.0.0",
