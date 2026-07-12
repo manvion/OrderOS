@@ -1,171 +1,329 @@
-# Deploying OrderOS, step by step
+# Deploying OrderOS — the detailed version
 
-Read this once before starting. The order matters: each phase ends in a check that
-must pass before you go on, and **Phase 0 is not optional**. Nothing in this codebase
-has ever run against a real database, so the first order you place yourself will find
-more bugs than any amount of further reading.
+Follow this in order. Each phase ends in a check that must pass before you move on;
+if a check fails, fix it there rather than carrying the problem forward.
 
-Two pieces, deployed differently, because they have different shapes:
+Budget roughly: 1–2 hours for Phase 0, another 2–3 hours for the rest.
 
-| Piece | Where | Why |
+## The shape of the system
+
+| Piece | Where it runs | Why there |
 | --- | --- | --- |
-| `apps/web` (Next.js) | **Vercel** | Edge middleware does the tenant routing, and Vercel is what attaches restaurants' custom domains. |
-| `apps/api` (NestJS) | **A container host** — Railway, Render, Fly, Azure Container Apps | It runs BullMQ workers, cron jobs and a long-lived Redis connection. A cron that fires every five minutes needs a process that is still alive in five minutes; serverless is not that. |
+| `apps/web` (Next.js) | **Vercel** | Edge middleware does the tenant routing, and Vercel's API is what attaches restaurants' custom domains. |
+| `apps/api` (NestJS) | **A container host** — Railway, Render, Fly, Azure Container Apps | It runs BullMQ workers and cron jobs. A cron that fires every five minutes needs a process that is still alive in five minutes; serverless is not that. |
+| Postgres | Neon / Supabase / RDS | |
+| Redis | Upstash / Elasticache | Queues, caching, rate limiting. |
 
-Plus a Postgres and a Redis (Neon/Supabase/RDS, Upstash/Elasticache — any managed pair).
-
-**One deployment serves every restaurant.** No repo, no project, no build per tenant.
-`joes.orderos.ai`, `marias.orderos.ai` and `joesburgers.com` all hit the same Vercel
-deployment; [middleware.ts](../apps/web/src/middleware.ts) reads the `Host` header and
-rewrites to `/s/<slug>`. A repo-per-restaurant design means a thousand builds and a
-security fix rolled out a thousand times.
+**One deployment serves every restaurant.** `joes.orderos.ai`, `marias.orderos.ai` and
+`joesburgers.com` all hit the same Vercel deployment;
+[middleware.ts](../apps/web/src/middleware.ts) reads the `Host` header and rewrites to
+`/s/<slug>`. There is no repo, project or build per tenant.
 
 ---
 
-## Phase 0 — Prove it works on your machine (do this first)
+# Phase 0 — Get it running locally, and place a real order
 
-You need Docker. Everything else is in the repo.
+**Do not skip this.** No part of this codebase has ever run against a real database.
+The first order you place yourself will find more bugs than any amount of reading.
+
+## 0.1 Prerequisites
+
+- Node 20+ (`node -v`)
+- Docker Desktop, running
+- A Stripe account (test mode) and a Clerk account. Both free.
+
+## 0.2 Accounts and keys
+
+**Clerk** (auth for restaurant staff — customers never need it):
+
+1. clerk.com → create an application. Enable Email + Google.
+2. **API keys** → copy the two **test** keys: `pk_test_…` and `sk_test_…`.
+
+**Stripe** (payments, and Connect for paying restaurants out):
+
+1. dashboard.stripe.com, toggle **Test mode** on (top right).
+2. **Developers → API keys** → copy the secret key `sk_test_…`.
+3. **Connect → Get started** → enable it, pick **Platform or marketplace**.
+   This matters: the API creates an **Express** connected account per restaurant
+   ([payments.service.ts](../apps/api/src/modules/payments/payments.service.ts#L50)),
+   so money flows customer → restaurant's own Stripe, with our fee taken on top. We
+   never hold their money. Without Connect enabled, restaurant onboarding fails.
+
+## 0.3 Configure and start
 
 ```bash
-cp .env.example .env          # then fill in the keys below
-npm install
-npm run infra:up              # Postgres + Redis in Docker
-npm run db:deploy             # apply all migrations
-npm run db:seed               # a demo restaurant with a real menu
-npm run dev                   # API on :4000, web on :3000
+cp .env.example .env
 ```
 
-The API **refuses to boot** without these four — deliberately, because a missing
-Stripe secret should crash at startup, not at 7pm on a Friday when someone tries to
-pay. Everything else in `.env.example` is optional and no-ops loudly when absent.
+Edit `.env`. These four are **mandatory** — the API refuses to boot without them, on
+purpose, because a missing Stripe secret should crash at startup and not at 7pm on a
+Friday when a customer tries to pay:
 
-| Variable | Where to get it |
-| --- | --- |
-| `DATABASE_URL` | `postgresql://orderos:orderos@localhost:5432/orderos` (the compose file) |
-| `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | Clerk dashboard → API keys. Use the **test** keys. |
-| `STRIPE_SECRET_KEY` | Stripe dashboard → test mode → `sk_test_…` |
-| `STRIPE_WEBHOOK_SECRET` | `stripe listen --forward-to localhost:4000/api/payments/webhook` prints a `whsec_…` |
+```ini
+DATABASE_URL=postgresql://orderos:orderos@localhost:5432/orderos
+CLERK_SECRET_KEY=sk_test_...
+CLERK_PUBLISHABLE_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=            # filled in at 0.5
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...   # same value as CLERK_PUBLISHABLE_KEY
+```
 
-Then check it:
+Everything else is optional and no-ops loudly when absent: Twilio (SMS), Resend
+(email), Uber Direct (delivery), Azure Blob (image uploads fall back to local disk).
+
+```bash
+npm install
+npm run infra:up      # Postgres + Redis in Docker
+npm run db:deploy     # applies all 9 migrations — the first time they have ever run
+npm run db:seed       # one restaurant, "bellaburger", with a real menu
+npm run dev           # API on :4000, web on :3000
+```
+
+**If `db:deploy` fails**, stop. That is the migrations meeting a real Postgres for the
+first time, and it is exactly the thing this phase exists to find.
+
+## 0.4 First checks
 
 ```bash
 npm run smoke
 ```
 
-That asserts on **content**, not status codes — it verifies the seeded restaurant
-resolves, its menu is priced, an unknown slug 404s instead of leaking a default
+It asserts on **content**, not status codes — it verifies the seeded restaurant
+resolves, its menu is priced, an unknown slug 404s rather than leaking a default
 tenant, and the dashboard rejects an unauthenticated caller.
 
-**Then do the thing the script can't.** Open http://localhost:3000/s/bellaburger,
-add something to the cart, check out, and pay with Stripe's test card
-`4242 4242 4242 4242`. Watch the order move to PAID. Until you have seen that happen
-once, you do not know that this works, and neither do I.
+Then open http://localhost:3000/s/bellaburger. (Use the `/s/<slug>` form: Windows
+cannot resolve `*.localhost` at all, whatever the Chrome address bar suggests.)
 
-## Phase 1 — Database and Redis in production
+## 0.5 Stripe webhooks locally
 
-Create a managed Postgres and Redis. Then apply the migrations **from your machine**,
-once:
+In a second terminal:
 
 ```bash
-DATABASE_URL="postgres://…prod…" npm run db:deploy
+stripe login
+stripe listen --forward-to localhost:4000/api/payments/webhook
 ```
 
-`db:deploy` runs `prisma migrate deploy`: it applies what's in
-`apps/api/prisma/migrations/` and never generates anything new. It is the only migrate
-command safe to point at production — `db:migrate` (`migrate dev`) will happily reset
-the database.
+It prints `whsec_…`. Put that in `.env` as `STRIPE_WEBHOOK_SECRET` and **restart the
+API** — it is read at boot, not per request.
 
-Do **not** seed production.
+## 0.6 The one test that matters
 
-## Phase 2 — Deploy the API
+1. Sign up at http://localhost:3000/sign-up. The first account to create a restaurant
+   becomes its OWNER.
+2. Dashboard → **Get set up**. Work the checklist: menu, fulfillment, Stripe.
+3. Connect Stripe. You'll be sent through Express onboarding — in test mode you can
+   fill it with anything.
+4. **Go live.**
+5. Open the storefront, add a burger, check out, pay with `4242 4242 4242 4242`
+   (any future expiry, any CVC).
+6. Watch the order appear in Dashboard → Orders as **PAID**.
 
-Container host of your choice; [apps/api/Dockerfile](../apps/api/Dockerfile) is ready.
+If step 6 works, the system is real. If it doesn't, nothing after this matters yet.
 
-Set every variable from `.env.example` **except** the `NEXT_PUBLIC_*` block (those
-belong to the web app). Live keys this time, and:
+---
 
-- `NODE_ENV=production`
-- `APP_DOMAIN=orderos.ai`
-- `WEB_URL=https://orderos.ai`
-- `CORS_ORIGINS=https://orderos.ai` — just your dashboard. Tenant subdomains, custom
-  domains and registered widget hosts are allowed **dynamically** at runtime (see
-  [main.ts](../apps/api/src/main.ts)), so they do not go in this list.
+# Phase 1 — Production database and Redis
 
-It must be reachable over HTTPS on a stable hostname — say `api.orderos.ai` — because
-the browser and the Vercel middleware both call it.
-
-Check: `curl https://api.orderos.ai/health` returns `{"status":"ok"}`, and
-`/health/ready` also returns ok (that one proves it reached Postgres and Redis; a
-green deploy with an unreachable database is the classic first failure).
-
-## Phase 3 — Deploy the web app to Vercel
+1. **Postgres**: neon.tech → new project → copy the connection string. Make sure it
+   ends in `?sslmode=require`.
+2. **Redis**: upstash.com → new database → copy the `rediss://` URL.
+3. Apply the migrations **once**, from your machine:
 
 ```bash
-git init && git add -A && git commit -m "OrderOS"
+DATABASE_URL="postgres://…prod…?sslmode=require" npm run db:deploy
+```
+
+`db:deploy` is `prisma migrate deploy`: it applies what is in
+`apps/api/prisma/migrations/` and generates nothing. It is the only migrate command
+safe to point at production — `db:migrate` (`migrate dev`) will happily **reset the
+database**.
+
+**Do not seed production.**
+
+Check: `npx prisma studio` against the production URL shows empty tables, not an error.
+
+---
+
+# Phase 2 — Deploy the API
+
+Any container host. Railway is the shortest path:
+
+1. railway.app → **New Project → Deploy from GitHub repo** (push the repo first — see
+   3.1 below if you haven't).
+2. Settings → **Root Directory**: leave as the repo root.
+   **Dockerfile Path**: `apps/api/Dockerfile`.
+3. Variables — everything from `.env.example` **except** the `NEXT_PUBLIC_*` block,
+   with **live** keys this time:
+
+```ini
+NODE_ENV=production
+PORT=4000
+DATABASE_URL=postgres://…neon…
+REDIS_URL=rediss://…upstash…
+
+APP_DOMAIN=orderos.ai
+API_URL=https://api.orderos.ai
+WEB_URL=https://orderos.ai
+CORS_ORIGINS=https://orderos.ai
+
+CLERK_SECRET_KEY=sk_live_...
+CLERK_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=            # filled in at Phase 5
+PLATFORM_FEE_BPS=300              # 3% — your commission. Per-restaurant overrides live in the admin console.
+```
+
+`CORS_ORIGINS` is **just your dashboard**. Tenant subdomains, restaurants' custom
+domains and registered widget hosts are allowed **dynamically at runtime** by
+[main.ts](../apps/api/src/main.ts) — putting them here would be both wrong and
+impossible (you don't know them at boot).
+
+4. Add a custom domain: `api.orderos.ai`.
+
+**Check:**
+
+```bash
+curl https://api.orderos.ai/health         # {"status":"ok"}
+curl https://api.orderos.ai/health/ready   # {"status":"ok"} -- this one proves it reached Postgres AND Redis
+```
+
+`/health/ready` is the important one. A green deploy with an unreachable database is
+the classic first production failure, and `/health` alone will happily lie about it.
+
+---
+
+# Phase 3 — Deploy the web app to Vercel
+
+## 3.1 Push the repo
+
+```bash
+git add -A && git commit -m "OrderOS"
 gh repo create orderos --private --source=. --push
 ```
 
-`.env` is gitignored. Confirm: `git ls-files | grep -c '^\.env$'` must print `0`.
+`.env` is gitignored. Confirm before pushing: `git ls-files | grep -c '^\.env$'` must
+print `0`.
 
-Import the repo at vercel.com/new, then:
+## 3.2 Import into Vercel
 
-- **Root Directory:** `apps/web`. Vercel picks up the npm workspace at the repo root,
-  which is what makes `@orderos/shared` resolve. **Do not override the install
-  command** — overriding it runs `npm install` inside `apps/web`, where the workspace
-  root doesn't exist, and the build dies on `@orderos/shared`.
-- **Environment variables:**
+vercel.com/new → import the repo, then:
 
-  | Variable | Value |
-  | --- | --- |
-  | `NEXT_PUBLIC_API_URL` | `https://api.orderos.ai` |
-  | `NEXT_PUBLIC_APP_DOMAIN` | `orderos.ai` |
-  | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` |
-  | `CLERK_SECRET_KEY` | `sk_live_…` |
+- **Root Directory: `apps/web`.** Vercel detects the npm workspace at the repo root,
+  which is what makes `@orderos/shared` resolve.
+- **Do NOT override the Install Command.** Overriding it runs `npm install` inside
+  `apps/web`, where the workspace root does not exist, and the build dies on
+  `@orderos/shared`. This is the single most common way this deploy fails.
+- Environment variables:
 
-  `NEXT_PUBLIC_*` are **inlined into the browser bundle at build time**. Changing one
-  needs a redeploy, not a restart.
+| Variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_API_URL` | `https://api.orderos.ai` |
+| `NEXT_PUBLIC_APP_DOMAIN` | `orderos.ai` |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` |
+| `CLERK_SECRET_KEY` | `sk_live_…` |
 
-## Phase 4 — Point your domain at it
+`NEXT_PUBLIC_*` values are **inlined into the browser bundle at build time**. Changing
+one requires a redeploy, not a restart.
 
-In Vercel → Project → Domains, add `orderos.ai` **and `*.orderos.ai`**.
+Deploy. You now have `orderos-xxx.vercel.app`.
 
-The wildcard is the whole product: it is what makes `anything.orderos.ai` resolve to a
-tenant without you touching DNS every time a restaurant signs up. At your registrar:
+---
+
+# Phase 4 — DNS
+
+In Vercel → Project → Domains, add **both**:
+
+- `orderos.ai`
+- `*.orderos.ai`  ← the wildcard
+
+The wildcard is the whole product. It is what makes `anything.orderos.ai` resolve to a
+tenant without you touching DNS every time a restaurant signs up.
+
+At your registrar:
 
 | Type | Name | Value |
 | --- | --- | --- |
 | A | `@` | `76.76.21.21` |
 | CNAME | `*` | `cname.vercel-dns.com` |
-| CNAME | `api` | your API host |
+| CNAME | `api` | your Railway/Render hostname |
 
 A wildcard CNAME needs a registrar that supports one (Cloudflare, Namecheap, Route53
-all do).
+all do). If you use Cloudflare, set the wildcard record to **DNS only** (grey cloud),
+not proxied — proxying it breaks Vercel's certificate issuance.
 
-## Phase 5 — Webhooks
+**Check:** `curl -s https://orderos.ai | grep -o '<title>[^<]*'` returns your marketing
+page, and a published restaurant's subdomain returns *their* page, not the marketing
+one. If a tenant subdomain shows the marketing homepage, the middleware isn't running —
+see Troubleshooting.
 
-Two, and both fail **silently** if you skip them — orders will sit unpaid forever and
-deliveries will never update.
+## Clerk production instance
 
-- **Stripe** → Developers → Webhooks → `https://api.orderos.ai/api/payments/webhook`.
-  Events: `checkout.session.completed`, `checkout.session.expired`,
-  `payment_intent.payment_failed`, `charge.refunded`. Copy the signing secret into
-  `STRIPE_WEBHOOK_SECRET` and **redeploy the API** — it is read at boot.
-- **Uber Direct** (only if you're doing delivery) → set the webhook URL to
-  `https://api.orderos.ai/api/delivery/webhook` and put the shared secret in
-  `UBER_WEBHOOK_SECRET`.
+Clerk needs to know its production domain: Clerk dashboard → your app → **Domains** →
+add `orderos.ai`, and add the DNS records Clerk gives you (a few CNAMEs on
+`clerk.`, `accounts.`, etc). Until that is done, sign-in will fail in production even
+though it worked locally.
 
-Check: place a live order with a real card for £1, and watch it reach PAID. Refund
-yourself afterwards.
+---
 
-## Phase 6 — Make yourself a platform admin
+# Phase 5 — Webhooks
 
-There is no UI for this and no "first user becomes admin" rule, on purpose: platform
+Both of these fail **silently** if you skip them. Orders will sit unpaid forever and
+nothing anywhere will say why.
+
+## Stripe
+
+dashboard.stripe.com → **Developers → Webhooks → Add endpoint**
+
+- URL: `https://api.orderos.ai/api/payments/webhook`
+- Events — all five:
+  - `checkout.session.completed` — the order is paid. Without this, **no order ever
+    reaches PAID.**
+  - `checkout.session.expired`
+  - `payment_intent.payment_failed`
+  - `charge.refunded`
+  - **`account.updated`** — a restaurant finished Stripe Connect onboarding. Without
+    this, `stripeChargesEnabled` never flips true, the setup checklist keeps saying
+    "connect Stripe" forever, and **no restaurant can ever publish.**
+
+Copy the signing secret into `STRIPE_WEBHOOK_SECRET` and **redeploy the API** (read at
+boot).
+
+**Check:** Stripe → Webhooks → your endpoint → **Send test webhook** →
+`checkout.session.completed`. It must return 200. A 400 means the signature check
+failed — almost always the wrong `whsec_`, or the API not restarted after setting it.
+
+## Uber Direct (only if you offer delivery)
+
+Set the webhook URL to `https://api.orderos.ai/api/delivery/webhook` and put the shared
+secret in `UBER_WEBHOOK_SECRET`, along with `UBER_CLIENT_ID`, `UBER_CLIENT_SECRET`,
+`UBER_CUSTOMER_ID`. Without these, delivery is simply disabled — the app runs fine on
+pickup and dine-in.
+
+## Optional but wanted before real customers
+
+| What | Variables | Without it |
+| --- | --- | --- |
+| SMS | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | No order-status texts. Sends become no-ops and log. |
+| Email | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | No receipts, **and no staff invitations** — which means you cannot onboard a restaurant owner. |
+| Image uploads | `AZURE_STORAGE_CONNECTION_STRING` | Logos are written to local disk, which a container throws away on restart. |
+| Delivery radius | `GOOGLE_MAPS_API_KEY` or `MAPBOX_TOKEN` | Falls back to Nominatim, which is rate-limited and not acceptable for production traffic. |
+| Custom domains | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | The "bring your own domain" feature is disabled and says so. |
+
+Note the email one: **without Resend, invitations don't send**, and the whole
+onboarding flow depends on the owner receiving one.
+
+---
+
+# Phase 6 — Make yourself a platform admin
+
+There is no UI for this and no "first user becomes admin" rule, deliberately: platform
 admins live in their own table, and no role a restaurant can hold grants it. The
 console that sees every restaurant's revenue and can suspend any of them must not be
 reachable by escalating a role inside the product.
 
-1. Sign up at `https://orderos.ai/sign-up` like anyone else.
-2. Find your Clerk user id (Clerk dashboard → Users → you → "User ID", `user_2…`).
+1. Sign up at `https://orderos.ai/sign-up` like anybody else.
+2. Clerk dashboard → **Users** → you → copy the **User ID** (`user_2…`).
 3. From your machine, pointed at production:
 
 ```bash
@@ -173,42 +331,80 @@ DATABASE_URL="postgres://…prod…" npm run admin:create -- \
   --email you@orderos.ai --clerk-id user_2abc... --role SUPER_ADMIN
 ```
 
-Now `https://orderos.ai/admin` works. From there you can onboard a restaurant and set
-up everything for them — menu, branding, hours, QR codes, Stripe, widget, domain.
+**Check:** `https://orderos.ai/admin` loads the console. If it says "Not found", the
+row didn't take, or you're signed in as a different Clerk user.
 
-## Phase 7 — Before you send a real customer
+---
+
+# Phase 7 — Onboard your first restaurant
+
+From `/admin` → **Onboard a restaurant**. It asks everything: name, subdomain, address,
+timezone, hours, fulfillment, tax jurisdiction, ordering mode (website or QR-only), and
+your commission. It creates the restaurant and **emails the owner an invitation** — we
+never set their password, so we can never silently log in as them.
+
+Then either they finish setup, or you do it for them: each row in the console has a
+**Set up** panel (menu, branding, hours, QR codes, Stripe, widget, domain) that opens
+their dashboard through a time-boxed support session — one hour, a written reason, and
+it lands on their audit log.
+
+The console shows exactly what each restaurant is still missing ("2/3 — needs: Connect
+Stripe"), so a stuck signup is a phone call you can make rather than a number on a
+chart.
+
+---
+
+# Phase 8 — Before you send a real customer
 
 ```bash
 API_URL=https://api.orderos.ai WEB_URL=https://orderos.ai npm run smoke
 ```
 
-Then, by hand, once:
+Then, by hand, once, on production:
 
-- A real order, paid with a real card, that reaches PAID and prints in the kitchen.
+- A real order paid with a real card, that reaches PAID.
 - The SMS and the email actually arrive.
-- If you use delivery: a courier is actually dispatched.
+- If you offer delivery: a courier is actually dispatched.
+- Refund yourself afterwards.
 
 ---
 
-## Known gaps — read before going live
+# Troubleshooting
 
-Being straight with you about what has and hasn't been proven:
-
-- **No integration tests.** The 78 passing tests cover pricing, tax, geocoding, DNS
-  records, notification templates and widget security — the pure logic. Every module
-  that touches the database or a third party (orders, payments, delivery, menu,
-  admin, storefront, widget, QR) has none. Phase 0 is how you compensate.
-- **No CI.** Nothing stops a broken commit from deploying.
-- **No error tracking or metrics.** Add Sentry before your first incident, not after.
-- **Never load-tested.** The design scales (stateless API, queue-backed workers, one
-  multi-tenant deployment), but nobody has found where it breaks.
-- **US sales tax is state-base only.** Real rates are state + county + city across
-  ~11,000 jurisdictions. The signup wizard says so and makes the restaurant confirm.
-  Do not quietly present it as authoritative.
-- **Multi-location is not built.**
-
-## If a tenant subdomain shows the marketing homepage
-
+**A tenant subdomain shows the marketing homepage.**
 The middleware isn't running. It must live at `apps/web/src/middleware.ts` — Next
-ignores a root-level `middleware.ts` when a `src/` directory exists, and it does so
-without a warning, while the build still says it succeeded.
+ignores a root-level `middleware.ts` when a `src/` directory exists, silently, while
+the build still reports success.
+
+**Vercel build fails on `@orderos/shared`.**
+You overrode the Install Command. Remove the override; Root Directory `apps/web` plus
+Vercel's own workspace detection is what makes it resolve.
+
+**Stripe webhook returns 400.**
+Signature verification failed. Either `STRIPE_WEBHOOK_SECRET` is from a different
+endpoint, or the API wasn't restarted after you set it. The raw body is verified before
+parsing, so a proxy that rewrites the body will also break this.
+
+**Restaurants can never publish; the checklist always says "connect Stripe".**
+You didn't subscribe to `account.updated`. Nothing else sets `stripeChargesEnabled`.
+
+**Custom domain never goes live.**
+An apex domain (`joesburgers.com`) needs an **A** record and cannot take a CNAME. The
+dashboard computes the right record; if someone pasted a CNAME on an apex, DNS will
+never resolve and nothing will report an error.
+
+---
+
+# Known gaps — read before going live
+
+- **No integration tests.** The 94 passing tests cover pricing, tax, geocoding, DNS
+  records, the setup checklist, notification templates and widget security — the pure
+  logic. Orders, payments, delivery, menu, admin, storefront, QR have **none**. Phase 0
+  is how you compensate.
+- **No CI.** Nothing stops a broken commit from deploying.
+- **No error tracking or metrics.** Add Sentry before your first incident.
+- **Never load-tested.** The design scales; nobody has found where it breaks.
+- **US sales tax is state-base only.** Real rates are state + county + city across
+  ~11,000 jurisdictions. The wizard says so and makes the restaurant confirm. Do not
+  present it as authoritative.
+- **Multi-location is not built.**
