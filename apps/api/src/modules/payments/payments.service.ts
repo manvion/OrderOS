@@ -319,8 +319,18 @@ export class PaymentsService {
           // Destination charge: funds settle in the restaurant's account, minus
           // our application fee. The platform never becomes the merchant of record.
           transfer_data: { destination: order.restaurant.stripeAccountId },
+          /**
+           * The platform's take on this charge = commission + the courier cost the
+           * platform will pay on the restaurant's behalf at dispatch. Folding the
+           * courier into the SAME application fee keeps the restaurant's payout
+           * equal to the margin analytics shows them (total - commission -
+           * courier), with no invoicing loop. NULL courier cost -- pickup, dine-in,
+           * self-delivery, or a failed quote -- adds nothing.
+           */
           application_fee_amount:
-            order.payment.platformFeeCents > 0 ? order.payment.platformFeeCents : undefined,
+            order.payment.platformFeeCents + (order.payment.courierCostCents ?? 0) > 0
+              ? order.payment.platformFeeCents + (order.payment.courierCostCents ?? 0)
+              : undefined,
           // Metadata is our lifeline in the webhook: it's how we get from a
           // Stripe event back to an OrderOS order without a lookup table.
           metadata: {

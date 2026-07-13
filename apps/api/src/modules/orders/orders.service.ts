@@ -20,6 +20,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CourierRouter } from '../delivery/courier.router';
 import { GeocodingService } from '../delivery/geocoding.service';
 
 export interface ListOrdersOptions {
@@ -43,6 +44,8 @@ export class OrdersService {
     // The delivery radius gate. Geocoding depends on nothing, so injecting it here
     // does not deepen the Orders <-> Delivery cycle.
     private readonly geocoding: GeocodingService,
+    // Prices the courier at order time so the cost is recouped inside the charge.
+    private readonly couriers: CourierRouter,
   ) {}
 
   /**
@@ -135,6 +138,38 @@ export class OrdersService {
       });
     }
 
+    /**
+     * Price the courier NOW, while we still control the split.
+     *
+     * The platform's courier account pays Uber/DoorDash for every dispatch, but the
+     * money to cover it is in THIS charge -- so the quoted cost rides into Stripe's
+     * application fee (see PaymentsService), and the restaurant's payout becomes
+     * total - commission - courier, exactly the margin story analytics already
+     * tells them. Failure here must never block a paying customer: no quote means
+     * the platform absorbs this one dispatch, logged, not thrown.
+     */
+    let courierCostCents: number | null = null;
+    if (
+      input.fulfillment === 'DELIVERY' &&
+      input.deliveryAddress &&
+      (restaurant.uberDirectEnabled || restaurant.doorDashEnabled)
+    ) {
+      try {
+        const { quote } = await this.couriers.bestQuote(restaurant, {
+          pickup: restaurant,
+          dropoff: input.deliveryAddress,
+          pickupReadyAt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000),
+          orderValueCents: pricing.totalCents,
+          externalId: `order-quote_${randomBytes(8).toString('hex')}`,
+        });
+        courierCostCents = quote?.feeCents ?? null;
+      } catch (err) {
+        this.logger.warn(
+          `Courier quote failed at order time -- platform absorbs this dispatch: ${(err as Error).message}`,
+        );
+      }
+    }
+
     const customer = await this.upsertCustomer(restaurantId, input.customer, clerkUserId);
     const orderNumber = await this.nextOrderNumber(restaurantId);
 
@@ -216,6 +251,7 @@ export class OrdersService {
               platformFeeCents: Math.round(
                 (pricing.totalCents * restaurant.platformFeeBps) / 10_000,
               ),
+              courierCostCents,
             },
           },
 

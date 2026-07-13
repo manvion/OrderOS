@@ -847,6 +847,20 @@ model Payment {
   /// Application fee taken by the platform on this charge.
   platformFeeCents Int @default(0)
 
+  /**
+   * What a courier quoted for THIS order at the moment it was placed, recouped
+   * from the restaurant inside the same Stripe charge (added to the application
+   * fee). NULL means no courier was involved -- pickup, dine-in, self-delivery --
+   * or no quote could be had, in which case the platform absorbs the dispatch
+   * cost rather than blocking a paying customer.
+   *
+   * The checkout-time quote, not the dispatch-time price: the application fee is
+   * fixed when the card is charged, and dispatch re-quotes minutes later. The
+   * deltas are cents in either direction and average out; the alternative --
+   * settling exact costs after the fact -- is an invoicing system.
+   */
+  courierCostCents Int?
+
   stripeCheckoutSessionId String? @unique
   stripePaymentIntentId   String? @unique
   stripeChargeId          String?
