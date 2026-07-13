@@ -708,18 +708,87 @@ export class PaymentsService {
       );
     }
 
+    /**
+     * WHO FUNDS A REFUND -- three parties, three different answers:
+     *
+     *  1. The restaurant funds the refunded sale (`reverse_transfer: true`).
+     *     Without it, Stripe quietly funds refunds from the PLATFORM balance while
+     *     the restaurant keeps their payout -- every refund was a direct platform
+     *     loss equal to the whole refund. That was the state of this code.
+     *
+     *  2. The platform returns its COMMISSION proportionally. Keeping a cut of a
+     *     sale that unhappened is not a business model.
+     *
+     *  3. The courier recoup is returned ONLY if no courier was ever dispatched.
+     *     Once a courier rode, Uber bills the platform regardless of the refund --
+     *     returning the recoup then would make the platform pay for the
+     *     restaurant's refunded order's delivery. Not dispatched (cancelled before
+     *     READY, or their own driver): the cost never existed, so on a FULL refund
+     *     it goes back too.
+     *
+     * Stripe's `refund_application_fee: true` can't express the split (it returns
+     * the whole fee proportionally), so the fee refund is issued manually below.
+     */
+    const delivery = await this.prisma.delivery.findUnique({
+      where: { orderId },
+      select: { provider: true, providerDeliveryId: true },
+    });
+    const courierDispatched = Boolean(
+      delivery && delivery.provider !== 'SELF' && delivery.providerDeliveryId,
+    );
+
+    const willBeFullRefund = payment.refundedAmountCents + amountCents >= payment.amountCents;
+    const commissionShareCents = Math.round(
+      (payment.platformFeeCents * amountCents) / payment.amountCents,
+    );
+    const courierShareCents =
+      willBeFullRefund && !courierDispatched ? (payment.courierCostCents ?? 0) : 0;
+    const feeRefundCents = commissionShareCents + courierShareCents;
+
     const stripeRefund = await this.stripe.refunds.create(
       {
         payment_intent: payment.stripePaymentIntentId,
         amount: amountCents,
         reason: 'requested_by_customer',
-        // Claw our application fee back proportionally: if the restaurant eats
-        // the refund, the platform shouldn't keep its cut of a sale that unhappened.
-        refund_application_fee: payment.platformFeeCents > 0 ? true : undefined,
+        // The restaurant's transfer shrinks by the refunded amount. See above.
+        reverse_transfer: true,
+        refund_application_fee: false,
         metadata: { orderId, restaurantId, note: input.reason ?? '' },
       },
       { idempotencyKey: `refund:${orderId}:${amountCents}:${payment.refundedAmountCents}` },
     );
+
+    if (feeRefundCents > 0) {
+      try {
+        const intent = await this.stripe.paymentIntents.retrieve(
+          payment.stripePaymentIntentId,
+          { expand: ['latest_charge'] },
+        );
+        const charge = intent.latest_charge as Stripe.Charge | null;
+        const applicationFeeId =
+          typeof charge?.application_fee === 'string'
+            ? charge.application_fee
+            : charge?.application_fee?.id;
+
+        if (applicationFeeId) {
+          await this.stripe.applicationFees.createRefund(
+            applicationFeeId,
+            { amount: feeRefundCents },
+            { idempotencyKey: `feerefund:${orderId}:${feeRefundCents}:${payment.refundedAmountCents}` },
+          );
+        }
+      } catch (err) {
+        /**
+         * The customer's refund already succeeded; a failed fee refund only means
+         * the platform kept money it meant to give back. That is an accounting
+         * follow-up, not a reason to fail the request the restaurant is watching.
+         */
+        this.logger.error(
+          `Fee refund of ${feeRefundCents} failed for order ${order.orderNumber} -- ` +
+            `platform is holding it: ${(err as Error).message}`,
+        );
+      }
+    }
 
     const newRefundedTotal = payment.refundedAmountCents + amountCents;
     const isFullRefund = newRefundedTotal >= payment.amountCents;
