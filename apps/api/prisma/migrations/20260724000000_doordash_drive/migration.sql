@@ -17,9 +17,9 @@ ALTER TYPE "DeliveryProvider" ADD VALUE 'DOORDASH';
 -- webhook would arrive, match nothing, and the order would sit at CREATED forever
 -- while the food was actually delivered. A rename preserves every row, and Postgres
 -- carries the unique constraint and indexes across with it.
-ALTER TABLE "Delivery" RENAME COLUMN "uberQuoteId" TO "providerQuoteId";
-ALTER TABLE "Delivery" RENAME COLUMN "uberDeliveryId" TO "providerDeliveryId";
+ALTER TABLE "deliveries" RENAME COLUMN "uberQuoteId" TO "providerQuoteId";
+ALTER TABLE "deliveries" RENAME COLUMN "uberDeliveryId" TO "providerDeliveryId";
 
 -- 3. The per-restaurant switch. Off by default: DoorDash Drive needs its own
 --    credentials and a signed agreement, so nobody gets silently opted in.
-ALTER TABLE "Restaurant" ADD COLUMN "doorDashEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "restaurants" ADD COLUMN "doorDashEnabled" BOOLEAN NOT NULL DEFAULT false;
