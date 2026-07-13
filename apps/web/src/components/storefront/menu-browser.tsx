@@ -155,14 +155,16 @@ export function MenuBrowser({
 
                   <div className="relative shrink-0">
                     {product.imageUrl ? (
-                      <Image
-                        src={product.imageUrl}
-                        alt={product.name}
-                        width={112}
-                        height={112}
-                        className="h-28 w-28 rounded-xl object-cover"
-                        style={{ width: 112, height: 112 }}
-                      />
+                      <div className="img-zoom h-28 w-28 rounded-xl">
+                        <Image
+                          src={product.imageUrl}
+                          alt={product.name}
+                          width={112}
+                          height={112}
+                          className="h-28 w-28 rounded-xl object-cover"
+                          style={{ width: 112, height: 112 }}
+                        />
+                      </div>
                     ) : (
                       <div className="h-28 w-28 rounded-xl bg-muted" />
                     )}

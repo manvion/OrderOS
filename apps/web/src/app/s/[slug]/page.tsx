@@ -6,6 +6,7 @@ import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed }
 import { storefrontApi } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
+import { Reveal } from '@/components/shared/reveal';
 
 export const revalidate = 60;
 
@@ -65,7 +66,7 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
               fill
               priority
               sizes="100vw"
-              className="-z-10 object-cover"
+              className="kenburns -z-10 object-cover"
             />
             <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/30" />
           </>
@@ -84,7 +85,7 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
         <div className="mx-auto max-w-5xl px-5 py-24 sm:px-8 sm:py-32">
           {/* Open/closed as a LIVE dot rather than a static badge. It says "right
               now", which is the only tense a hungry person cares about. */}
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
+          <div className="rise-1 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
             <span
               className={`pulse-dot h-1.5 w-1.5 rounded-full ${
                 restaurant.isOpen ? 'bg-emerald-400 text-emerald-400' : 'bg-white/60'
@@ -99,25 +100,25 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
             )}
           </div>
 
-          <h1 className="mt-6 max-w-2xl font-display text-5xl font-semibold leading-[1.02] tracking-tight text-white sm:text-7xl">
+          <h1 className="rise-2 mt-6 max-w-2xl font-display text-5xl font-semibold leading-[1.02] tracking-tight text-white sm:text-7xl">
             {restaurant.name}
           </h1>
 
           {restaurant.description && (
-            <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/80">
+            <p className="rise-3 mt-5 max-w-lg text-lg leading-relaxed text-white/80">
               {restaurant.description}
             </p>
           )}
 
-          <div className="mt-9 flex flex-wrap items-center gap-3">
+          <div className="rise-4 mt-9 flex flex-wrap items-center gap-3">
             <Button
               asChild
               size="lg"
               className="rounded-xl bg-white px-8 text-base font-semibold text-black shadow-floating hover:bg-white/90"
             >
-              <Link href={href('/menu')}>
+              <Link href={href('/menu')} className="group">
                 {restaurant.isOpen ? 'Order now' : 'View the menu'}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </Button>
 
@@ -139,6 +140,39 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
           )}
         </div>
       </section>
+
+      {/* The food, before the facts. Photos the owner uploaded in Settings ->
+          Gallery become the homepage's centrepiece -- an empty gallery renders
+          nothing at all, so the page never shows placeholder grey. */}
+      {restaurant.galleryImages.length > 0 && (
+        <section className="mx-auto max-w-6xl px-5 pt-14 sm:px-8">
+          <Reveal>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+              {restaurant.galleryImages.slice(0, 6).map((image, i) => (
+                <div
+                  key={image.id}
+                  className={`img-zoom relative rounded-2xl ${
+                    i === 0 ? 'col-span-2 row-span-2 aspect-[4/3] sm:col-span-2' : 'aspect-square'
+                  }`}
+                >
+                  <Image
+                    src={image.url}
+                    alt={image.caption ?? ''}
+                    fill
+                    sizes="(max-width: 640px) 50vw, 33vw"
+                    className="rounded-2xl object-cover"
+                  />
+                  {image.caption && (
+                    <span className="absolute bottom-2 left-2 rounded-lg bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                      {image.caption}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </section>
+      )}
 
       {/* Three facts, no chrome. Anything more is a brochure nobody reads. */}
       <section className="mx-auto max-w-5xl px-5 py-14 sm:px-8">

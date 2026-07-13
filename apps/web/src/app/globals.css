@@ -198,6 +198,77 @@
       opacity: 0;
     }
   }
+
+  /**
+   * The hero cascade. One `animate-rise` on a whole page makes everything arrive
+   * as a single slab; a 70ms stagger makes the page feel COMPOSED -- badge, then
+   * name, then description, then the button, like a maitre d' walking you in.
+   */
+  .rise-1, .rise-2, .rise-3, .rise-4 {
+    animation: hero-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .rise-2 { animation-delay: 70ms; }
+  .rise-3 { animation-delay: 140ms; }
+  .rise-4 { animation-delay: 210ms; }
+
+  @keyframes hero-rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /**
+   * Ken Burns for hero photography: a 24s drift, barely perceptible in any single
+   * second, unmistakable across ten. A static photo reads as a template; a photo
+   * that breathes reads as a place. `alternate` avoids the loop-restart jump.
+   */
+  .kenburns {
+    animation: kenburns 24s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+
+  @keyframes kenburns {
+    from { transform: scale(1) translateY(0); }
+    to { transform: scale(1.08) translateY(-1.5%); }
+  }
+
+  /**
+   * Scroll reveal. `.reveal` starts hidden; `.revealed` (added by an
+   * IntersectionObserver in components/shared/reveal.tsx) plays it in. The
+   * threshold work lives in JS; the motion lives here where reduced-motion can
+   * kill it wholesale.
+   */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal.revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Product / gallery photos: the frame stays put, the photo leans in. */
+  .img-zoom { overflow: hidden; }
+  .img-zoom img {
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .img-zoom:hover img,
+  .group:hover .img-zoom img {
+    transform: scale(1.06);
+  }
+
+  /**
+   * Motion is seasoning, not the meal. For anyone who asked their OS for less of
+   * it, everything above becomes instant and still -- same page, no theatre.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .rise-1, .rise-2, .rise-3, .rise-4, .animate-rise { animation: none; }
+    .kenburns { animation: none; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .img-zoom img { transition: none; }
+  }
 }
 
 @layer utilities {
