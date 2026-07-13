@@ -156,9 +156,43 @@ export class RestaurantsService {
       include: { restaurant: true },
       orderBy: { createdAt: 'asc' },
     });
-    return memberships
+
+    const own = memberships
       .filter((m) => m.restaurant.isActive)
       .map((m) => ({ ...m.restaurant, role: m.role }));
+
+    /**
+     * A platform admin with an ACTIVE support session is, for the next hour, staff
+     * of that restaurant — that is the entire point of the session. This list is
+     * what the dashboard boots from, and before support sessions were included
+     * here, an admin who opened one landed on a dashboard with zero memberships…
+     * which helpfully redirected them to onboarding to create their first
+     * restaurant. The support tool teleported the supporter into signup.
+     *
+     * OWNER, because support exists to fix what the owner cannot; a session that
+     * can look but not touch is a screen-share, not a support tool. The access is
+     * already time-boxed, reason-stamped, and on the restaurant's audit log.
+     */
+    const admin = await this.prisma.platformAdmin.findUnique({ where: { clerkUserId } });
+    if (!admin) return own;
+
+    const sessions = await this.prisma.supportSession.findMany({
+      where: { adminId: admin.id, endedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (sessions.length === 0) return own;
+
+    const restaurants = await this.prisma.restaurant.findMany({
+      where: { id: { in: sessions.map((s) => s.restaurantId) }, isActive: true },
+    });
+
+    const alreadyStaff = new Set(own.map((r) => r.id));
+    return [
+      ...own,
+      ...restaurants
+        .filter((r) => !alreadyStaff.has(r.id))
+        .map((r) => ({ ...r, role: 'OWNER' as const, supportSession: true })),
+    ];
   }
 
   async findById(restaurantId: string) {
