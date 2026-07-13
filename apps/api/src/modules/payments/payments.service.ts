@@ -47,6 +47,43 @@ export class PaymentsService {
 
     let accountId = restaurant.stripeAccountId;
 
+    /**
+     * A Stripe account's COUNTRY is fixed at creation, forever -- Stripe's form
+     * shows it greyed out. So a restaurant that connected while set to the wrong
+     * country (the admin create-flow defaulted to US for a while) is otherwise
+     * permanently stuck onboarding into the wrong country's banking system.
+     *
+     * Self-heal while it's still free: if the account hasn't submitted details or
+     * taken a charge, it is an empty shell -- delete it and let the create path
+     * below mint a fresh one with the restaurant's CURRENT country. Once
+     * onboarding has been submitted, deletion would orphan real KYC data, so we
+     * stop and say exactly what's wrong instead.
+     */
+    if (accountId) {
+      const existing = await this.stripe.accounts.retrieve(accountId);
+
+      if (existing.country !== restaurant.country) {
+        if (!existing.details_submitted && !existing.charges_enabled) {
+          this.logger.warn(
+            `Stripe account ${accountId} is ${existing.country} but ${restaurant.slug} is now ` +
+              `${restaurant.country} -- recreating the unused account in the right country`,
+          );
+          await this.stripe.accounts.del(accountId);
+          await this.prisma.restaurant.update({
+            where: { id: restaurantId },
+            data: { stripeAccountId: null },
+          });
+          accountId = null;
+        } else {
+          throw new BadRequestException(
+            `Your Stripe account was created for ${existing.country} and has already been ` +
+              `onboarded -- Stripe does not allow changing a live account's country to ` +
+              `${restaurant.country}. Contact support to disconnect and re-onboard.`,
+          );
+        }
+      }
+    }
+
     if (!accountId) {
       let account: Stripe.Account;
       try {
