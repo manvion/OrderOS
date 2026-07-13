@@ -58,9 +58,33 @@ export class StorageService {
     if (s3Bucket && s3Endpoint && s3Key && s3Secret) {
       this.driver = 's3';
       this.bucket = s3Bucket;
+
+      /**
+       * The endpoint must be the HOST only. With `forcePathStyle` the SDK appends
+       * `/<bucket>/<key>` itself, so an endpoint that already carries the bucket in
+       * its path ("…cloudflarestorage.com/orderos-media" — the URL Cloudflare's
+       * dashboard shows next to the bucket, which makes it the natural thing to
+       * paste) writes every object under a DOUBLED prefix. The upload succeeds, the
+       * stored public URL 404s, and every image on the platform silently vanishes
+       * while the uploader reports success. That happened. Strip the path and say so.
+       */
+      let endpoint = s3Endpoint;
+      try {
+        const parsed = new URL(s3Endpoint);
+        if (parsed.pathname !== '/' && parsed.pathname !== '') {
+          endpoint = `${parsed.protocol}//${parsed.host}`;
+          this.logger.warn(
+            `S3_ENDPOINT contained a path ("${parsed.pathname}") — using ${endpoint}. ` +
+              'The endpoint must be the host only; the bucket is appended automatically.',
+          );
+        }
+      } catch {
+        // Not a parseable URL — let the SDK produce its own, clearer error.
+      }
+
       this.s3 = new S3Client({
         region: this.config.get<string>('S3_REGION') ?? 'auto',
-        endpoint: s3Endpoint,
+        endpoint,
         credentials: { accessKeyId: s3Key, secretAccessKey: s3Secret },
         // R2, MinIO and most non-AWS S3 implementations need path-style addressing.
         // Virtual-host style ("bucket.endpoint") resolves to nothing on them, and
