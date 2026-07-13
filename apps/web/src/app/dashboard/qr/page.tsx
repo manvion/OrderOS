@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
 import { Badge, Label, Skeleton } from '@/components/ui/primitives';
+import { StaffAccessQrs } from '@/components/dashboard/staff-access-qrs';
 
 /**
  * Every code here is an ORDERING code — each one opens the menu, ready to order,
@@ -399,6 +400,11 @@ export default function QrPage() {
           })}
         </div>
       )}
+
+      {/* The other half of the original ask: customers scan to ORDER (above);
+          staff scan to WORK — kitchen board on the pass tablet, dashboard on the
+          owner's phone. */}
+      <StaffAccessQrs />
     </div>
   );
 }
