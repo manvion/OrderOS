@@ -18,6 +18,27 @@
  */
 import { createServer } from 'node:http';
 
+/**
+ * Refuse to run anywhere that looks like a real deployment.
+ *
+ * This mock grants SUPER_ADMIN to any unauthenticated caller and accepts every
+ * origin — by design, because it is a demo prop. But it listens on the SAME port as
+ * the real API (4000), so the one accident that must never happen is it booting on a
+ * host in place of the real thing: that would hand the platform console to the entire
+ * internet. A comment saying "do not deploy" does not stop a misconfigured start
+ * command. This does — it crashes at boot instead, which is the safe direction.
+ */
+const DEPLOY_SIGNALS = ['RAILWAY_ENVIRONMENT', 'VERCEL', 'RENDER', 'FLY_APP_NAME', 'K_SERVICE'];
+const present = DEPLOY_SIGNALS.find((k) => process.env[k]);
+if (process.env.NODE_ENV === 'production' || present) {
+  console.error(
+    `REFUSING TO START: scripts/demo/mock-api.mjs is a DEMO PROP that grants admin to ` +
+      `anyone, and this looks like a real deployment (${present ?? 'NODE_ENV=production'}). ` +
+      `Run the real API (apps/api) instead.`,
+  );
+  process.exit(1);
+}
+
 const PORT = 4000;
 
 // The same restaurant prisma/seed.ts creates.
