@@ -51,7 +51,7 @@ export function AdminConsole() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
 
-  const { data: me, isError } = useQuery({
+  const { data: me, isError, error } = useQuery({
     queryKey: ['admin', 'me'],
     queryFn: () => api.adminMe(),
     retry: false,
@@ -121,11 +121,42 @@ export function AdminConsole() {
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update'),
   });
 
-  // Not an admin? Say nothing useful. Probing /admin should teach you nothing.
+  /**
+   * Rejected.
+   *
+   * This used to render a bare "Not found", on the reasoning that probing /admin
+   * should teach a stranger nothing. But a stranger never gets here: the middleware
+   * bounces anyone without a session to /sign-in, so everyone who reaches this line
+   * is ALREADY SIGNED IN. The opacity bought us nothing against an attacker and cost
+   * the operator an afternoon — you sign in, land on /admin, and are told the page
+   * does not exist, which reads like a broken build rather than "you're not an admin".
+   *
+   * We still say nothing about who IS an admin, or that any particular account exists.
+   * We just distinguish the two things the person can actually act on: "your account
+   * lacks access" and "the server didn't answer".
+   */
   if (isError) {
+    const forbidden = error instanceof ApiRequestError && (error.status === 403 || error.status === 401);
+
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Not found</p>
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="max-w-md space-y-2 text-center">
+          <p className="font-medium">
+            {forbidden ? 'This account is not a platform admin' : 'Could not reach the admin API'}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {forbidden ? (
+              <>
+                You&rsquo;re signed in, but your account is not on the platform admin allowlist.
+                Admins are granted by setting <code className="font-mono">PLATFORM_ADMIN_EMAILS</code>{' '}
+                on the API — it must contain the verified primary email of your account. There is
+                deliberately no way to grant this from inside the app.
+              </>
+            ) : (
+              'The API did not answer. Check that it is running and that this deployment points at it.'
+            )}
+          </p>
+        </div>
       </div>
     );
   }

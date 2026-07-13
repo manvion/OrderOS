@@ -113,13 +113,6 @@ const envSchema = z.object({
   WIDGET_CDN_URL: z.string().url().optional(),
 
   /**
-   * Comma-separated emails that become platform SUPER_ADMINs on first sign-in.
-   *
-   * Bootstrapping by env rather than by an endpoint: a "create the first admin"
-   * API is a permanent backdoor. An env var can only be set by someone who already
-   * has production access, which is the correct bar for platform ownership.
-   */
-  /**
    * Geocoding, which is what makes deliveryRadiusMeters real.
    *
    * Unset -> falls back to Nominatim (OpenStreetMap): free, no key, but capped at
@@ -144,6 +137,20 @@ const envSchema = z.object({
   GOOGLE_MAPS_API_KEY: z.string().optional(),
   MAPBOX_TOKEN: z.string().optional(),
 
+  /**
+   * Comma-separated emails that become platform SUPER_ADMINs on first sign-in.
+   *
+   * Bootstrapping by env rather than by an endpoint is deliberate: a "create the
+   * first admin" API is a permanent backdoor. An env var can only be set by someone
+   * who already has production access, which is the correct bar for platform
+   * ownership.
+   *
+   * The corollary, which is easy to miss: UNSET MEANS NOBODY IS AN ADMIN, EVER.
+   * /admin rejects every visitor including you, and there is no in-app way out of
+   * that. It stays `optional()` because the API must still boot for a deployment
+   * that has no platform operator — but if you cannot get into /admin, this is the
+   * first thing to check.
+   */
   PLATFORM_ADMIN_EMAILS: z.string().optional(),
 
   RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().default(60),
