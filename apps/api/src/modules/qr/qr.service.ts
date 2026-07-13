@@ -4,6 +4,7 @@ import type { QRCodeType } from '@prisma/client';
 import * as QRCodeLib from 'qrcode';
 import type { QRCodeInput } from '@orderos/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { storefrontBaseUrl } from '../../common/tenant-url';
 import { StorageService } from '../storage/storage.service';
 
 /**
@@ -188,9 +189,9 @@ export class QrService {
   }
 
   private buildTargetUrl(slug: string, qrId: string, input: QRCodeInput): string {
-    const domain = this.config.getOrThrow<string>('APP_DOMAIN');
-    const isProd = this.config.get('NODE_ENV') === 'production';
-    const base = isProd ? `https://${slug}.${domain}` : `http://${slug}.localhost:3000`;
+    // Printed on paper, lives on tables for years -- it MUST encode a URL that
+    // resolves on THIS deployment. See common/tenant-url.ts.
+    const base = storefrontBaseUrl(this.config, slug);
 
     const params = new URLSearchParams({ src: 'qr', c: qrId });
     if (input.type === 'TABLE' && input.tableNumber) {

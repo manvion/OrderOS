@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import type { RefundInput } from '@orderos/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { storefrontBaseUrl } from '../../common/tenant-url';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -268,11 +269,9 @@ export class PaymentsService {
     addFee('Tip', order.tipCents);
 
     const webUrl = this.config.getOrThrow<string>('WEB_URL');
-    const domain = this.config.getOrThrow<string>('APP_DOMAIN');
-    const isProd = this.config.get('NODE_ENV') === 'production';
-    const storefront = isProd
-      ? `https://${order.restaurant.slug}.${domain}`
-      : `http://${order.restaurant.slug}.localhost:3000`;
+    // Where the customer lands the moment their card is charged. A dead hostname
+    // here is a paid order and a lost customer. See common/tenant-url.ts.
+    const storefront = storefrontBaseUrl(this.config, order.restaurant.slug);
 
     const session = await this.stripe.checkout.sessions.create(
       {

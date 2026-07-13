@@ -28,6 +28,7 @@ import {
   type UpdateRestaurantInput,
 } from '@orderos/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { storefrontBaseUrl } from '../../common/tenant-url';
 import { RedisService } from '../../common/redis/redis.service';
 import { ClerkService } from '../../common/auth/clerk.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -708,9 +709,7 @@ export class RestaurantsService {
   }
 
   private storefrontUrl(slug: string): string {
-    const domain = this.config.getOrThrow<string>('APP_DOMAIN');
-    const isProd = this.config.get('NODE_ENV') === 'production';
-    return isProd ? `https://${slug}.${domain}` : `http://${slug}.localhost:3000`;
+    return storefrontBaseUrl(this.config, slug);
   }
 
   private async invalidateCache(slug: string): Promise<void> {

@@ -8,6 +8,7 @@ import type {
   Restaurant,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { storefrontBaseUrl } from '../../common/tenant-url';
 import { EmailService } from './email.service';
 import { SmsService } from './sms.service';
 import {
@@ -373,11 +374,8 @@ export class NotificationsService {
   }
 
   private trackingUrl(order: Order, restaurant: Restaurant): string {
-    const domain = this.config.getOrThrow<string>('APP_DOMAIN');
-    const isProd = this.config.get('NODE_ENV') === 'production';
-    const base = isProd
-      ? `https://${restaurant.slug}.${domain}`
-      : `http://${restaurant.slug}.localhost:3000`;
+    // The link a customer taps from their SMS/email. See common/tenant-url.ts.
+    const base = storefrontBaseUrl(this.config, restaurant.slug);
     return `${base}/track/${order.trackingToken}`;
   }
 }
