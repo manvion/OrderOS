@@ -46,6 +46,13 @@ export class PaymentsController {
     return this.payments.syncConnectStatus(restaurantId);
   }
 
+  /** Single-use door into the restaurant's own Stripe Express dashboard. */
+  @Post('connect/manage-link')
+  @Roles('MANAGER')
+  manageLink(@TenantId() restaurantId: string) {
+    return this.payments.createExpressDashboardLink(restaurantId);
+  }
+
   // --- Refunds (dashboard) ---------------------------------------------------
 
   @Post('orders/:orderId/refund')

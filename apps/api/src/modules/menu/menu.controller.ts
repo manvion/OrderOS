@@ -24,6 +24,7 @@ import { MenuService } from './menu.service';
 
 const reorderSchema = z.object({ orderedIds: z.array(z.string().cuid()).min(1).max(500) });
 const availabilitySchema = z.object({ isAvailable: z.boolean() });
+const importUrlSchema = z.object({ url: z.string().min(8).max(500) });
 
 /** Staff-only menu management. Storefront reads live in StorefrontController. */
 @ApiTags('menu')
@@ -172,6 +173,21 @@ export class MenuController {
 
     const restaurant = await this.menu.getRestaurantCurrency(restaurantId);
     return this.menuImport.extractFromPhoto(file, restaurant.currency);
+  }
+
+  /**
+   * Same contract as import/photo, different ingestion: the menu already lives on
+   * a web page (their old website, a Google Sites page). Returns the same DRAFT.
+   */
+  @Post('import/url')
+  @Roles('MANAGER')
+  @Audit('menu.import.extracted', 'Menu')
+  async importFromUrl(
+    @TenantId() restaurantId: string,
+    @Body(new ZodValidationPipe(importUrlSchema)) body: { url: string },
+  ) {
+    const restaurant = await this.menu.getRestaurantCurrency(restaurantId);
+    return this.menuImport.extractFromUrl(body.url, restaurant.currency);
   }
 
   @Post('products/:id/image')

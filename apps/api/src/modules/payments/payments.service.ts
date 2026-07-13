@@ -166,6 +166,23 @@ export class PaymentsService {
   }
 
   /**
+   * A login link into the restaurant's own Stripe Express dashboard.
+   *
+   * "Connected" is not "finished": bank accounts change, cards expire, tax IDs
+   * get corrected. All of that lives in Stripe's hosted dashboard for THEIR
+   * account -- we just mint the door. Links are single-use and short-lived, so
+   * one is created per click, never stored.
+   */
+  async createExpressDashboardLink(restaurantId: string) {
+    const restaurant = await this.prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant?.stripeAccountId) {
+      throw new BadRequestException('Connect Stripe first — there is no account to manage yet');
+    }
+    const link = await this.stripe.accounts.createLoginLink(restaurant.stripeAccountId);
+    return { url: link.url };
+  }
+
+  /**
    * Pull the live capability status from Stripe. Called when the owner returns
    * from the Connect flow — we don't trust the `?connected=1` query param, we ask
    * Stripe whether they can actually take a card.

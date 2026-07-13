@@ -300,6 +300,13 @@ export function createDashboardApi(
      * draft is reviewed and edited in the dashboard, and only approved rows are
      * created — through createCategory/createProduct like any manual entry.
      */
+    /** Same draft as the photo path — the menu already lives on a web page. */
+    importMenuFromLink: (url: string) =>
+      call<MenuImportDraft>('/menu/import/url', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      }),
+
     importMenuFromPhoto: (file: File) => {
       const form = new FormData();
       form.append('file', file);
@@ -327,6 +334,9 @@ export function createDashboardApi(
     getStripeStatus: () => call<StripeStatus>('/payments/connect/status'),
     createStripeOnboardingLink: () =>
       call<{ url: string }>('/payments/connect/onboarding-link', { method: 'POST' }),
+    /** Edit bank account, payout schedule, business details — Stripe's own dashboard. */
+    createStripeManageLink: () =>
+      call<{ url: string }>('/payments/connect/manage-link', { method: 'POST' }),
     refund: (orderId: string, body: { amountCents?: number; reason?: string }) =>
       call<{ refundId: string; amountCents: number; isFullRefund: boolean }>(
         `/payments/orders/${orderId}/refund`,

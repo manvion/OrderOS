@@ -162,50 +162,26 @@ export class MenuImportService {
       throw new BadRequestException('The image is empty');
     }
 
-    const response = await this.client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 16000,
-      // Menu photos are genuinely hard reads — dense layouts, decorative fonts,
-      // glare on laminate. Let the model decide when the image deserves thought.
-      thinking: { type: 'adaptive' },
-      system:
-        'You transcribe restaurant menus from photographs into structured data. ' +
-        'Rules: (1) Transcribe ONLY what is legible in the image — never invent, ' +
-        'embellish, or "improve" names, descriptions, or prices. (2) If an item\'s ' +
-        'price is illegible or absent, set price to an empty string and add a warning ' +
-        'naming the item. (3) If an item has no printed description, use an empty ' +
-        'string — do not write one. (4) Preserve the menu\'s own section headings as ' +
-        'category names; if the menu has no sections, use a single category named ' +
-        '"Menu". (5) Prices are plain decimal strings without currency symbols, in ' +
-        `the menu's printed currency (expected: ${currency}). ` +
-        '(6) List every legible item, even ones you are unsure about — flag doubts as warnings.',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp',
-                data: file.buffer.toString('base64'),
-              },
-            },
-            {
-              type: 'text',
-              text: 'Transcribe this menu. Every legible item, exactly as printed.',
-            },
-          ],
-        },
-      ],
-      output_config: {
-        format: {
-          type: 'json_schema' as const,
-          schema: EXTRACTED_MENU_JSON_SCHEMA as unknown as Record<string, unknown>,
+    const response = await this.runExtraction(currency, [
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp',
+          data: file.buffer.toString('base64'),
         },
       },
-    });
+      {
+        type: 'text',
+        text: 'Transcribe this menu. Every legible item, exactly as printed.',
+      },
+    ]);
 
+    return this.toDraft(response);
+  }
+
+  /** Shared tail of every ingestion path: schema-validated response -> reviewed draft. */
+  private toDraft(response: Anthropic.Message): MenuImportDraft {
     // A refusal or truncation yields no valid JSON. There is nothing sinister about
     // a menu, so this is effectively "the image was not a menu" — say so usefully.
     if (response.stop_reason === 'refusal') {
@@ -254,6 +230,158 @@ export class MenuImportService {
       })),
       warnings: extracted.warnings,
     };
+  }
+
+  /**
+   * The model ladder. Opus first -- menus are hard reads and it is the best eye
+   * we have. If IT has a bad minute (overload, rate limit, timeout), the job
+   * falls to Sonnet rather than to the owner: a slightly-less-sharp read that a
+   * human reviews anyway beats an error toast every time. Only infrastructure
+   * failures ladder down; a 400 means the REQUEST is wrong and every model would
+   * agree, so it surfaces immediately.
+   */
+  private static readonly MODEL_LADDER = ['claude-opus-4-8', 'claude-sonnet-5'] as const;
+
+  private async runExtraction(
+    currency: string,
+    content: Anthropic.ContentBlockParam[],
+  ): Promise<Anthropic.Message> {
+    const system =
+      'You transcribe restaurant menus into structured data. ' +
+      'Rules: (1) Transcribe ONLY what is actually present -- never invent, ' +
+      "embellish, or \"improve\" names, descriptions, or prices. (2) If an item's " +
+      'price is illegible or absent, set price to an empty string and add a warning ' +
+      'naming the item. (3) If an item has no given description, use an empty ' +
+      "string -- do not write one. (4) Preserve the menu's own section headings as " +
+      'category names; if the menu has no sections, use a single category named ' +
+      '"Menu". (5) Prices are plain decimal strings without currency symbols, in ' +
+      `the menu's own currency (expected: ${currency}). ` +
+      '(6) List every item, even ones you are unsure about -- flag doubts as warnings.';
+
+    let lastError: unknown;
+
+    for (const model of MenuImportService.MODEL_LADDER) {
+      try {
+        return await this.client!.messages.create({
+          model,
+          max_tokens: 16000,
+          // Menus are hard reads -- dense layouts, decorative fonts, glare on
+          // laminate. Let the model decide when the input deserves thought.
+          thinking: { type: 'adaptive' },
+          system,
+          messages: [{ role: 'user', content }],
+          output_config: {
+            format: {
+              type: 'json_schema' as const,
+              schema: EXTRACTED_MENU_JSON_SCHEMA as unknown as Record<string, unknown>,
+            },
+          },
+        });
+      } catch (err) {
+        const status = err instanceof Anthropic.APIError ? err.status : undefined;
+        const retryable =
+          err instanceof Anthropic.APIConnectionError ||
+          status === 429 ||
+          (typeof status === 'number' && status >= 500);
+
+        if (!retryable) throw err;
+
+        lastError = err;
+        this.logger.warn(
+          `${model} unavailable for menu extraction (${status ?? 'network'}) -- trying the next model`,
+        );
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * Read a menu from a WEB PAGE -- the restaurant's old website, a Google Sites
+   * page, wherever their menu already lives as text. Same review-first draft as
+   * the photo path; only the ingestion differs.
+   */
+  async extractFromUrl(rawUrl: string, currency: string): Promise<MenuImportDraft> {
+    if (!this.client) {
+      throw new ServiceUnavailableException(
+        'Menu import is not configured on this server (ANTHROPIC_API_KEY is not set). ' +
+          'You can still add menu items manually.',
+      );
+    }
+
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new BadRequestException('That does not look like a web address');
+    }
+
+    /**
+     * SSRF guard: this fetch runs FROM the server, which can see things the public
+     * internet cannot (the database host, the metadata service, other containers).
+     * A menu lives on a public website; anything that isn't plainly one is refused.
+     */
+    const host = url.hostname.toLowerCase();
+    const isPrivate =
+      (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+      host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.internal') ||
+      host.endsWith('.local') ||
+      /^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+      host === '[::1]';
+    if (isPrivate) {
+      throw new BadRequestException('That address cannot be fetched from here');
+    }
+
+    let html: string;
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'OrderOS-MenuImport/1.0' },
+        redirect: 'follow',
+      });
+      if (!res.ok) {
+        throw new BadRequestException(`That page answered ${res.status} -- check the link`);
+      }
+      html = (await res.text()).slice(0, 800_000);
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Could not fetch that page -- check the link and try again');
+    }
+
+    /**
+     * Strip the page to prose. Crude on purpose: scripts, styles and tags go,
+     * whitespace collapses, and the model -- which reads messy text far better
+     * than any parser we would maintain -- does the rest.
+     */
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60_000);
+
+    if (text.length < 40) {
+      throw new BadRequestException(
+        "That page doesn't seem to contain a readable menu. If the menu is an image or a PDF, use Import from photo instead.",
+      );
+    }
+
+    const response = await this.runExtraction(currency, [
+      {
+        type: 'text',
+        text:
+          'The following is the text of a restaurant web page. Extract the menu from it.\n\n' +
+          text,
+      },
+    ]);
+
+    return this.toDraft(response);
   }
 }
 

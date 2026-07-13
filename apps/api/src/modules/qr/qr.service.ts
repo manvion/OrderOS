@@ -310,7 +310,15 @@ export class QrService {
   async buildPrintSheet(restaurantId: string, type?: QRCodeType): Promise<string> {
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { name: true, brandPrimaryColor: true },
+      select: {
+        name: true,
+        brandPrimaryColor: true,
+        brandAccentColor: true,
+        phone: true,
+        street: true,
+        city: true,
+        slug: true,
+      },
     });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
 
@@ -339,11 +347,16 @@ export class QrService {
         return `
         <div class="tent">
           <div class="tent-inner">
-            <p class="restaurant">${escapeHtml(restaurant.name)}</p>
+            <div class="rule"><span></span><p class="restaurant">${escapeHtml(restaurant.name)}</p><span></span></div>
             <p class="headline">Scan to order</p>
-            <img src="${png}" alt="" class="qr" />
+            <div class="qr-frame"><img src="${png}" alt="" class="qr" /></div>
             <p class="table">${heading}</p>
-            <p class="hint">Point your phone camera at the code.<br/>No app needed.</p>
+            <p class="hint">Point your phone camera at the code — no app needed.</p>
+            <div class="foot">
+              <span>${escapeHtml(restaurant.street)}, ${escapeHtml(restaurant.city)}</span>
+              <span>·</span>
+              <span>${escapeHtml(restaurant.phone)}</span>
+            </div>
           </div>
         </div>`;
       }),
@@ -391,25 +404,49 @@ export class QrService {
       }
 
       .tent {
-        /* The dashed border is the cut line. Printed intentionally. */
+        /* The dashed outline is the cut line; the brand bar is the design. */
         border: 1px dashed #d6d3d1;
-        border-radius: 4px;
+        border-radius: 6px;
         background: #fff;
-        padding: 6mm;
+        padding: 0;
+        overflow: hidden;
         break-inside: avoid;   /* never split a tent across two pages */
         page-break-inside: avoid;
       }
-
-      .tent-inner { text-align: center; }
-
-      .restaurant {
-        font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-        color: ${escapeHtml(restaurant.brandPrimaryColor)};
+      .tent::before {
+        content: '';
+        display: block;
+        height: 3mm;
+        background: linear-gradient(90deg, ${escapeHtml(restaurant.brandPrimaryColor)}, ${escapeHtml(restaurant.brandAccentColor)});
       }
-      .headline { margin-top: 6px; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
-      .qr { width: 46mm; height: 46mm; margin: 5mm auto 4mm; display: block; }
+
+      .tent-inner { text-align: center; padding: 6mm; }
+
+      /* Restaurant name between two hairlines -- the printed-menu register. */
+      .rule { display: flex; align-items: center; gap: 3mm; }
+      .rule span { flex: 1; height: 1px; background: #e7e5e4; }
+      .restaurant {
+        font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+        color: ${escapeHtml(restaurant.brandPrimaryColor)};
+        white-space: nowrap;
+      }
+      .headline {
+        margin-top: 5mm; font-size: 30px; font-weight: 600; letter-spacing: -.02em;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      .qr-frame {
+        display: inline-block; margin: 5mm auto 4mm; padding: 3mm;
+        border: 1.5px solid ${escapeHtml(restaurant.brandPrimaryColor)};
+        border-radius: 5mm;
+      }
+      .qr { width: 42mm; height: 42mm; display: block; }
       .table { font-size: 20px; font-weight: 700; }
-      .hint { margin-top: 5px; font-size: 11px; line-height: 1.5; color: #78716c; }
+      .hint { margin-top: 4px; font-size: 10.5px; line-height: 1.5; color: #78716c; }
+      .foot {
+        display: flex; justify-content: center; gap: 2mm;
+        margin-top: 5mm; padding-top: 3mm; border-top: 1px solid #f0efed;
+        font-size: 9.5px; color: #a8a29e;
+      }
 
       @media print {
         .toolbar { display: none; }

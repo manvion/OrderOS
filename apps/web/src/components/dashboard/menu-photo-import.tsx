@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, CircleAlert, Loader2, Trash2 } from 'lucide-react';
+import { Camera, CircleAlert, Link2, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError, type Category, type MenuImportDraft } from '@/lib/api';
@@ -58,26 +58,44 @@ export function MenuPhotoImport({ categories }: { categories: Category[] }) {
     staleTime: Infinity,
   });
 
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+
+  const extractLink = useMutation({
+    mutationFn: (url: string) => api.importMenuFromLink(url),
+    onSuccess: (draft: MenuImportDraft) => {
+      setLinkOpen(false);
+      setLinkUrl('');
+      applyDraft(draft);
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not read that page',
+      ),
+  });
+
   const extract = useMutation({
     mutationFn: (file: File) => api.importMenuFromPhoto(file),
-    onSuccess: (draft: MenuImportDraft) => {
-      setItems(
-        draft.categories.flatMap((category) =>
-          category.items.map((item) => ({
-            name: item.name,
-            description: item.description ?? '',
-            price: item.priceCents != null ? (item.priceCents / 100).toFixed(2) : '',
-            categoryName: category.name,
-          })),
-        ),
-      );
-      setWarnings(draft.warnings);
-    },
+    onSuccess: (draft: MenuImportDraft) => applyDraft(draft),
     onError: (err) =>
       toast.error(
         err instanceof ApiRequestError ? err.body.message : 'Could not read the menu photo',
       ),
   });
+
+  const applyDraft = (draft: MenuImportDraft) => {
+    setItems(
+      draft.categories.flatMap((category) =>
+        category.items.map((item) => ({
+          name: item.name,
+          description: item.description ?? '',
+          price: item.priceCents != null ? (item.priceCents / 100).toFixed(2) : '',
+          categoryName: category.name,
+        })),
+      ),
+    );
+    setWarnings(draft.warnings);
+  };
 
   if (!restaurant || !can('MANAGER') || availability?.available === false) return null;
 
@@ -164,6 +182,52 @@ export function MenuPhotoImport({ categories }: { categories: Category[] }) {
         className="hidden"
         onChange={onPick}
       />
+
+      <Button variant="outline" onClick={() => setLinkOpen(true)} disabled={extractLink.isPending}>
+        <Link2 className="h-4 w-4" />
+        Import from link
+      </Button>
+
+      {linkOpen && (
+        <Dialog open onOpenChange={(open) => !open && !extractLink.isPending && setLinkOpen(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Import from a web page</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Paste a link to a page where your menu already exists — your old website, a Google
+              page. We read it into a draft you review before anything goes live.
+            </p>
+            <Input
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://your-old-site.com/menu"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && linkUrl.trim()) extractLink.mutate(linkUrl.trim());
+              }}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setLinkOpen(false)} disabled={extractLink.isPending}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => extractLink.mutate(linkUrl.trim())}
+                disabled={!linkUrl.trim() || extractLink.isPending}
+              >
+                {extractLink.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Reading the page…
+                  </>
+                ) : (
+                  'Read the menu'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Button
         variant="outline"

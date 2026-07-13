@@ -57,6 +57,13 @@ export default function SettingsPage() {
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not open a preview'),
   });
 
+  const manageStripe = useMutation({
+    mutationFn: () => api.createStripeManageLink(),
+    onSuccess: ({ url }) => window.open(url, '_blank'),
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not open Stripe'),
+  });
+
   const connectStripe = useMutation({
     mutationFn: () => api.createStripeOnboardingLink(),
     onSuccess: ({ url }) => {
@@ -207,10 +214,24 @@ export default function SettingsPage() {
           {loadingStripe ? (
             <Skeleton className="h-10 w-full" />
           ) : stripe?.chargesEnabled ? (
-            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              Connected. You can take payments
-              {stripe.payoutsEnabled ? ' and receive payouts.' : ', but payouts are still pending.'}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Connected. You can take payments
+                {stripe.payoutsEnabled ? ' and receive payouts.' : ', but payouts are still pending.'}
+              </div>
+              {/* Connected is not finished: banks change, cards expire. Stripe's own
+                  Express dashboard is where all of that lives; we just mint the door. */}
+              {can('MANAGER') && (
+                <Button
+                  variant="outline"
+                  onClick={() => manageStripe.mutate()}
+                  disabled={manageStripe.isPending}
+                >
+                  {manageStripe.isPending ? 'Opening…' : 'Manage payouts & details'}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           ) : (
             <>
