@@ -13,10 +13,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input, Select } from '@/components/ui/input';
 import { Badge, Label, Skeleton } from '@/components/ui/primitives';
 
+/**
+ * Every code here is an ORDERING code — each one opens the menu, ready to order,
+ * in one scan. The types only differ in where the paper lives and what extra
+ * context the scan carries. Spelled out because an operator looking for "the QR
+ * to order" read this page as tables-only and concluded the feature was missing.
+ */
 const TYPE_HELP: Record<string, string> = {
-  TABLE: 'For table tents. Pre-fills the table number, so runners know where to take the food.',
-  COUNTER: 'For the till or a counter card. Sends people straight to the menu.',
-  FLYER: 'For print and windows. Rendered large with heavy error correction so it survives bad printing.',
+  COUNTER: 'Scan-to-order for the till, a counter card, or a sticker. Opens your menu directly.',
+  TABLE: 'Scan-to-order for table tents. Also pre-fills the table number, so dine-in orders arrive labeled and runners know where the food goes.',
+  FLYER: 'Scan-to-order for print, windows and posters. Rendered large with heavy error correction so it survives bad printing.',
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -27,7 +33,9 @@ export default function QrPage() {
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
 
-  const [type, setType] = useState<'TABLE' | 'COUNTER' | 'FLYER'>('TABLE');
+  // COUNTER first: the universal "scan to order" code every restaurant needs.
+  // TABLE is the dine-in specialisation (and errors when dine-in is off).
+  const [type, setType] = useState<'TABLE' | 'COUNTER' | 'FLYER'>('COUNTER');
   const [label, setLabel] = useState('');
   const [tableNumber, setTableNumber] = useState('');
   const [tableFrom, setTableFrom] = useState(1);
@@ -253,9 +261,9 @@ export default function QrPage() {
                   value={type}
                   onChange={(e) => setType(e.target.value as typeof type)}
                 >
-                  <option value="TABLE">Table</option>
-                  <option value="COUNTER">Counter</option>
-                  <option value="FLYER">Flyer</option>
+                  <option value="COUNTER">Order — counter / sticker</option>
+                  <option value="TABLE">Order — dine-in table</option>
+                  <option value="FLYER">Order — flyer / window</option>
                 </Select>
               </div>
 
