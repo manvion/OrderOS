@@ -9,6 +9,11 @@ import { AppModule } from './app.module';
 import { WidgetService } from './modules/widget/widget.service';
 import { DomainsService } from './modules/domains/domains.service';
 
+/** Literal-escape for building a RegExp out of a CORS_ORIGINS entry. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
@@ -60,6 +65,34 @@ async function bootstrap(): Promise<void> {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  /**
+   * CORS_ORIGINS entries may carry ONE wildcard in the hostname's first label:
+   * `https://order-os-*-myteam.vercel.app`.
+   *
+   * This exists for Vercel preview deployments, which mint a NEW hostname on every
+   * deploy (order-os-<hash>-<team>.vercel.app). Without it, the dashboard works on
+   * the stable domain and dies with an opaque "could not reach the API" on every
+   * preview URL — which reads like an outage and cost an afternoon of debugging a
+   * server that was refusing exactly as configured.
+   *
+   * The wildcard matches [a-z0-9-]+ only — one label's worth of deploy hash, not
+   * dots — so `https://*.vercel.app` (every app Vercel hosts, including an
+   * attacker's) cannot be expressed by accident. Everything else in the entry
+   * matches literally.
+   */
+  const wildcardOrigins = explicitOrigins
+    .filter((o) => o.includes('*'))
+    .map(
+      (o) =>
+        new RegExp(
+          `^${o.split('*').map(escapeRegExp).join('[a-z0-9-]+')}$`,
+          'i',
+        ),
+    );
+
+  const matchesExplicit = (origin: string): boolean =>
+    explicitOrigins.includes(origin) || wildcardOrigins.some((re) => re.test(origin));
+
   // Widget traffic comes from restaurants' OWN websites — joesburgers.com,
   // some-wix-site.com — which we cannot know at boot. So the allowlist is
   // partly dynamic: anything a restaurant has registered as a widget domain is
@@ -73,7 +106,7 @@ async function bootstrap(): Promise<void> {
       // Same-origin requests and server-to-server calls send no Origin header.
       if (!origin) return callback(null, true);
 
-      if (explicitOrigins.includes(origin)) return callback(null, true);
+      if (matchesExplicit(origin)) return callback(null, true);
 
       let hostname: string;
       try {
