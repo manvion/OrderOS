@@ -15,6 +15,7 @@ import { Throttle } from '@nestjs/throttler';
 import { addressSchema, createOrderSchema, type CreateOrderInput } from '@orderos/shared';
 import { z } from 'zod';
 import { Public, TenantId } from '../../common/auth/decorators';
+import type { AuthedRequest } from '../../common/auth/request-context';
 import {
   OptionalCustomerGuard,
   type CustomerAuthedRequest,
@@ -88,12 +89,16 @@ export class StorefrontController {
 
   /** Homepage: branding, hours, whether they're open right now. */
   @Get('restaurant')
-  async restaurant(@TenantId() restaurantId: string) {
+  async restaurant(@TenantId() restaurantId: string, @Req() req: AuthedRequest) {
     const restaurant = await this.prisma.restaurant.findUniqueOrThrow({
       where: { id: restaurantId },
       select: { slug: true },
     });
-    return this.restaurants.findPublicBySlug(restaurant.slug);
+    // The guard only sets isPreviewRequest after validating a staff-minted token,
+    // so "loosen the published filter" is scoped to exactly this request.
+    return this.restaurants.findPublicBySlug(restaurant.slug, {
+      preview: Boolean(req.isPreviewRequest),
+    });
   }
 
   /** The menu. Redis-cached; available items only. */

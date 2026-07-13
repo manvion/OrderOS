@@ -9,6 +9,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import {
   DEFAULT_BUSINESS_HOURS,
@@ -202,14 +203,26 @@ export class RestaurantsService {
     return restaurant;
   }
 
-  /** The storefront payload: public fields only, plus a computed open/closed flag. */
-  async findPublicBySlug(slug: string) {
+  /**
+   * The storefront payload: public fields only, plus a computed open/closed flag.
+   *
+   * `preview` loosens ONLY the published filter, and only PublicTenantGuard may set
+   * it — after validating a staff-minted token. The field list is identical either
+   * way; a preview shows the owner exactly what a customer will see, nothing more.
+   */
+  async findPublicBySlug(slug: string, opts: { preview?: boolean } = {}) {
     const restaurant = await this.prisma.restaurant.findFirst({
-      where: { slug, isPublished: true, isActive: true },
+      where: opts.preview
+        ? { slug, isActive: true }
+        : { slug, isPublished: true, isActive: true },
       select: {
         id: true,
         slug: true,
         name: true,
+        // For the preview banner: a staff preview of a LIVE page shouldn't claim
+        // the page isn't live. Harmless to expose — the page being served at all
+        // already reveals it (except under preview, where the viewer is staff).
+        isPublished: true,
         description: true,
         phone: true,
         street: true,
@@ -710,6 +723,31 @@ export class RestaurantsService {
 
   private storefrontUrl(slug: string): string {
     return storefrontBaseUrl(this.config, slug);
+  }
+
+  /**
+   * A 30-minute window in which the owner can see their UNPUBLISHED storefront.
+   *
+   * The link goes through the storefront's /preview-gate route, which stores the
+   * token in a cookie and bounces to the homepage — so the whole site (menu, about)
+   * works during the preview, not just one URL. Minting again just moves the
+   * expiry; there is one active token per restaurant, and publishing makes the
+   * whole mechanism moot.
+   */
+  async createPreviewLink(restaurantId: string) {
+    const restaurant = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { slug: true },
+    });
+
+    const token = randomBytes(16).toString('hex');
+    const ttlSeconds = 30 * 60;
+    await this.redis.set(`preview:${restaurant.slug}`, token, ttlSeconds);
+
+    return {
+      url: `${this.storefrontUrl(restaurant.slug)}/preview-gate?token=${token}`,
+      expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+    };
   }
 
   private async invalidateCache(slug: string): Promise<void> {

@@ -21,4 +21,10 @@ export interface AuthedRequest extends Request {
   restaurantId?: string;
   /** Set on public storefront routes, resolved from the subdomain. */
   publicRestaurantId?: string;
+  /**
+   * Set when the tenant resolved through a staff-minted preview token rather than
+   * being published. Read-side code may loosen its published-only filters for
+   * exactly this request and nothing else.
+   */
+  isPreviewRequest?: boolean;
 }

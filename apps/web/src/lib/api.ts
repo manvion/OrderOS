@@ -75,10 +75,20 @@ export const storefrontApi = {
       headers: { 'X-Restaurant-Slug': slug, ...init.headers },
     }),
 
-  getRestaurant: (slug: string) =>
-    storefrontApi.request<StorefrontRestaurant>('/storefront/restaurant', slug),
+  /**
+   * `previewToken` (optional) unlocks an UNPUBLISHED restaurant for its own staff —
+   * the pages read it from the sf-preview cookie set by /preview-gate. The API
+   * validates it; an invalid or expired token is simply the public 404.
+   */
+  getRestaurant: (slug: string, previewToken?: string) =>
+    storefrontApi.request<StorefrontRestaurant>('/storefront/restaurant', slug, {
+      headers: previewToken ? { 'X-Preview-Token': previewToken } : {},
+    }),
 
-  getMenu: (slug: string) => storefrontApi.request<MenuCategory[]>('/storefront/menu', slug),
+  getMenu: (slug: string, previewToken?: string) =>
+    storefrontApi.request<MenuCategory[]>('/storefront/menu', slug, {
+      headers: previewToken ? { 'X-Preview-Token': previewToken } : {},
+    }),
 
   getDeliveryQuote: (slug: string, body: { address: Address; orderValueCents: number }) =>
     storefrontApi.request<DeliveryQuote>('/storefront/delivery-quote', slug, {
@@ -246,6 +256,11 @@ export function createDashboardApi(
       call<{ success: boolean }>(`/restaurants/current/gallery/${id}`, { method: 'DELETE' }),
     getPublishReadiness: () => call<PublishReadiness>('/restaurants/current/publish-readiness'),
     publish: () => call<Restaurant>('/restaurants/current/publish', { method: 'POST' }),
+    /** A 30-minute link to view the storefront BEFORE it's published. */
+    createPreviewLink: () =>
+      call<{ url: string; expiresAt: string }>('/restaurants/current/preview-link', {
+        method: 'POST',
+      }),
 
     // Menu
     listCategories: () => call<Category[]>('/menu/categories'),
@@ -543,6 +558,8 @@ export interface StorefrontRestaurant {
   id: string;
   slug: string;
   name: string;
+  /** False only ever reaches a browser through a staff preview token. */
+  isPublished: boolean;
   description: string | null;
   orderingMode: OrderingMode;
 

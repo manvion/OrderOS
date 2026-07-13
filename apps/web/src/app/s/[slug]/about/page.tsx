@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { ArrowRight, Clock, Mail, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { WEEKDAYS, aboutParagraphs, isOpenAt, type BusinessHours } from '@orderos/shared';
 import { storefrontApi } from '@/lib/api';
+import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
 
 export const revalidate = 300;
@@ -26,7 +27,7 @@ export const revalidate = 300;
  */
 export default async function AboutPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const restaurant = await storefrontApi.getRestaurant(slug);
+  const restaurant = await storefrontApi.getRestaurant(slug, await previewTokenFor(slug));
 
   const basePath = (await headers()).get('x-restaurant-slug') ? '' : `/s/${slug}`;
   const href = (path: string) => `${basePath}${path}`;

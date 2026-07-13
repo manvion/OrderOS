@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { storefrontApi } from '@/lib/api';
+import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
 
 export const revalidate = 60;
@@ -18,7 +19,7 @@ export const revalidate = 60;
  */
 export default async function StorefrontHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const restaurant = await storefrontApi.getRestaurant(slug);
+  const restaurant = await storefrontApi.getRestaurant(slug, await previewTokenFor(slug));
 
   /**
    * A QR-only restaurant has no website, on purpose — they never wanted one. The

@@ -45,6 +45,17 @@ export default function SettingsPage() {
     }
   }, [searchParams, queryClient]);
 
+  // See the address block below: an unpublished page 404s for the public, so the
+  // owner gets a token-gated look instead of a dead link.
+  const openPreview = useMutation({
+    mutationFn: () => api.createPreviewLink(),
+    onSuccess: ({ url }) => {
+      window.open(url, '_blank');
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not open a preview'),
+  });
+
   const connectStripe = useMutation({
     mutationFn: () => api.createStripeOnboardingLink(),
     onSuccess: ({ url }) => {
@@ -106,15 +117,34 @@ export default function SettingsPage() {
             <>
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Your address</p>
-                <a
-                  href={readiness.storefrontUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 font-mono text-sm font-medium hover:underline"
-                >
-                  {readiness.storefrontUrl}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
+                {restaurant?.isPublished ? (
+                  <a
+                    href={readiness.storefrontUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 font-mono text-sm font-medium hover:underline"
+                  >
+                    {readiness.storefrontUrl}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  /* Before publish, the bare address 404s BY DESIGN (unpublished pages
+                     are invisible to the public). Rendering it as a link taught every
+                     owner to click it and file the 404 as a bug. Instead: the address
+                     as text, and a Preview button that mints a 30-minute staff pass. */
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-mono text-sm font-medium">{readiness.storefrontUrl}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openPreview.mutate()}
+                      disabled={openPreview.isPending}
+                    >
+                      {openPreview.isPending ? 'Opening…' : 'Preview'}
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {readiness.blockers.length > 0 && (

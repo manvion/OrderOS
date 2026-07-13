@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { storefrontApi } from '@/lib/api';
+import { previewTokenFor } from '@/lib/preview-token';
 import { AccountButton } from '@/components/storefront/account-button';
 import { CartButton } from '@/components/storefront/cart-button';
 import { TenantProvider } from '@/components/storefront/tenant-provider';
@@ -57,9 +58,13 @@ export default async function StorefrontLayout({
 }) {
   const { slug } = await params;
 
+  // Carried only by staff who came through /preview-gate. For everyone else this
+  // is undefined and the request is indistinguishable from public traffic.
+  const previewToken = await previewTokenFor(slug);
+
   let restaurant;
   try {
-    restaurant = await storefrontApi.getRestaurant(slug);
+    restaurant = await storefrontApi.getRestaurant(slug, previewToken);
   } catch {
     // Unpublished, inactive or simply nonexistent — all indistinguishable, on
     // purpose. A 404 must not confirm that a restaurant exists but is offline.
@@ -106,6 +111,15 @@ export default async function StorefrontLayout({
         }
         className="flex min-h-screen flex-col bg-background"
       >
+        {/* Staff preview of an unpublished page. Says so plainly, because the most
+            expensive misunderstanding available here is an owner believing they are
+            live while customers still get a 404. */}
+        {previewToken && !restaurant.isPublished && (
+          <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-amber-950">
+            Preview — this page is not published yet. Customers can&apos;t see it until you hit
+            Publish in your dashboard.
+          </div>
+        )}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
           <div className="container flex h-16 items-center justify-between gap-4">
             <Link href={href(isQrOnly ? '/menu' : '/')} className="flex min-w-0 items-center gap-3">

@@ -166,6 +166,15 @@ export class RestaurantsController {
     return this.restaurants.getPublishReadiness(restaurantId);
   }
 
+  /**
+   * Mint a 30-minute preview link for an UNPUBLISHED storefront. Any staff member
+   * may look; looking is harmless and the alternative was that nobody could.
+   */
+  @Post('current/preview-link')
+  async previewLink(@TenantId() restaurantId: string) {
+    return this.restaurants.createPreviewLink(restaurantId);
+  }
+
   @Post('current/publish')
   @Roles('OWNER')
   @Audit('restaurant.published', 'Restaurant')
