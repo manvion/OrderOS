@@ -32,7 +32,16 @@ export class ClerkService {
       const claims = await verifyToken(token, { secretKey: this.secretKey });
       return { sub: claims.sub, sid: claims.sid as string | undefined };
     } catch (err) {
-      this.logger.debug(`Token verification failed: ${(err as Error).message}`);
+      /**
+       * WARN, not debug. The comment above is right that the CALLER must stay
+       * opaque — the HTTP response never says why. But the server's own logs are
+       * read by the operator, not the attacker, and this line is the only place
+       * that knows whether a platform-wide 401 storm is "expired token" (client
+       * clock/refresh bug), "invalid signature" (key rotated), or "wrong issuer"
+       * (two Clerk instances). At debug level it was invisible in production,
+       * which turned each of those into an afternoon of guessing.
+       */
+      this.logger.warn(`Token verification failed: ${(err as Error).message}`);
       return null;
     }
   }
