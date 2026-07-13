@@ -47,26 +47,45 @@ export class PaymentsService {
     let accountId = restaurant.stripeAccountId;
 
     if (!accountId) {
-      const account = await this.stripe.accounts.create({
-        type: 'express',
-        country: restaurant.country,
-        email: restaurant.email,
-        // business_type is deliberately NOT set. It used to be hardcoded to
-        // 'company', which a sole trader — most independent restaurants — cannot
-        // satisfy, and they got stuck part-way through Stripe's form with no way
-        // back. Stripe asks them directly, and it knows the rules for their country
-        // better than we do.
-        business_profile: {
-          name: restaurant.name,
-          mcc: '5812', // Eating places / restaurants
-          support_phone: restaurant.phone,
-        },
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
-        metadata: { restaurantId, slug: restaurant.slug },
-      });
+      let account: Stripe.Account;
+      try {
+        account = await this.stripe.accounts.create({
+          type: 'express',
+          country: restaurant.country,
+          email: restaurant.email,
+          // business_type is deliberately NOT set. It used to be hardcoded to
+          // 'company', which a sole trader — most independent restaurants — cannot
+          // satisfy, and they got stuck part-way through Stripe's form with no way
+          // back. Stripe asks them directly, and it knows the rules for their country
+          // better than we do.
+          business_profile: {
+            name: restaurant.name,
+            mcc: '5812', // Eating places / restaurants
+            support_phone: restaurant.phone,
+          },
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          metadata: { restaurantId, slug: restaurant.slug },
+        });
+      } catch (err) {
+        /**
+         * Stripe's rejections here are CONFIGURATION facts, not transient failures,
+         * and Stripe's own message names the fact: "Connect is not enabled on this
+         * account", "country IN is not supported", "platform profile incomplete".
+         * Swallowed into a generic 500, each becomes "Stripe setup is not working"
+         * — a bug report with the diagnosis stripped out of it. Surface the words.
+         */
+        if (err instanceof Stripe.errors.StripeError && err.type === 'StripeInvalidRequestError') {
+          this.logger.warn(
+            `Stripe refused to create a Connect account for ${restaurant.slug} ` +
+              `(country ${restaurant.country}): ${err.message}`,
+          );
+          throw new BadRequestException(`Stripe rejected the setup: ${err.message}`);
+        }
+        throw err;
+      }
       accountId = account.id;
 
       await this.prisma.restaurant.update({

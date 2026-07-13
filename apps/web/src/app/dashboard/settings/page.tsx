@@ -50,7 +50,15 @@ export default function SettingsPage() {
     onSuccess: ({ url }) => {
       window.location.href = url;
     },
-    onError: () => toast.error('Could not start Stripe onboarding'),
+    // Stripe's rejections name the actual problem ("Connect is not enabled on
+    // this account", "country not supported") and the API now passes that
+    // through. Swallowing it into a generic line turned every one of those
+    // into the same unfixable bug report: "stripe setup is not working".
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not start Stripe onboarding',
+        { duration: 10000 },
+      ),
   });
 
   const publish = useMutation({
