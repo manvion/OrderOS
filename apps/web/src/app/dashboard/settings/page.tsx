@@ -10,6 +10,7 @@ import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider'
 import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';
 import { BusinessLocationForm } from '@/components/dashboard/business-location-form';
+import { ContactDetailsForm } from '@/components/dashboard/contact-details-form';
 import { HoursEditor } from '@/components/dashboard/hours-editor';
 import { LegalIdentityForm } from '@/components/dashboard/legal-identity-form';
 import { ApiRequestError } from '@/lib/api';
@@ -184,6 +185,8 @@ export default function SettingsPage() {
 
       {/* Where they are. Sits ABOVE the legal card on purpose: the country chosen here
           decides what the tax field below is even called, and whether it is required. */}
+      <ContactDetailsForm />
+
       <BusinessLocationForm />
 
       {/* Who the restaurant is to a tax authority — what makes a receipt a valid invoice. */}
