@@ -145,6 +145,15 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
 
   /**
+   * OpenRouter, the FREE lane for menu import. With a key set, extraction tries
+   * OpenRouter's free vision models first and only falls back to Anthropic (if
+   * that key is also set). OPENROUTER_MODELS overrides the built-in free-model
+   * ladder -- the free catalog churns, so expect to update it occasionally.
+   */
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_MODELS: z.string().optional(),
+
+  /**
    * Comma-separated emails that become platform SUPER_ADMINs on first sign-in.
    *
    * Bootstrapping by env rather than by an endpoint is deliberate: a "create the

@@ -103,6 +103,16 @@ const EXTRACTED_MENU_JSON_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** fetch() errors don't carry HTTP status; this one does, for the ladder's 4xx check. */
+class HttpStatusError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export interface MenuImportDraft {
   categories: Array<{
     name: string;
@@ -120,16 +130,34 @@ export interface MenuImportDraft {
 export class MenuImportService {
   private readonly logger = new Logger(MenuImportService.name);
   private readonly client: Anthropic | null;
+  private readonly openRouterKey: string | undefined;
+  private readonly openRouterModels: string[];
 
   constructor(config: ConfigService) {
     const apiKey = config.get<string>('ANTHROPIC_API_KEY');
-    // No key -> the feature reports itself unavailable and the dashboard hides the
-    // button. Menu entry still works by hand; this is an accelerant, not a gate.
     this.client = apiKey ? new Anthropic({ apiKey }) : null;
+
+    /**
+     * OpenRouter carries the FREE lane. Free models read menus well enough that a
+     * human review catches the rest -- and the review step was already mandatory.
+     * The default ladder below was taken from OpenRouter's live catalog (its free
+     * vision-capable models on the day this shipped); the catalog churns, so the
+     * list is an env override away from current.
+     */
+    this.openRouterKey = config.get<string>('OPENROUTER_API_KEY');
+    this.openRouterModels = (
+      config.get<string>('OPENROUTER_MODELS') ??
+      'google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-nano-12b-v2-vl:free'
+    )
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean);
   }
 
+  // Either provider makes the feature available; with neither key the dashboard
+  // hides the button. Menu entry still works by hand; this is an accelerant.
   get available(): boolean {
-    return this.client !== null;
+    return this.client !== null || Boolean(this.openRouterKey);
   }
 
   /**
@@ -162,60 +190,28 @@ export class MenuImportService {
       throw new BadRequestException('The image is empty');
     }
 
-    const response = await this.runExtraction(currency, [
-      {
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp',
-          data: file.buffer.toString('base64'),
-        },
+    const extracted = await this.runExtraction(currency, {
+      prompt: 'Transcribe this menu. Every legible item, exactly as printed.',
+      image: {
+        mediaType: file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp',
+        base64: file.buffer.toString('base64'),
       },
-      {
-        type: 'text',
-        text: 'Transcribe this menu. Every legible item, exactly as printed.',
-      },
-    ]);
+    });
 
-    return this.toDraft(response);
+    return this.toDraft(extracted);
   }
 
-  /** Shared tail of every ingestion path: schema-validated response -> reviewed draft. */
-  private toDraft(response: Anthropic.Message): MenuImportDraft {
-    // A refusal or truncation yields no valid JSON. There is nothing sinister about
-    // a menu, so this is effectively "the image was not a menu" — say so usefully.
-    if (response.stop_reason === 'refusal') {
-      throw new BadRequestException(
-        "Couldn't read a menu in that image. Try a straight-on photo with the text in focus.",
-      );
-    }
-
-    const text = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text',
-    )?.text;
-
-    // The API enforces the schema, so this parse+validate should never fail — but
-    // "should never" is not a policy for input that came off a network, and the zod
-    // pass is also what gives the rest of the method its types.
-    let extracted: z.infer<typeof extractedMenuSchema>;
-    try {
-      extracted = extractedMenuSchema.parse(JSON.parse(text ?? ''));
-    } catch {
-      this.logger.error('Structured output failed to validate — menu extraction dropped');
-      throw new BadRequestException(
-        "Couldn't read a menu in that image. Try a straight-on photo with the text in focus.",
-      );
-    }
-
+  /** Shared tail of every ingestion path: validated extraction -> reviewed draft. */
+  private toDraft(extracted: z.infer<typeof extractedMenuSchema>): MenuImportDraft {
     const itemCount = extracted.categories.reduce((n, c) => n + c.items.length, 0);
     this.logger.log(
       `Extracted ${itemCount} items in ${extracted.categories.length} categories ` +
-        `(${extracted.warnings.length} warnings, ${response.usage.input_tokens}+${response.usage.output_tokens} tokens)`,
+        `(${extracted.warnings.length} warnings)`,
     );
 
     if (itemCount === 0) {
       throw new BadRequestException(
-        "That image doesn't appear to contain a readable menu. Try better lighting or a closer shot.",
+        "That doesn't appear to contain a readable menu. Try a clearer photo or a page where the menu is text.",
       );
     }
 
@@ -233,19 +229,23 @@ export class MenuImportService {
   }
 
   /**
-   * The model ladder. Opus first -- menus are hard reads and it is the best eye
-   * we have. If IT has a bad minute (overload, rate limit, timeout), the job
-   * falls to Sonnet rather than to the owner: a slightly-less-sharp read that a
-   * human reviews anyway beats an error toast every time. Only infrastructure
-   * failures ladder down; a 400 means the REQUEST is wrong and every model would
-   * agree, so it surfaces immediately.
+   * The provider ladder: FREE first, paid only as the backstop.
+   *
+   * Every OpenRouter free model is tried in order, then Anthropic (Opus, Sonnet)
+   * if a key is configured. Two kinds of failure ladder down: infrastructure
+   * (429/5xx/network) and BAD OUTPUT -- a free model that returns prose instead
+   * of the schema is just another unavailable model, because the human review
+   * step downstream means a weaker-but-valid read is always more useful than an
+   * error toast. Only a definitive client error (4xx on our request shape)
+   * surfaces immediately: every model would reject it identically.
    */
-  private static readonly MODEL_LADDER = ['claude-opus-4-8', 'claude-sonnet-5'] as const;
-
   private async runExtraction(
     currency: string,
-    content: Anthropic.ContentBlockParam[],
-  ): Promise<Anthropic.Message> {
+    input: {
+      prompt: string;
+      image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp'; base64: string };
+    },
+  ): Promise<z.infer<typeof extractedMenuSchema>> {
     const system =
       'You transcribe restaurant menus into structured data. ' +
       'Rules: (1) Transcribe ONLY what is actually present -- never invent, ' +
@@ -256,44 +256,156 @@ export class MenuImportService {
       'category names; if the menu has no sections, use a single category named ' +
       '"Menu". (5) Prices are plain decimal strings without currency symbols, in ' +
       `the menu's own currency (expected: ${currency}). ` +
-      '(6) List every item, even ones you are unsure about -- flag doubts as warnings.';
+      '(6) List every item, even ones you are unsure about -- flag doubts as warnings. ' +
+      'Respond with ONLY a JSON object of shape ' +
+      '{"categories":[{"name":string,"items":[{"name":string,"description":string,"price":string}]}],"warnings":[string]} ' +
+      '-- no markdown fences, no commentary.';
+
+    const attempts: Array<{ provider: 'openrouter' | 'anthropic'; model: string }> = [
+      ...(this.openRouterKey
+        ? this.openRouterModels.map((model) => ({ provider: 'openrouter' as const, model }))
+        : []),
+      ...(this.client
+        ? [
+            { provider: 'anthropic' as const, model: 'claude-opus-4-8' },
+            { provider: 'anthropic' as const, model: 'claude-sonnet-5' },
+          ]
+        : []),
+    ];
 
     let lastError: unknown;
 
-    for (const model of MenuImportService.MODEL_LADDER) {
+    for (const attempt of attempts) {
       try {
-        return await this.client!.messages.create({
-          model,
-          max_tokens: 16000,
-          // Menus are hard reads -- dense layouts, decorative fonts, glare on
-          // laminate. Let the model decide when the input deserves thought.
-          thinking: { type: 'adaptive' },
-          system,
-          messages: [{ role: 'user', content }],
-          output_config: {
-            format: {
-              type: 'json_schema' as const,
-              schema: EXTRACTED_MENU_JSON_SCHEMA as unknown as Record<string, unknown>,
-            },
-          },
-        });
-      } catch (err) {
-        const status = err instanceof Anthropic.APIError ? err.status : undefined;
-        const retryable =
-          err instanceof Anthropic.APIConnectionError ||
-          status === 429 ||
-          (typeof status === 'number' && status >= 500);
+        const text =
+          attempt.provider === 'openrouter'
+            ? await this.callOpenRouter(attempt.model, system, input)
+            : await this.callAnthropic(attempt.model, system, input);
 
-        if (!retryable) throw err;
+        // Free models fence and preface despite instructions. Take the outermost
+        // JSON object; let zod be the judge of whether it's the right one.
+        const jsonStart = text.indexOf('{');
+        const jsonEnd = text.lastIndexOf('}');
+        if (jsonStart === -1 || jsonEnd <= jsonStart) throw new Error('no JSON in response');
+
+        return extractedMenuSchema.parse(JSON.parse(text.slice(jsonStart, jsonEnd + 1)));
+      } catch (err) {
+        // A definitive rejection of OUR request shape (bad payload, oversized
+        // image) would repeat on every model, so surface it. Everything else in
+        // 4xx is provider trouble in disguise -- 404 is a free model gone from
+        // the churning catalog, 402/403 are account state -- and ladders down.
+        const status =
+          err instanceof Anthropic.APIError
+            ? err.status
+            : err instanceof HttpStatusError
+              ? err.status
+              : undefined;
+        if (status === 400 || status === 413 || status === 422) {
+          throw new BadRequestException(
+            "Couldn't read a menu from that. Try a clearer photo, or a page where the menu is text.",
+          );
+        }
 
         lastError = err;
         this.logger.warn(
-          `${model} unavailable for menu extraction (${status ?? 'network'}) -- trying the next model`,
+          `${attempt.provider}/${attempt.model} failed menu extraction ` +
+            `(${(err as Error).message}) -- trying the next model`,
         );
       }
     }
 
-    throw lastError;
+    this.logger.error('Every model in the ladder failed menu extraction');
+    throw new BadRequestException(
+      lastError instanceof Error && lastError.message === 'no JSON in response'
+        ? "Couldn't read a menu from that. Try a clearer photo with the text in focus."
+        : 'Menu reading is briefly unavailable -- try again in a minute. You can always add items manually.',
+    );
+  }
+
+  /** OpenRouter speaks the OpenAI chat shape; a data URL carries the image. */
+  private async callOpenRouter(
+    model: string,
+    system: string,
+    input: { prompt: string; image?: { mediaType: string; base64: string } },
+  ): Promise<string> {
+    const content: unknown[] = [{ type: 'text', text: input.prompt }];
+    if (input.image) {
+      content.push({
+        type: 'image_url',
+        image_url: { url: `data:${input.image.mediaType};base64,${input.image.base64}` },
+      });
+    }
+
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: AbortSignal.timeout(90_000),
+      headers: {
+        Authorization: `Bearer ${this.openRouterKey}`,
+        'Content-Type': 'application/json',
+        // OpenRouter attribution headers; free-tier routing likes them.
+        'HTTP-Referer': 'https://orderos.app',
+        'X-Title': 'OrderOS menu import',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 8000,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content },
+        ],
+      }),
+    });
+
+    if (!res.ok) throw new HttpStatusError(res.status, `OpenRouter ${res.status}`);
+
+    const body = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      error?: { message?: string };
+    };
+    const text = body.choices?.[0]?.message?.content;
+    if (!text) throw new Error(body.error?.message ?? 'empty response');
+    return text;
+  }
+
+  private async callAnthropic(
+    model: string,
+    system: string,
+    input: { prompt: string; image?: { mediaType: string; base64: string } },
+  ): Promise<string> {
+    const content: Anthropic.ContentBlockParam[] = [];
+    if (input.image) {
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: input.image.mediaType as 'image/jpeg' | 'image/png' | 'image/webp',
+          data: input.image.base64,
+        },
+      });
+    }
+    content.push({ type: 'text', text: input.prompt });
+
+    const response = await this.client!.messages.create({
+      model,
+      max_tokens: 16000,
+      thinking: { type: 'adaptive' },
+      system,
+      messages: [{ role: 'user', content }],
+      // Anthropic gets the real schema enforcement; free models get prompt+zod.
+      output_config: {
+        format: {
+          type: 'json_schema' as const,
+          schema: EXTRACTED_MENU_JSON_SCHEMA as unknown as Record<string, unknown>,
+        },
+      },
+    });
+
+    if (response.stop_reason === 'refusal') throw new Error('model declined the image');
+    const text = response.content.find(
+      (block): block is Anthropic.TextBlock => block.type === 'text',
+    )?.text;
+    if (!text) throw new Error('empty response');
+    return text;
   }
 
   /**
@@ -372,16 +484,13 @@ export class MenuImportService {
       );
     }
 
-    const response = await this.runExtraction(currency, [
-      {
-        type: 'text',
-        text:
-          'The following is the text of a restaurant web page. Extract the menu from it.\n\n' +
-          text,
-      },
-    ]);
+    const extracted = await this.runExtraction(currency, {
+      prompt:
+        'The following is the text of a restaurant web page. Extract the menu from it.\n\n' +
+        text,
+    });
 
-    return this.toDraft(response);
+    return this.toDraft(extracted);
   }
 }
 
