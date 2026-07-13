@@ -126,10 +126,41 @@ export class PlatformAdminGuard implements CanActivate {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
 
-    if (allowlist.length === 0) return null;
+    /**
+     * These three declines used to be one silent `return null`, which made the most
+     * common setup failure in the product completely undiagnosable: you are told
+     * "not an admin" and have no way to learn whether the variable is unset, whether
+     * Clerk has no email for you, or whether you simply typed the wrong address.
+     * Each one is a different fix, so each one says which it is.
+     */
+    if (allowlist.length === 0) {
+      this.logger.warn(
+        'PLATFORM_ADMIN_EMAILS is not set, so NOBODY can be a platform admin — including you. ' +
+          'Set it to your Clerk account\'s verified primary email and restart the API.',
+      );
+      return null;
+    }
 
     const email = (await this.clerk.getPrimaryEmail(clerkUserId))?.toLowerCase();
-    if (!email || !allowlist.includes(email)) return null;
+
+    if (!email) {
+      this.logger.warn(
+        `Clerk user ${clerkUserId} has no verified primary email, so it cannot match the ` +
+          'admin allowlist. Verify an email address on the account.',
+      );
+      return null;
+    }
+
+    if (!allowlist.includes(email)) {
+      // The actual addresses, because "it didn't match" without saying what was
+      // compared is the least useful log line it is possible to write. Both sides are
+      // already known to whoever can read these logs.
+      this.logger.warn(
+        `Clerk account "${email}" is not on PLATFORM_ADMIN_EMAILS (${allowlist.join(', ')}). ` +
+          'It must match the account\'s VERIFIED PRIMARY email exactly.',
+      );
+      return null;
+    }
 
     const clerkUser = await this.clerk.getUser(clerkUserId);
 

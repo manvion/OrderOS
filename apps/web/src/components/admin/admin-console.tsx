@@ -136,21 +136,44 @@ export function AdminConsole() {
    * lacks access" and "the server didn't answer".
    */
   if (isError) {
-    const forbidden = error instanceof ApiRequestError && (error.status === 403 || error.status === 401);
+    const status = error instanceof ApiRequestError ? error.status : 0;
+
+    /**
+     * 401 and 403 are NOT the same failure, and conflating them sends you to fix the
+     * wrong thing:
+     *
+     *   401 — the API could not verify your session AT ALL. Your Clerk keys are
+     *         wrong or missing on the API side. Nothing about admin allowlists is
+     *         relevant, and telling you to edit PLATFORM_ADMIN_EMAILS would be a
+     *         wild goose chase.
+     *   403 — your session verified fine. You are simply not an admin.
+     */
+    const title =
+      status === 403
+        ? 'This account is not a platform admin'
+        : status === 401
+          ? 'The API could not verify your sign-in'
+          : 'Could not reach the admin API';
 
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="max-w-md space-y-2 text-center">
-          <p className="font-medium">
-            {forbidden ? 'This account is not a platform admin' : 'Could not reach the admin API'}
-          </p>
+          <p className="font-medium">{title}</p>
           <p className="text-sm text-muted-foreground">
-            {forbidden ? (
+            {status === 403 ? (
               <>
                 You&rsquo;re signed in, but your account is not on the platform admin allowlist.
                 Admins are granted by setting <code className="font-mono">PLATFORM_ADMIN_EMAILS</code>{' '}
-                on the API — it must contain the verified primary email of your account. There is
-                deliberately no way to grant this from inside the app.
+                on the API — it must contain the verified primary email of your account, and the API
+                must be restarted after you change it. There is deliberately no way to grant this
+                from inside the app. The API logs say exactly which email it saw.
+              </>
+            ) : status === 401 ? (
+              <>
+                Your browser signed you in, but the API rejected the session token. That means the
+                API&rsquo;s <code className="font-mono">CLERK_SECRET_KEY</code> is missing, a
+                placeholder, or from a different Clerk instance than the one the web app uses. This
+                is not an admin-permissions problem.
               </>
             ) : (
               'The API did not answer. Check that it is running and that this deployment points at it.'
