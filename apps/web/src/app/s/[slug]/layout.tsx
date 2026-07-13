@@ -122,7 +122,7 @@ export default async function StorefrontLayout({
                   {restaurant.name.charAt(0)}
                 </div>
               )}
-              <span className="truncate font-semibold">{restaurant.name}</span>
+              <span className="truncate font-display text-lg font-semibold">{restaurant.name}</span>
             </Link>
 
             <nav className="flex items-center gap-1">

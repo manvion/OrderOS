@@ -74,7 +74,7 @@ export function MenuBrowser({
       )}
 
       <div className="mx-auto max-w-3xl px-5 pt-10 sm:px-8">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Menu</h1>
+        <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">Menu</h1>
         {!restaurant.isOpen && (
           <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {restaurant.name} is closed right now.
@@ -116,7 +116,7 @@ export function MenuBrowser({
             }}
             className="scroll-mt-36"
           >
-            <h2 className="text-2xl font-bold tracking-tight">{category.name}</h2>
+            <h2 className="font-display text-2xl font-semibold tracking-tight">{category.name}</h2>
             {category.description && (
               <p className="mt-1 text-muted-foreground">{category.description}</p>
             )}

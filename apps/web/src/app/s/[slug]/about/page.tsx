@@ -61,7 +61,7 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
       {/* Header */}
       <section className="border-b bg-muted/30">
         <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-20">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+          <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
             {restaurant.aboutHeadline?.trim() || `About ${restaurant.name}`}
           </h1>
           {restaurant.description && (

@@ -98,7 +98,7 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
             )}
           </div>
 
-          <h1 className="mt-6 max-w-2xl text-5xl font-bold leading-[1.05] tracking-tight text-white sm:text-7xl">
+          <h1 className="mt-6 max-w-2xl font-display text-5xl font-semibold leading-[1.02] tracking-tight text-white sm:text-7xl">
             {restaurant.name}
           </h1>
 
