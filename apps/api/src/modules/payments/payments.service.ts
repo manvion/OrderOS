@@ -316,8 +316,22 @@ export class PaymentsService {
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
 
         payment_intent_data: {
-          // Destination charge: funds settle in the restaurant's account, minus
-          // our application fee. The platform never becomes the merchant of record.
+          /**
+           * Destination charge WITH on_behalf_of: the restaurant is the merchant
+           * of record. Three things follow, all of them the right default for a
+           * marketplace:
+           *
+           *  1. STRIPE'S PROCESSING FEE (~2.9% + 30c) is debited from the
+           *     RESTAURANT's account, not the platform's. Without this, the
+           *     platform paid processing out of its commission -- at 3% commission
+           *     vs ~2.9%+30c processing, the platform LOST money on every small
+           *     pickup order. Commission is now pure margin.
+           *  2. The customer's card statement shows the restaurant's name, which
+           *     is who they think they bought from -- fewer "what is this charge"
+           *     disputes.
+           *  3. Dispute liability sits with the restaurant whose food it was.
+           */
+          on_behalf_of: order.restaurant.stripeAccountId,
           transfer_data: { destination: order.restaurant.stripeAccountId },
           /**
            * The platform's take on this charge = commission + the courier cost the
