@@ -26,6 +26,7 @@ import {
 import { formatMoney } from '@orderos/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, createDashboardApi, type AdminRestaurant } from '@/lib/api';
+import { tenantUrl } from '@/lib/tenant-url';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
@@ -475,7 +476,7 @@ function RestaurantRow({
         {r.isPublished && !isQrOnly && (
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
             <a
-              href={`http://${r.slug}.localhost:3000`}
+              href={tenantUrl(r.slug)}
               target="_blank"
               rel="noopener noreferrer"
               title="Open their storefront"

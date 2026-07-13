@@ -29,6 +29,7 @@ import { TaxStep } from './tax-step';
 import { toast } from 'sonner';
 import { ApiRequestError, createDashboardApi, type OrderingMode } from '@/lib/api';
 import { useAuthToken } from '@/lib/auth-compat';
+import { hasApexDomain, tenantUrl } from '@/lib/tenant-url';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -343,10 +344,20 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                       {slugStatus === 'taken' && <X className="h-4 w-4 text-destructive" />}
                     </span>
                   </div>
-                  <span className="shrink-0 text-sm text-muted-foreground">
-                    .{process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'orderos.ai'}
-                  </span>
+                  {/* Only promise a subdomain when one will actually resolve. With no
+                      apex configured, the suffix disappears and the preview below
+                      shows the path URL that genuinely works on THIS deployment. */}
+                  {hasApexDomain() && (
+                    <span className="shrink-0 text-sm text-muted-foreground">
+                      .{process.env.NEXT_PUBLIC_APP_DOMAIN}
+                    </span>
+                  )}
                 </div>
+                {form.slug.length >= 3 && slugStatus === 'free' && (
+                  <p className="text-sm text-muted-foreground">
+                    Your ordering page: <span className="font-mono">{tenantUrl(form.slug)}</span>
+                  </p>
+                )}
                 {slugStatus === 'taken' && (
                   <p className="text-sm text-destructive">That address is taken.</p>
                 )}

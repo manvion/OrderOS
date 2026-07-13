@@ -136,19 +136,25 @@ async function routeTenant(req: NextRequest): Promise<NextResponse | null> {
    * route — serving it off the apex would render a tenant's storefront un-branded
    * and outside their own subdomain.
    *
-   * EXCEPT on localhost, where it is the only thing that works: Windows does not
-   * resolve `*.localhost` at all (Chrome does it internally; the OS resolver does
-   * not), so a developer following the README hits a dead hostname and concludes
-   * the app is broken. That is exactly what happened. `/s/<slug>` works everywhere.
+   * EXCEPT anywhere subdomains DON'T work — which is most places this app runs:
    *
-   * Gated on the HOST, not NODE_ENV — `next start` runs with NODE_ENV=production,
-   * so a NODE_ENV check would leave the demo broken. A request on `localhost` is
-   * never a real deployment.
+   *   localhost   — Windows does not resolve `*.localhost` at all (Chrome fakes it
+   *                 internally; the OS resolver does not).
+   *   *.vercel.app and any other host that isn't the configured apex — Vercel does
+   *                 not wildcard project subdomains, so `joes.<app>.vercel.app`
+   *                 resolves for nobody. Blocking /s/* there didn't protect a
+   *                 branded URL; it made every storefront unreachable and every
+   *                 "View storefront" link a 404 on a deployment that was working.
+   *
+   * So the block applies ONLY on the apex and its subdomains, where the branded
+   * form exists and /s/* would be its unbranded duplicate. Gated on the HOST, not
+   * NODE_ENV — `next start` runs with NODE_ENV=production, so a NODE_ENV check
+   * would leave local demos broken.
    */
   const hostname = host.split(':')[0].toLowerCase();
-  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isApexHost = hostname === APP_DOMAIN || hostname.endsWith(`.${APP_DOMAIN}`);
 
-  if (pathname.startsWith('/s/') && !isLocal) {
+  if (pathname.startsWith('/s/') && isApexHost) {
     return NextResponse.rewrite(new URL('/404', req.url));
   }
 

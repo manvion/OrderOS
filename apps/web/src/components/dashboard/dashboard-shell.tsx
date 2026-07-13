@@ -22,6 +22,7 @@ import {
 import { useDashboard } from './dashboard-provider';
 import { Skeleton, Badge } from '@/components/ui/primitives';
 import { Select } from '@/components/ui/input';
+import { tenantUrl } from '@/lib/tenant-url';
 
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -72,10 +73,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const storefrontUrl =
-    process.env.NODE_ENV === 'production'
-      ? `https://${restaurant.slug}.${process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'orderos.ai'}`
-      : `http://${restaurant.slug}.localhost:3000`;
+  // tenantUrl is regime-aware: subdomain when a real apex is configured,
+  // <origin>/s/<slug> otherwise — the only form that resolves on a Vercel
+  // deployment (and on Windows dev, where *.localhost doesn't resolve at all).
+  const storefrontUrl = tenantUrl(restaurant.slug);
 
   return (
     <div className="flex min-h-screen bg-muted/30">
