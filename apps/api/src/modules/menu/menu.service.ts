@@ -14,6 +14,14 @@ export class MenuService {
     private readonly storage: StorageService,
   ) {}
 
+  /** The currency menu prices are in — the photo importer reads numbers against it. */
+  async getRestaurantCurrency(restaurantId: string) {
+    return this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { currency: true },
+    });
+  }
+
   // --- Categories -----------------------------------------------------------
 
   async listCategories(restaurantId: string) {

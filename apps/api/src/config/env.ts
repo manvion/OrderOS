@@ -138,6 +138,13 @@ const envSchema = z.object({
   MAPBOX_TOKEN: z.string().optional(),
 
   /**
+   * Claude, for reading menus out of photographs (menu import). Optional: unset,
+   * the dashboard hides the "Import from photo" button and menus are typed by hand,
+   * exactly as before the feature existed.
+   */
+  ANTHROPIC_API_KEY: z.string().optional(),
+
+  /**
    * Comma-separated emails that become platform SUPER_ADMINs on first sign-in.
    *
    * Bootstrapping by env rather than by an endpoint is deliberate: a "create the

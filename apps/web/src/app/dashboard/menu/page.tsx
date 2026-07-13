@@ -7,6 +7,7 @@ import { formatMoney } from '@orderos/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError, type Product } from '@/lib/api';
+import { MenuPhotoImport } from '@/components/dashboard/menu-photo-import';
 import { ProductEditor } from '@/components/dashboard/product-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -116,10 +117,15 @@ export default function MenuPage() {
           </p>
         </div>
         {!readOnly && (
-          <Button onClick={() => setEditing('new')} disabled={!categories?.length}>
-            <Plus className="h-4 w-4" />
-            Add product
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* One photo instead of an hour of typing. Renders nothing when the
+                server has no vision key — see MenuPhotoImport. */}
+            <MenuPhotoImport categories={categories ?? []} />
+            <Button onClick={() => setEditing('new')} disabled={!categories?.length}>
+              <Plus className="h-4 w-4" />
+              Add product
+            </Button>
+          </div>
         )}
       </div>
 

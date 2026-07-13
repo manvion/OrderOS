@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -18,6 +19,7 @@ import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { Audit, Roles, TenantId } from '../../common/auth/decorators';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { MenuImportService } from './menu-import.service';
 import { MenuService } from './menu.service';
 
 const reorderSchema = z.object({ orderedIds: z.array(z.string().cuid()).min(1).max(500) });
@@ -28,7 +30,10 @@ const availabilitySchema = z.object({ isAvailable: z.boolean() });
 @Controller('menu')
 @UseGuards(ClerkAuthGuard)
 export class MenuController {
-  constructor(private readonly menu: MenuService) {}
+  constructor(
+    private readonly menu: MenuService,
+    private readonly menuImport: MenuImportService,
+  ) {}
 
   // --- Categories -----------------------------------------------------------
 
@@ -133,6 +138,40 @@ export class MenuController {
     @Body(new ZodValidationPipe(productSchema.partial())) body: Partial<ProductInput>,
   ) {
     return this.menu.updateProduct(restaurantId, id, body);
+  }
+
+  // --- Import from photo ------------------------------------------------------
+
+  /**
+   * Can this deployment read menus from photos at all? The dashboard asks before
+   * rendering the button — a button that always errors is worse than no button.
+   */
+  @Get('import/availability')
+  importAvailability() {
+    return { available: this.menuImport.available };
+  }
+
+  /**
+   * One menu photo in, a structured DRAFT out. Nothing is written: the owner
+   * reviews and edits the draft in the dashboard, and approved items are created
+   * through the same validated category/product endpoints manual entry uses.
+   *
+   * MANAGER-gated like every other menu write, even though this one doesn't write —
+   * it spends real money per call (a vision model reads the image), and the person
+   * allowed to spend it is the person allowed to change the menu.
+   */
+  @Post('import/photo')
+  @Roles('MANAGER')
+  @UseInterceptors(FileInterceptor('file'))
+  @Audit('menu.import.extracted', 'Menu')
+  async importFromPhoto(
+    @TenantId() restaurantId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Attach a photo of the menu as "file"');
+
+    const restaurant = await this.menu.getRestaurantCurrency(restaurantId);
+    return this.menuImport.extractFromPhoto(file, restaurant.currency);
   }
 
   @Post('products/:id/image')

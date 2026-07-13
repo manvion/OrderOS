@@ -277,6 +277,20 @@ export function createDashboardApi(
       });
     },
 
+    /** Is menu-from-photo configured on this deployment? Decides whether to show the button. */
+    getMenuImportAvailability: () => call<{ available: boolean }>('/menu/import/availability'),
+
+    /**
+     * Photograph -> structured menu DRAFT. Nothing is written by this call; the
+     * draft is reviewed and edited in the dashboard, and only approved rows are
+     * created — through createCategory/createProduct like any manual entry.
+     */
+    importMenuFromPhoto: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return call<MenuImportDraft>('/menu/import/photo', { method: 'POST', body: form });
+    },
+
     // Orders
     listActiveOrders: () => call<Order[]>('/orders/active'),
     listOrders: (params?: { status?: string; cursor?: string }) => {
@@ -462,6 +476,23 @@ export interface Address {
   country: string;
   latitude?: number;
   longitude?: number;
+}
+
+/**
+ * What Claude read off a photographed menu — a draft for the owner to review,
+ * never something that lands on the live menu unedited. `priceCents: null` means
+ * the price was illegible; the review form forces a human to type it.
+ */
+export interface MenuImportDraft {
+  categories: Array<{
+    name: string;
+    items: Array<{
+      name: string;
+      description: string | null;
+      priceCents: number | null;
+    }>;
+  }>;
+  warnings: string[];
 }
 
 /** One row in the address autocomplete dropdown. `id` is opaque — pass it back as-is. */

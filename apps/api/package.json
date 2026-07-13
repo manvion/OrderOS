@@ -27,6 +27,7 @@
     "seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "@aws-sdk/client-s3": "^3.1085.0",
     "@azure/storage-blob": "^12.26.0",
     "@clerk/backend": "^1.24.0",
