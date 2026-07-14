@@ -1,7 +1,24 @@
 import Link from 'next/link';
 import { SignedIn, SignedOut } from '@clerk/nextjs';
-import { ArrowRight, Bike, ChefHat, QrCode, Truck } from 'lucide-react';
+import {
+  ArrowRight,
+  Bike,
+  ChefHat,
+  CreditCard,
+  QrCode,
+  Rocket,
+  Truck,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+const TICKER_ITEMS = [
+  'No commission on direct orders',
+  'Secure checkout via Stripe',
+  'Delivery dispatched through Uber Direct',
+  'QR ordering for every table',
+  'Live the same day you sign up',
+];
 
 export default function LandingPage() {
   return (
@@ -28,20 +45,25 @@ export default function LandingPage() {
       </header>
 
       <main className="flex-1">
-        {/* Hero: brand, one headline, one line, one CTA, one visual anchor. Left-aligned
-            on purpose -- centered-everything is the fastest way to look like a template. */}
-        <section className="relative">
+        {/*
+          HERO -- dark, on purpose. Section RHYTHM (dark/light/dark/light) is what
+          separates a page that feels composed from a page that's one long cream
+          scroll with headings dropped in. A flat-background hero next to a
+          flat-background everything-else is the actual "looks like a template"
+          tell, more than any one section's content.
+        */}
+        <section className="relative overflow-hidden bg-foreground text-background">
           <div
-            className="pointer-events-none absolute inset-0 -z-10"
+            className="pointer-events-none absolute inset-0"
             style={{
               background:
-                'radial-gradient(ellipse 900px 500px at 15% -10%, color-mix(in srgb, var(--brand) 12%, transparent), transparent)',
+                'radial-gradient(ellipse 1000px 600px at 20% 0%, color-mix(in srgb, var(--brand) 35%, transparent), transparent 60%)',
             }}
           />
 
-          <div className="container grid gap-12 py-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-28">
+          <div className="container relative grid gap-12 py-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-28">
             <div>
-              <span className="rise-1 inline-flex items-center gap-1.5 rounded-full border border-brand-subtle bg-brand-subtle px-3 py-1 text-xs font-semibold text-brand">
+              <span className="rise-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
                 No marketplace commission, ever
               </span>
 
@@ -53,10 +75,9 @@ export default function LandingPage() {
                 <span className="text-brand">Your margin.</span>
               </h1>
 
-              <p className="rise-3 mt-6 max-w-md text-lg text-muted-foreground">
+              <p className="rise-3 mt-6 max-w-md text-lg text-background/70">
                 Take orders straight from your own site — pickup, delivery, dine-in. Stripe handles
-                the money, Uber handles the driving. You keep what a 30% marketplace cut used to
-                take.
+                the money, Uber handles the driving. Keep what a marketplace cut used to take.
               </p>
 
               <div className="rise-4 mt-9 flex flex-wrap items-center gap-4">
@@ -66,7 +87,7 @@ export default function LandingPage() {
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
-                <p className="text-sm text-muted-foreground">Live in an afternoon. No card required.</p>
+                <p className="text-sm text-background/60">Live in an afternoon. No card required.</p>
               </div>
             </div>
 
@@ -74,13 +95,13 @@ export default function LandingPage() {
                 thing an owner will stare at fifty times a shift once they're live. */}
             <div className="rise-4 relative mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto">
               <div
-                className="absolute -inset-6 -z-10 rounded-[2rem] opacity-60 blur-2xl"
+                className="absolute -inset-6 -z-10 rounded-[2rem] opacity-70 blur-2xl"
                 style={{
                   background:
-                    'linear-gradient(135deg, color-mix(in srgb, var(--brand) 25%, transparent), transparent 60%)',
+                    'linear-gradient(135deg, color-mix(in srgb, var(--brand) 45%, transparent), transparent 60%)',
                 }}
               />
-              <div className="card-interactive overflow-hidden rounded-3xl p-5">
+              <div className="card-interactive overflow-hidden rounded-3xl p-5 text-foreground">
                 <div className="flex items-center justify-between border-b pb-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -107,6 +128,45 @@ export default function LandingPage() {
                   Driver assigned — 8 min out
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Ticker. A thin band of motion between two big static sections -- the
+            page needs ONE thing that's alive at a glance, not zero. */}
+        <div className="overflow-hidden border-b bg-brand py-2.5 text-brand-foreground">
+          <div className="marquee-track flex w-max gap-10 whitespace-nowrap text-sm font-semibold">
+            {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+              <span key={i} className="flex items-center gap-10">
+                {item}
+                <span aria-hidden className="opacity-50">
+                  ·
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/*
+          THE PROBLEM. A case, built with real, well-known industry figures --
+          not invented stats about a product with no customers yet.
+        */}
+        <section className="border-b bg-foreground py-20 text-background lg:py-24">
+          <div className="container">
+            <p className="text-sm font-semibold uppercase tracking-widest text-brand">
+              The problem
+            </p>
+            <h2 className="mt-2 max-w-lg text-3xl font-bold tracking-tight sm:text-4xl">
+              Marketplace apps are renting you your own customers back.
+            </h2>
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-3">
+              <Stat
+                value="15–30%"
+                label="Typical commission delivery marketplaces charge per order"
+              />
+              <Stat value="$0" label="Commission when someone orders from your own website" />
+              <Stat value="1" label="Menu to manage, instead of three apps with three logins" />
             </div>
           </div>
         </section>
@@ -142,16 +202,104 @@ export default function LandingPage() {
             />
           </div>
         </section>
+
+        {/* How it works -- dark again, keeping the rhythm going. Three real steps
+            from the actual onboarding flow, not a generic "1-2-3, magic" beat. */}
+        <section className="border-y bg-foreground py-20 text-background lg:py-24">
+          <div className="container">
+            <p className="text-sm font-semibold uppercase tracking-widest text-brand">
+              Go live in three steps
+            </p>
+            <h2 className="mt-2 max-w-lg text-3xl font-bold tracking-tight sm:text-4xl">
+              No sales call required.
+            </h2>
+
+            <div className="mt-10 grid gap-8 sm:grid-cols-3">
+              <Step
+                number={1}
+                icon={UtensilsCrossed}
+                title="Build your menu"
+                body="Categories, prices, modifiers — or photograph your paper menu and let it read the items in for you."
+              />
+              <Step
+                number={2}
+                icon={CreditCard}
+                title="Connect Stripe"
+                body="A few minutes of Stripe's own onboarding. Once it's done, you can take a card."
+              />
+              <Step
+                number={3}
+                icon={Rocket}
+                title="Publish"
+                body="Your ordering page goes live at your own address. Print the QR codes and open for business."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA -- solid brand colour, the one place on the page that should
+            feel loud. Everything before this earned the right to ask. */}
+        <section className="bg-brand py-20 text-brand-foreground">
+          <div className="container flex flex-col items-center gap-6 text-center">
+            <h2 className="max-w-xl text-3xl font-bold tracking-tight sm:text-4xl">
+              Stop paying commission on food you already cooked.
+            </h2>
+            <Button
+              asChild
+              size="lg"
+              className="rounded-xl bg-white px-8 text-base font-semibold text-black shadow-floating hover:bg-white/90"
+            >
+              <Link href="/sign-up">
+                Start free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </section>
       </main>
 
-      <footer className="border-t bg-muted/30 py-10">
+      <footer className="bg-foreground py-10 text-background/70">
         <div className="container flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <span className="text-sm font-semibold">DineDirect</span>
-          <p className="text-sm text-muted-foreground">
+          <span className="text-sm font-semibold text-background">DineDirect</span>
+          <p className="text-sm">
             Built for restaurants that would rather keep their customers than rent them back.
           </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <p className="text-4xl font-black tabular-nums text-brand">{value}</p>
+      <p className="mt-2 text-sm text-background/70">{label}</p>
+    </div>
+  );
+}
+
+function Step({
+  number,
+  icon: Icon,
+  title,
+  body,
+}: {
+  number: number;
+  icon: typeof UtensilsCrossed;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="flex items-center gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-sm font-bold text-brand-foreground">
+          {number}
+        </span>
+        <Icon className="h-5 w-5 text-brand" />
+      </div>
+      <h3 className="mt-4 text-lg font-bold">{title}</h3>
+      <p className="mt-2 text-sm text-background/70">{body}</p>
     </div>
   );
 }

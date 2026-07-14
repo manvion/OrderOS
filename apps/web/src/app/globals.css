@@ -260,6 +260,24 @@
   }
 
   /**
+   * A scrolling trust-signal strip. The track is the content duplicated once;
+   * animating exactly -50% loops it seamlessly, no jump at the restart. Pause on
+   * hover -- a marquee someone is actively trying to read that keeps sliding out
+   * from under their eyes is the annoying version of this pattern.
+   */
+  .marquee-track {
+    animation: marquee 22s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /**
    * Motion is seasoning, not the meal. For anyone who asked their OS for less of
    * it, everything above becomes instant and still -- same page, no theatre.
    */
@@ -268,6 +286,7 @@
     .kenburns { animation: none; }
     .reveal { opacity: 1; transform: none; transition: none; }
     .img-zoom img { transition: none; }
+    .marquee-track { animation: none; }
   }
 }
 
