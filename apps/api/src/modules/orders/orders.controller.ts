@@ -155,12 +155,33 @@ export class OrdersController {
 
   @Post(':id/cancel')
   @Audit('order.cancelled', 'Order')
-  cancel(
+  async cancel(
     @TenantId() restaurantId: string,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(cancelSchema)) body: { reason: string },
   ) {
-    return this.orders.cancel(restaurantId, id, body.reason, user.id);
+    const order = await this.orders.cancel(restaurantId, id, body.reason, user.id);
+
+    /**
+     * A courier already on the road has no idea the order was just cancelled — our
+     * database changing does not tell Uber or DoorDash anything. Best-effort: a
+     * courier that already has the food in hand may refuse to cancel, which is
+     * exactly the case staff need to hear about (call the customer, intercept the
+     * bag), not have silently swallowed. The order stays cancelled either way —
+     * this never undoes it.
+     */
+    const delivery = await this.prisma.delivery.findFirst({ where: { orderId: id, restaurantId } });
+    if (delivery && delivery.provider !== 'SELF' && !['CANCELLED', 'DELIVERED', 'FAILED'].includes(delivery.status)) {
+      try {
+        await this.delivery.cancelDelivery(restaurantId, id, user.id);
+      } catch (err) {
+        this.logger.warn(
+          `Order ${order.orderNumber} was cancelled but its courier could not be: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    return order;
   }
 }
