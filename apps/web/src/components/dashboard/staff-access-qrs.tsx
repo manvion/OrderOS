@@ -88,19 +88,25 @@ export function StaffAccessQrs() {
       </CardHeader>
       <CardContent className="grid gap-6 sm:grid-cols-2">
         {TARGETS.map(({ path, label, icon: Icon, hint }) => (
-          <div key={path} className="space-y-3 rounded-xl border p-4">
-            <div className="flex items-center gap-2 font-medium">
-              <Icon className="h-4 w-4" />
-              {label}
+          <div key={path} className="card-interactive space-y-3 p-4">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand">
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="font-medium">{label}</span>
             </div>
 
             {images[path] ? (
               // Plain <img>, deliberately: the source is a local data URL, so
               // next/image's remote-host machinery has nothing to add but ways to fail.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={images[path]} alt={`QR code for the ${label}`} className="w-full max-w-56 rounded-lg border" />
+              <img
+                src={images[path]}
+                alt={`QR code for the ${label}`}
+                className="w-full max-w-56 rounded-xl border bg-white p-3"
+              />
             ) : (
-              <div className="aspect-square w-full max-w-56 animate-pulse rounded-lg bg-muted" />
+              <div className="aspect-square w-full max-w-56 animate-pulse rounded-xl bg-muted" />
             )}
 
             <p className="text-xs text-muted-foreground">{hint}</p>

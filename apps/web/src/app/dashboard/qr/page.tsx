@@ -4,14 +4,23 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@clerk/nextjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Plus, Printer, QrCode, Sparkles, Trash2 } from 'lucide-react';
+import {
+  Download,
+  Plus,
+  Printer,
+  QrCode,
+  ShoppingBag,
+  Sparkles,
+  Trash2,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
-import { Badge, Label, Skeleton } from '@/components/ui/primitives';
+import { Label, Skeleton } from '@/components/ui/primitives';
 import { StaffAccessQrs } from '@/components/dashboard/staff-access-qrs';
 
 /**
@@ -24,6 +33,12 @@ const TYPE_HELP: Record<string, string> = {
   COUNTER: 'Scan-to-order for the till, a counter card, or a sticker. Opens your menu directly.',
   TABLE: 'Scan-to-order for table tents. Also pre-fills the table number, so dine-in orders arrive labeled and runners know where the food goes.',
   FLYER: 'Scan-to-order for print, windows and posters. Rendered large with heavy error correction so it survives bad printing.',
+};
+
+const TYPE_ICON: Record<string, typeof ShoppingBag> = {
+  COUNTER: ShoppingBag,
+  TABLE: UtensilsCrossed,
+  FLYER: Printer,
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -321,15 +336,21 @@ export default function QrPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {codes.map((code) => {
             const stat = statsById.get(code.id);
+            const TypeIcon = TYPE_ICON[code.type] ?? QrCode;
             return (
-              <Card key={code.id}>
+              <Card key={code.id} className="overflow-hidden">
                 <CardContent className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{code.label}</p>
-                      <Badge variant="outline" className="mt-1 text-[10px]">
-                        {code.type.toLowerCase()}
-                      </Badge>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand">
+                        <TypeIcon className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="font-semibold leading-tight">{code.label}</p>
+                        <p className="text-xs capitalize text-muted-foreground">
+                          {code.type.toLowerCase()}
+                        </p>
+                      </div>
                     </div>
                     {!readOnly && (
                       <Button
@@ -345,30 +366,39 @@ export default function QrPage() {
                   </div>
 
                   {code.imageUrl && (
-                    <div className="flex justify-center rounded-lg bg-white p-4">
+                    <div className="relative flex justify-center overflow-hidden rounded-2xl border bg-white p-5">
+                      <div
+                        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                        style={{
+                          background:
+                            'radial-gradient(circle at 50% 0%, var(--brand), transparent 70%)',
+                        }}
+                      />
                       <Image
                         src={code.imageUrl}
                         alt={`QR code for ${code.label}`}
                         width={140}
                         height={140}
-                        className="h-35 w-35"
+                        className="relative h-35 w-35"
                         unoptimized
                       />
                     </div>
                   )}
 
                   {stat && (
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div>
+                    <div className="grid grid-cols-3 divide-x rounded-xl border text-center text-xs">
+                      <div className="p-2">
                         <p className="font-semibold tabular-nums">{stat.scans}</p>
                         <p className="text-muted-foreground">scans</p>
                       </div>
-                      <div>
+                      <div className="p-2">
                         <p className="font-semibold tabular-nums">{stat.orders}</p>
                         <p className="text-muted-foreground">orders</p>
                       </div>
-                      <div>
-                        <p className="font-semibold tabular-nums">{stat.conversionRate}%</p>
+                      <div className="p-2">
+                        <p className="font-semibold tabular-nums text-brand">
+                          {stat.conversionRate}%
+                        </p>
                         <p className="text-muted-foreground">convert</p>
                       </div>
                     </div>
