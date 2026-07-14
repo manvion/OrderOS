@@ -207,8 +207,19 @@ export class DeliveryService {
       provider: quote.provider,
       /** What the restaurant will be charged by the courier. */
       courierFeeCents: quote.feeCents,
-      /** What the customer pays. Set by the restaurant, not by the courier. */
-      customerFeeCents: restaurant.deliveryFeeCents,
+      /**
+       * What the customer pays -- the courier's REAL quote, passed through exactly.
+       * restaurant.deliveryFeeCents only prices SELF delivery now (see the branch
+       * above this method): there is no live quote for a restaurant's own driver to
+       * pass through. A real courier's fee used to be discarded here in favour of
+       * the restaurant's flat setting, which meant the restaurant silently absorbed
+       * the gap on every order where distance/surge pushed the real cost above (or
+       * let it profit below) that flat number. This makes delivery pricing neutral
+       * to the restaurant: application_fee_amount already recovers exactly this
+       * same courierFeeCents from their payout, so charging the customer anything
+       * else was pure variance with no business reason behind it.
+       */
+      customerFeeCents: quote.feeCents,
       currency: quote.currency,
       expiresAt: quote.expiresAt,
       dropoffEta: quote.dropoffEta,
@@ -367,6 +378,10 @@ export class DeliveryService {
       dropoffNotes: order.deliveryNotes ?? order.notes,
       pickupCode,
       items: order.items.map((i) => ({ name: i.name, quantity: i.quantity })),
+      // The customer's tip was collected at checkout but never reached the courier
+      // -- neither adapter forwarded it, so it silently stayed with the platform
+      // instead of paying whoever actually carries the food.
+      tip: order.tipCents,
     };
 
     const { quotes, declineReason } = await this.couriers.quoteAll(restaurant, request);

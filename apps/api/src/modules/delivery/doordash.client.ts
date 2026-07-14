@@ -208,7 +208,10 @@ export class DoorDashClient implements Courier {
     const body = req.quoteId
       ? await this.request<DoorDashDeliveryResponse>(
           `/drive/v2/quotes/${encodeURIComponent(req.quoteId)}/accept`,
-          { method: 'POST', body: JSON.stringify({}) },
+          // The tip isn't known at quote time (checkout hasn't happened yet), so it
+          // rides in here instead -- an empty body accepted the quote but silently
+          // dropped the tip the customer had already paid.
+          { method: 'POST', body: JSON.stringify({ tip: req.tip ?? undefined }) },
         )
       : await this.request<DoorDashDeliveryResponse>('/drive/v2/deliveries', {
           method: 'POST',
@@ -229,6 +232,7 @@ export class DoorDashClient implements Courier {
             order_value: req.orderValueCents,
             pickup_time: req.pickupReadyAt.toISOString(),
             items: req.items.map((i) => ({ name: i.name, quantity: i.quantity })),
+            tip: req.tip ?? undefined,
           }),
         });
 

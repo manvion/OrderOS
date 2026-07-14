@@ -91,6 +91,7 @@ export class UberCourier implements Courier {
         })),
         manifest_total_value: req.orderValueCents,
         quote_id: req.quoteId ?? undefined,
+        tip: req.tip ?? undefined,
       });
 
       return this.toDelivery(delivery);

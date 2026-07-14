@@ -115,6 +115,59 @@ export class OrdersService {
 
     const lineItems = await this.resolveLineItems(restaurantId, input);
 
+    // The declared value a courier insures the food for -- needed BEFORE the
+    // delivery fee is known, since the fee itself comes from this same quote.
+    // Goods only: tax and tip have nothing to do with what a courier is carrying.
+    const goodsValueCents = lineItems.reduce(
+      (sum, item) =>
+        sum + (item.unitPriceCents + item.modifiers.reduce((s, m) => s + m.priceCents, 0)) * item.quantity,
+      0,
+    );
+
+    /**
+     * Price the courier NOW, before pricing the order -- the customer is charged
+     * this exact fee (see DeliveryService.getQuote, which shows the same number at
+     * checkout preview time). The platform's own courier account pays Uber/DoorDash
+     * for every dispatch; application_fee_amount (see PaymentsService) recovers
+     * precisely this amount from the restaurant's payout, so charging the customer
+     * anything else would make delivery a source of restaurant profit or loss
+     * instead of a clean pass-through. Failure here must never block a paying
+     * customer: no quote means the platform absorbs this one dispatch (the
+     * customer falls back to the restaurant's flat self-delivery rate), logged,
+     * not thrown.
+     *
+     * Independent of the customer upsert and the order-number count -- run all
+     * three concurrently rather than paying for Uber/DoorDash's round-trip, THEN
+     * the upsert, THEN the count, one after another. Checkout latency used to be
+     * their sum; it is now whichever one is slowest.
+     */
+    const courierQuote =
+      input.fulfillment === 'DELIVERY' &&
+      input.deliveryAddress &&
+      (restaurant.uberDirectEnabled || restaurant.doorDashEnabled)
+        ? this.couriers
+            .bestQuote(restaurant, {
+              pickup: restaurant,
+              dropoff: input.deliveryAddress,
+              pickupReadyAt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000),
+              orderValueCents: goodsValueCents,
+              externalId: `order-quote_${randomBytes(8).toString('hex')}`,
+            })
+            .then(({ quote }) => quote?.feeCents ?? null)
+            .catch((err: Error) => {
+              this.logger.warn(
+                `Courier quote failed at order time -- platform absorbs this dispatch: ${err.message}`,
+              );
+              return null;
+            })
+        : Promise.resolve(null);
+
+    const [courierCostCents, customer, orderNumber] = await Promise.all([
+      courierQuote,
+      this.upsertCustomer(restaurantId, input.customer, clerkUserId),
+      this.nextOrderNumber(restaurantId),
+    ]);
+
     const pricing = priceOrder({
       items: lineItems,
       taxRateBps: restaurant.taxRateBps,
@@ -123,7 +176,10 @@ export class OrdersService {
       // them legally.
       taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
       fulfillment: input.fulfillment,
-      deliveryFeeCents: restaurant.deliveryFeeCents,
+      // The courier's real quote. Falls back to the restaurant's flat rate only
+      // when there is no quote to reference -- self-delivery, or the quote above
+      // failed and the platform is absorbing this dispatch instead.
+      deliveryFeeCents: courierCostCents ?? restaurant.deliveryFeeCents,
       serviceFeeCents: restaurant.serviceFeeCents,
       tipCents: input.tipCents,
     });
@@ -137,49 +193,6 @@ export class OrdersService {
         subtotalCents: pricing.subtotalCents,
       });
     }
-
-    /**
-     * Price the courier NOW, while we still control the split.
-     *
-     * The platform's courier account pays Uber/DoorDash for every dispatch, but the
-     * money to cover it is in THIS charge -- so the quoted cost rides into Stripe's
-     * application fee (see PaymentsService), and the restaurant's payout becomes
-     * total - commission - courier, exactly the margin story analytics already
-     * tells them. Failure here must never block a paying customer: no quote means
-     * the platform absorbs this one dispatch, logged, not thrown.
-     */
-    // Independent of the courier quote and of each other -- run all three
-    // concurrently rather than paying for Uber/DoorDash's round-trip, THEN the
-    // customer upsert, THEN the order-number count, one after another. Checkout
-    // latency was the sum of all three; it is now whichever one is slowest.
-    const courierQuote =
-      input.fulfillment === 'DELIVERY' &&
-      input.deliveryAddress &&
-      (restaurant.uberDirectEnabled || restaurant.doorDashEnabled)
-        ? this.couriers
-            .bestQuote(restaurant, {
-              pickup: restaurant,
-              dropoff: input.deliveryAddress,
-              pickupReadyAt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000),
-              orderValueCents: pricing.totalCents,
-              externalId: `order-quote_${randomBytes(8).toString('hex')}`,
-            })
-            .then(({ quote }) => quote?.feeCents ?? null)
-            .catch((err: Error) => {
-              // Failure here must never block a paying customer: no quote means the
-              // platform absorbs this one dispatch, logged, not thrown.
-              this.logger.warn(
-                `Courier quote failed at order time -- platform absorbs this dispatch: ${err.message}`,
-              );
-              return null;
-            })
-        : Promise.resolve(null);
-
-    const [courierCostCents, customer, orderNumber] = await Promise.all([
-      courierQuote,
-      this.upsertCustomer(restaurantId, input.customer, clerkUserId),
-      this.nextOrderNumber(restaurantId),
-    ]);
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({

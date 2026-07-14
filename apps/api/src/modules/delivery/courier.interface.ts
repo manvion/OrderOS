@@ -59,6 +59,8 @@ export interface CourierDeliveryRequest extends CourierQuoteRequest {
   orderNumber: string;
   /** Buzzer codes, gate instructions — what actually determines a successful drop. */
   dropoffNotes?: string | null;
+  /** The customer's tip for the courier, in cents. Passed through untouched. */
+  tip?: number;
   /**
    * The handoff code, printed on the bag label and shown to the courier in their
    * driver app. Staff ask "what's your code?"; it either matches the bag or it
