@@ -244,12 +244,12 @@ export function KitchenBoard() {
           const cards = byColumn.get(col.key) ?? [];
 
           return (
-            <div key={col.key} className="flex min-h-0 flex-col rounded-2xl bg-muted/40 p-3">
+            <div key={col.key} className="flex min-h-0 flex-col rounded-2xl border bg-muted/30 p-3">
               <div className="mb-3 flex items-center justify-between px-1">
                 <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
                   {col.title}
                 </h2>
-                <span className="rounded-full bg-background px-2.5 py-0.5 text-sm font-bold tabular-nums">
+                <span className="shadow-soft rounded-full bg-background px-2.5 py-0.5 text-sm font-bold tabular-nums">
                   {cards.length}
                 </span>
               </div>
@@ -303,7 +303,7 @@ function OrderCard({
   const late = waited.minutes >= 20;
 
   return (
-    <div className={`rounded-xl border-l-4 bg-background p-4 shadow-sm ${tone}`}>
+    <div className={`shadow-soft rounded-xl border-l-4 bg-background p-4 ${tone}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {/* The biggest thing on the card. It is what goes on the bag. */}
