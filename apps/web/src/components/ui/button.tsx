@@ -4,16 +4,21 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  // A flat color swap on hover with no depth or press feedback is the single most
+  // reused element in the app reading as generic. Solid variants get the same
+  // layered elevation as everything else (see globals.css), and EVERY variant gets
+  // a tactile press-down -- the one piece of feedback missing entirely before.
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default: 'bg-primary text-primary-foreground shadow-soft hover:bg-primary/90 hover:shadow-lifted',
         /** Uses the tenant's own colour via the --brand CSS variable. */
-        brand: 'bg-brand text-brand-foreground hover:opacity-90',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        brand: 'bg-brand text-brand-foreground shadow-soft hover:opacity-90 hover:shadow-lifted',
+        destructive:
+          'bg-destructive text-destructive-foreground shadow-soft hover:bg-destructive/90 hover:shadow-lifted',
         outline: 'border border-input bg-background hover:bg-accent',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        secondary: 'bg-secondary text-secondary-foreground shadow-soft hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
       },
