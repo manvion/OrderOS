@@ -72,6 +72,9 @@ export interface UberDeliveryRequest {
 
   external_id?: string;
   tip?: number;
+
+  /** Sandbox-only: activates Uber's Robo Courier simulator. See createDelivery(). */
+  test_specifications?: { robo_courier_specification: { mode: 'auto' } };
 }
 
 export interface UberDelivery {
@@ -90,6 +93,11 @@ export interface UberDelivery {
     location?: { lat: number; lng: number };
   };
 }
+
+/** See UberClient.sandboxMode. */
+const ROBO_COURIER_AUTO = {
+  test_specifications: { robo_courier_specification: { mode: 'auto' as const } },
+};
 
 /** Thrown for 4xx responses: the request itself is wrong and retrying won't fix it. */
 export class UberClientError extends Error {
@@ -142,6 +150,18 @@ export class UberClient {
         this.config.get('UBER_CLIENT_SECRET') &&
         this.config.get('UBER_CUSTOMER_ID'),
     );
+  }
+
+  /**
+   * Sandbox credentials never dispatch a real courier -- there is no test fleet to
+   * match against. Uber's own fix is Robo Courier, a simulator that only activates
+   * when `test_specifications` is present on Create Delivery; without it, a sandbox
+   * delivery sits at "pending" forever, which looks exactly like a stuck order but
+   * is the test environment doing nothing, not a bug. Opt-in and off by default so
+   * a production deployment never sends a field a live account doesn't expect.
+   */
+  private get sandboxMode(): boolean {
+    return this.config.get<boolean>('UBER_SANDBOX_MODE') ?? false;
   }
 
   /**
@@ -286,7 +306,7 @@ export class UberClient {
   async createDelivery(req: UberDeliveryRequest): Promise<UberDelivery> {
     return this.request<UberDelivery>(`${this.customerPath}/deliveries`, {
       method: 'POST',
-      body: JSON.stringify(req),
+      body: JSON.stringify(this.sandboxMode ? { ...req, ...ROBO_COURIER_AUTO } : req),
     });
   }
 

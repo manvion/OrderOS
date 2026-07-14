@@ -43,6 +43,13 @@ const envSchema = z.object({
   UBER_AUTH_URL: z.string().url().default('https://auth.uber.com/oauth/v2/token'),
   /** Shared secret Uber signs delivery webhooks with (HMAC-SHA256). */
   UBER_WEBHOOK_SECRET: z.string().optional(),
+  /**
+   * Sandbox credentials never match a real courier -- set this true to activate
+   * Uber's Robo Courier simulator on every Create Delivery call. Leave false (or
+   * unset) once UBER_CUSTOMER_ID etc. are production credentials: a live account
+   * has no use for a simulated courier.
+   */
+  UBER_SANDBOX_MODE: z.coerce.boolean().default(false),
 
   /**
    * --- DoorDash Drive (optional; a second courier, quoted against Uber) ---
