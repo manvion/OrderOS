@@ -487,7 +487,7 @@ export function createDashboardApi(
     getAnalyticsOverview: (period = '30d') =>
       call<AnalyticsOverview>(`/analytics/overview?period=${period}`),
     getRevenueSeries: (period = '30d') =>
-      call<Array<{ date: string; revenueCents: number; orderCount: number }>>(
+      call<Array<{ date: string; revenueCents: number; payoutCents: number; orderCount: number }>>(
         `/analytics/revenue?period=${period}`,
       ),
     getTopProducts: (period = '30d') =>

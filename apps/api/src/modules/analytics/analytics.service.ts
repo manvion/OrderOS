@@ -91,7 +91,15 @@ export class AnalyticsService {
     };
   }
 
-  /** Daily revenue and order count. Feeds the dashboard's line chart. */
+  /**
+   * Daily revenue, payout, and order count. Feeds the dashboard's line chart.
+   *
+   * `revenueCents` was labelled "net of refunds" but the query never actually
+   * subtracted them, and never excluded platform commission or courier cost
+   * either -- the same gross-vs-actual gap the overview stat had. Both are
+   * fixed here the same way: payoutCents is what actually lands in the
+   * restaurant's Stripe payout per day.
+   */
   async getRevenueSeries(restaurantId: string, period: Period = '30d') {
     const days = PERIOD_DAYS[period];
     const start = new Date(Date.now() - days * 86_400_000);
@@ -100,11 +108,19 @@ export class AnalyticsService {
     // Raw SQL: Prisma's groupBy can't bucket a timestamp by day, and pulling
     // every order into Node to group it there would fall over on a busy tenant.
     const rows = await this.prisma.$queryRaw<
-      Array<{ day: Date; revenue_cents: bigint; order_count: bigint }>
+      Array<{
+        day: Date;
+        revenue_cents: bigint;
+        payout_cents: bigint;
+        order_count: bigint;
+      }>
     >`
       SELECT
         date_trunc('day', o."createdAt") AS day,
-        COALESCE(SUM(o."totalCents"), 0)::bigint AS revenue_cents,
+        COALESCE(SUM(o."totalCents" - p."refundedAmountCents"), 0)::bigint AS revenue_cents,
+        COALESCE(SUM(
+          o."totalCents" - p."refundedAmountCents" - p."platformFeeCents" - COALESCE(p."courierCostCents", 0)
+        ), 0)::bigint AS payout_cents,
         COUNT(*)::bigint AS order_count
       FROM orders o
       JOIN payments p ON p."orderId" = o.id
@@ -118,19 +134,29 @@ export class AnalyticsService {
     const byDay = new Map(
       rows.map((r) => [
         r.day.toISOString().slice(0, 10),
-        { revenueCents: Number(r.revenue_cents), orderCount: Number(r.order_count) },
+        {
+          revenueCents: Number(r.revenue_cents),
+          payoutCents: Math.max(0, Number(r.payout_cents)),
+          orderCount: Number(r.order_count),
+        },
       ]),
     );
 
     // Fill the gaps. A chart that silently skips zero-revenue days makes a slow
     // week look like a busy one.
-    const series: Array<{ date: string; revenueCents: number; orderCount: number }> = [];
+    const series: Array<{
+      date: string;
+      revenueCents: number;
+      payoutCents: number;
+      orderCount: number;
+    }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10);
       const entry = byDay.get(date);
       series.push({
         date,
         revenueCents: entry?.revenueCents ?? 0,
+        payoutCents: entry?.payoutCents ?? 0,
         orderCount: entry?.orderCount ?? 0,
       });
     }

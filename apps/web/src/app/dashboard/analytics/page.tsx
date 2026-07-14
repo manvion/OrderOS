@@ -50,7 +50,7 @@ export default function AnalyticsPage() {
 
   const chartData = (revenue ?? []).map((d) => ({
     date: new Date(d.date).toLocaleDateString([], { month: 'short', day: 'numeric' }),
-    revenue: d.revenueCents / 100,
+    payout: d.payoutCents / 100,
     orders: d.orderCount,
   }));
 
@@ -74,8 +74,12 @@ export default function AnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Revenue</CardTitle>
-          <CardDescription>Net of refunds. Paid orders only.</CardDescription>
+          <CardTitle className="text-base">Your payout</CardTitle>
+          <CardDescription>
+            What actually lands in your Stripe payout — net of refunds, platform commission, and
+            courier cost. Not delivery fees or marketplace cuts; that money was never yours to
+            begin with.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loadingRevenue ? (
@@ -92,7 +96,7 @@ export default function AnalyticsPage() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="revenue"
+                  dataKey="payout"
                   stroke={restaurant.brandPrimaryColor}
                   strokeWidth={2}
                   dot={false}
