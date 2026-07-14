@@ -329,6 +329,16 @@ export function createDashboardApi(
       }),
     cancelOrder: (id: string, reason: string) =>
       call<Order>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    /** A walk-in or phone order, paid at the counter -- cash or a card terminal. */
+    createWalkInOrder: (body: {
+      items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
+      fulfillment: 'PICKUP' | 'DINE_IN';
+      customerName?: string;
+      customerPhone?: string;
+      tableNumber?: string;
+      paymentMethod: 'CASH' | 'CARD_TERMINAL';
+      notes?: string;
+    }) => call<Order>('/orders/walk-in', { method: 'POST', body: JSON.stringify(body) }),
 
     // Payments
     getStripeStatus: () => call<StripeStatus>('/payments/connect/status'),

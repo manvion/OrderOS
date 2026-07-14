@@ -73,6 +73,16 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
+/// How this order was actually paid. STRIPE is the online-checkout default; the
+/// other two exist for a staff-entered walk-in or phone order where the customer
+/// pays in person -- no Stripe charge ever happens, so there is no card/webhook
+/// data to attach.
+enum PaymentMethod {
+  STRIPE
+  CASH
+  CARD_TERMINAL
+}
+
 enum DeliveryStatus {
   PENDING
   QUOTED
@@ -839,6 +849,7 @@ model OrderEvent {
 model Payment {
   id     String        @id @default(cuid())
   status PaymentStatus @default(PENDING)
+  method PaymentMethod @default(STRIPE)
 
   amountCents         Int
   refundedAmountCents Int    @default(0)

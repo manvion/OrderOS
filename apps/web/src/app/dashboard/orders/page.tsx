@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge, Skeleton } from '@/components/ui/primitives';
 import { OrderDetail } from '@/components/dashboard/order-detail';
 import { DeliveryActions } from '@/components/dashboard/delivery-actions';
+import { WalkInOrderDialog } from '@/components/dashboard/walk-in-order-dialog';
 
 /**
  * The next action for each status. Exactly one primary button per order — a
@@ -45,6 +46,7 @@ export default function OrdersPage() {
   const [cancelling, setCancelling] = useState<Order | null>(null);
   /** The detail drawer — refunds, the full receipt, and the message log. */
   const [viewing, setViewing] = useState<Order | null>(null);
+  const [creatingWalkIn, setCreatingWalkIn] = useState(false);
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ['orders', 'active'],
@@ -122,7 +124,10 @@ export default function OrdersPage() {
               : `${list.length} order${list.length === 1 ? '' : 's'} in flight`}
           </p>
         </div>
+        <Button onClick={() => setCreatingWalkIn(true)}>New order</Button>
       </div>
+
+      <WalkInOrderDialog open={creatingWalkIn} onOpenChange={setCreatingWalkIn} />
 
       {list.length === 0 ? (
         <Card>

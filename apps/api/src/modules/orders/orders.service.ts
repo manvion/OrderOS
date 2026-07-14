@@ -33,6 +33,17 @@ export interface ListOrdersOptions {
   cursor?: string;
 }
 
+/** A staff-entered walk-in or phone order, paid in person. See createWalkIn. */
+export interface WalkInOrderInput {
+  items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
+  fulfillment: 'PICKUP' | 'DINE_IN';
+  customerName?: string;
+  customerPhone?: string;
+  tableNumber?: string;
+  paymentMethod: 'CASH' | 'CARD_TERMINAL';
+  notes?: string;
+}
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
@@ -291,6 +302,162 @@ export class OrdersService {
   }
 
   /**
+   * A walk-in or phone order, entered by staff and paid at the counter -- no
+   * Stripe checkout, no webhook to wait for. The order is created ALREADY
+   * paid, because the money already changed hands the moment staff typed this
+   * in; nothing here should wait for a confirmation that is never coming.
+   *
+   * Pickup and dine-in only. Delivery needs an online charge to fold the
+   * courier's cost into -- "pay the driver cash" is a different feature, not
+   * a variant of this one.
+   *
+   * Deliberately skips the isOpenAt gate the online flow enforces: that check
+   * exists to stop a stranger ordering into an empty kitchen. Staff standing
+   * at the counter typing this in IS the confirmation the kitchen is open.
+   */
+  async createWalkIn(restaurantId: string, input: WalkInOrderInput, userId: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: { id: restaurantId, isActive: true },
+    });
+    if (!restaurant) throw new NotFoundException('Restaurant not found');
+
+    this.assertFulfillmentAllowed(restaurant, { fulfillment: input.fulfillment });
+    const lineItems = await this.resolveLineItems(restaurantId, { items: input.items });
+
+    const pricing = priceOrder({
+      items: lineItems,
+      taxRateBps: restaurant.taxRateBps,
+      taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
+      fulfillment: input.fulfillment,
+      deliveryFeeCents: 0,
+      serviceFeeCents: restaurant.serviceFeeCents,
+      tipCents: 0,
+    });
+
+    if (pricing.subtotalCents < restaurant.minOrderCents) {
+      throw new BadRequestException({
+        statusCode: 400,
+        error: 'BelowMinimum',
+        message: `Minimum order is ${(restaurant.minOrderCents / 100).toFixed(2)} ${restaurant.currency}`,
+        minOrderCents: restaurant.minOrderCents,
+        subtotalCents: pricing.subtotalCents,
+      });
+    }
+
+    const customerName = input.customerName?.trim() || 'Walk-in customer';
+    const customerPhone = input.customerPhone?.trim() ?? '';
+
+    // Only a REAL phone rolls up to a CRM record -- upsertCustomer keys on it,
+    // and a blank phone would collide every phone-less walk-in into "the same
+    // customer" the moment a second one came in.
+    const customer = customerPhone
+      ? await this.upsertCustomer(restaurantId, { name: customerName, phone: customerPhone, email: '' })
+      : null;
+
+    const orderNumber = await this.nextOrderNumber(restaurantId);
+    const now = new Date();
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      return tx.order.create({
+        data: {
+          orderNumber,
+          handoffCode: generateHandoffCode((n) => randomBytes(n)),
+          restaurantId,
+          customerId: customer?.id,
+          status: 'PENDING',
+          fulfillment: input.fulfillment,
+
+          subtotalCents: pricing.subtotalCents,
+          taxCents: pricing.taxCents,
+          deliveryFeeCents: 0,
+          serviceFeeCents: pricing.serviceFeeCents,
+          tipCents: 0,
+          discountCents: pricing.discountCents,
+          totalCents: pricing.totalCents,
+          currency: restaurant.currency,
+          taxRateBps: restaurant.taxRateBps,
+          taxLines: pricing.taxLines as unknown as Prisma.InputJsonValue,
+
+          customerName,
+          customerPhone,
+          customerEmail: '',
+
+          notes: input.notes,
+          tableNumber: input.tableNumber,
+
+          items: {
+            create: lineItems.map((item) => {
+              const modifiersCents = item.modifiers.reduce((s, m) => s + m.priceCents, 0);
+              return {
+                name: item.name,
+                quantity: item.quantity,
+                unitPriceCents: item.unitPriceCents,
+                totalCents: (item.unitPriceCents + modifiersCents) * item.quantity,
+                notes: item.notes,
+                productId: item.productId,
+                modifiers: {
+                  create: item.modifiers.map((m) => ({
+                    name: m.name,
+                    priceCents: m.priceCents,
+                    quantity: m.quantity,
+                    modifierId: m.modifierId,
+                  })),
+                },
+              };
+            }),
+          },
+
+          payment: {
+            create: {
+              restaurantId,
+              amountCents: pricing.totalCents,
+              currency: restaurant.currency,
+              status: 'PAID',
+              method: input.paymentMethod,
+              // No Stripe charge exists to recover a commission from -- a cash
+              // or in-person card sale never touches the platform's payment
+              // rail, so there is nothing here for application_fee to take a
+              // cut of. See the PaymentMethod enum's comment in schema.prisma.
+              platformFeeCents: 0,
+              paidAt: now,
+            },
+          },
+
+          events: {
+            create: { status: 'PENDING', source: 'restaurant', note: 'Walk-in order entered by staff' },
+          },
+        },
+        include: this.orderInclude(),
+      });
+    });
+
+    await this.audit.log({
+      restaurantId,
+      userId,
+      action: 'order.walk_in_created',
+      entityType: 'Order',
+      entityId: order.id,
+      metadata: {
+        orderNumber: order.orderNumber,
+        paymentMethod: input.paymentMethod,
+        totalCents: pricing.totalCents,
+      },
+    });
+
+    this.logger.log(
+      `Walk-in order ${order.orderNumber} created for ${restaurant.slug} (${input.paymentMethod})`,
+    );
+
+    // Same notification an online order gets the instant Stripe confirms the
+    // charge -- the money already moved, so this order is exactly as "real".
+    void this.notifications.onOrderStatus(order, restaurant, 'PENDING').catch((err) => {
+      this.logger.error(`Notification failed for walk-in order ${order.id}: ${(err as Error).message}`);
+    });
+
+    return order;
+  }
+
+  /**
    * Turn cart references into priced line items, reading every price from the DB.
    *
    * Also enforces the modifier group rules the menu declares: a required "Size"
@@ -301,7 +468,7 @@ export class OrdersService {
    */
   private async resolveLineItems(
     restaurantId: string,
-    input: CreateOrderInput,
+    input: Pick<CreateOrderInput, 'items'>,
   ): Promise<Array<PricedLineItem & { notes?: string }>> {
     const productIds = [...new Set(input.items.map((i) => i.productId))];
 
@@ -389,7 +556,7 @@ export class OrdersService {
 
   private assertFulfillmentAllowed(
     restaurant: { pickupEnabled: boolean; deliveryEnabled: boolean; dineInEnabled: boolean },
-    input: CreateOrderInput,
+    input: Pick<CreateOrderInput, 'fulfillment'>,
   ): void {
     const enabled: Record<string, boolean> = {
       PICKUP: restaurant.pickupEnabled,

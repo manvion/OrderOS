@@ -35,6 +35,23 @@ const transitionSchema = z.object({
 
 const cancelSchema = z.object({ reason: z.string().min(1).max(500) });
 
+const walkInItemSchema = z.object({
+  productId: z.string().cuid(),
+  quantity: z.number().int().min(1).max(99),
+  notes: z.string().max(280).optional(),
+  modifierIds: z.array(z.string().cuid()).max(50).default([]),
+});
+
+const walkInOrderSchema = z.object({
+  items: z.array(walkInItemSchema).min(1).max(100),
+  fulfillment: z.enum(['PICKUP', 'DINE_IN']),
+  customerName: z.string().max(120).optional(),
+  customerPhone: z.string().max(20).optional(),
+  tableNumber: z.string().max(20).optional(),
+  paymentMethod: z.enum(['CASH', 'CARD_TERMINAL']),
+  notes: z.string().max(500).optional(),
+});
+
 /** Restaurant-facing order management. Customers use StorefrontController. */
 @ApiTags('orders')
 @Controller('orders')
@@ -183,5 +200,19 @@ export class OrdersController {
     }
 
     return order;
+  }
+
+  /**
+   * A walk-in or phone order, entered at the counter and paid in person --
+   * cash or a card terminal, never Stripe. See OrdersService.createWalkIn.
+   */
+  @Post('walk-in')
+  @Audit('order.walk_in_created', 'Order')
+  walkIn(
+    @TenantId() restaurantId: string,
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(walkInOrderSchema)) body: z.infer<typeof walkInOrderSchema>,
+  ) {
+    return this.orders.createWalkIn(restaurantId, body, user.id);
   }
 }
