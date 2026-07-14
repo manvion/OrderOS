@@ -1,9 +1,9 @@
 import type { Request } from 'express';
-import type { StaffRole } from '@orderos/shared';
+import type { StaffRole } from '@dinedirect/shared';
 
 /** The authenticated staff member, resolved by ClerkAuthGuard. */
 export interface AuthUser {
-  /** OrderOS User.id (the membership row), not the Clerk id. */
+  /** DineDirect User.id (the membership row), not the Clerk id. */
   id: string;
   clerkUserId: string;
   email: string;

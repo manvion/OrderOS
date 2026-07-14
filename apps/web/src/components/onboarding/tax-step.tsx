@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
-import { getCountry, type TaxComponent, type TaxCountry } from '@orderos/shared';
+import { getCountry, type TaxComponent, type TaxCountry } from '@dinedirect/shared';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/primitives';

@@ -1,7 +1,7 @@
-# OrderOS
+# DineDirect
 
 Direct ordering for restaurants. Each restaurant gets a branded ordering site at
-`theirname.orderos.ai` — pickup, delivery and QR table ordering — with Stripe
+`theirname.dinedirect.manvion.ca` — pickup, delivery and QR table ordering — with Stripe
 payments and Uber Direct couriers, and no marketplace taking a third of every order.
 
 ---
@@ -9,7 +9,7 @@ payments and Uber Direct couriers, and no marketplace taking a third of every or
 ## What's here
 
 ```
-orderos/
+dinedirect/
 ├── apps/
 │   ├── api/                  NestJS + Prisma + PostgreSQL + Redis
 │   │   ├── prisma/
@@ -52,7 +52,7 @@ orderos/
 │   └── src/pricing.ts        Imported by BOTH the browser cart and the API. One source of truth.
 │
 ├── integrations/            Embeddable widget for restaurants that already have a website
-│   ├── wordpress/orderos/        WordPress plugin (settings screen + shortcodes)
+│   ├── wordpress/dinedirect/        WordPress plugin (settings screen + shortcodes)
 │   └── test/plain-html.html      Deliberately hostile test page (see docs/WIDGET.md)
 │
 ├── docs/WIDGET.md
@@ -62,7 +62,7 @@ orderos/
 
 ## Two ways a restaurant takes orders
 
-**A hosted storefront** at `theirname.orderos.ai` — for restaurants with no website,
+**A hosted storefront** at `theirname.dinedirect.manvion.ca` — for restaurants with no website,
 or who want a better one.
 
 **An embedded widget** on the website they already have — WordPress, Wix,
@@ -107,7 +107,7 @@ npm run dev               # api on :4000, web on :3000
 
 ### About that storefront URL
 
-In production a restaurant lives on a real subdomain (`joes.orderos.ai`), and the
+In production a restaurant lives on a real subdomain (`joes.dinedirect.manvion.ca`), and the
 middleware maps that to `/s/joes`. Locally, use the **`/s/<slug>` path** instead.
 
 Do **not** rely on `joes.localhost:3000`. It works in some browsers and not others,
@@ -197,7 +197,7 @@ opinion about what an order is allowed to do next.
 ## Testing
 
 ```bash
-npm test --workspace=@orderos/api     # 16 unit tests
+npm test --workspace=@dinedirect/api     # 16 unit tests
 ```
 
 Covers the three places where a bug costs real money or real food: the pricing
@@ -234,12 +234,12 @@ For Azure Container Apps:
 3. **Blob Storage** — create a container, set `AZURE_STORAGE_CONNECTION_STRING`.
    The API *refuses to boot* in production without it, because the dev fallback
    writes to a container's ephemeral disk and would lose every logo on redeploy.
-4. **DNS** — a wildcard `*.orderos.ai` CNAME to the web container app, so every new
+4. **DNS** — a wildcard `*.dinedirect.manvion.ca` CNAME to the web container app, so every new
    restaurant's subdomain works the moment they publish, with no DNS step.
 5. **Secrets** — everything in `.env.example` marked required. Store them as Container
    App secrets, not image layers.
-6. **Webhooks** — point Stripe at `https://api.orderos.ai/api/payments/webhook` and
-   Uber at `https://api.orderos.ai/api/delivery/webhook`.
+6. **Webhooks** — point Stripe at `https://api.dinedirect.manvion.ca/api/payments/webhook` and
+   Uber at `https://api.dinedirect.manvion.ca/api/delivery/webhook`.
 
 `NEXT_PUBLIC_*` values are inlined into the browser bundle **at build time** — they
 are Docker build args, not runtime env vars. Changing them needs a rebuild.

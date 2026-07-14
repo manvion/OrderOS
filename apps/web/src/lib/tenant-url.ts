@@ -12,8 +12,8 @@
  *   unset                         -> path tenancy on whatever host we're on:
  *                                    <current origin>/s/<slug>
  *
- * The second regime is what makes a Vercel deployment honest: `fff.orderos.ai`
- * on a machine that doesn't own orderos.ai is a URL that resolves for nobody,
+ * The second regime is what makes a Vercel deployment honest: `fff.dinedirect.manvion.ca`
+ * on a machine that doesn't own dinedirect.manvion.ca is a URL that resolves for nobody,
  * shown at the exact moment a new restaurant is being promised their website.
  * The moment the operator sets a real domain and redeploys, every surface
  * flips to subdomains at once — nothing else to change.

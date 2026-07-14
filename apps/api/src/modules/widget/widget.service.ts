@@ -14,7 +14,7 @@ import {
   type CreateIntegrationInput,
   type UpdateIntegrationInput,
   type WidgetSettings,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';

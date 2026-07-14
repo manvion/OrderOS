@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError, type Product } from '@/lib/api';

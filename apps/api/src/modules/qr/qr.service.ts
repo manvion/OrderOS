@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import type { QRCodeType } from '@prisma/client';
 import * as QRCodeLib from 'qrcode';
-import type { QRCodeInput } from '@orderos/shared';
+import type { QRCodeInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { StorageService } from '../storage/storage.service';

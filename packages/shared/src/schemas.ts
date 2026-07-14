@@ -36,7 +36,7 @@ export const addressSchema = z.object({
 export type AddressInput = z.infer<typeof addressSchema>;
 
 /**
- * Subdomain slug: this becomes `<slug>.orderos.ai`, so it must be DNS-safe and
+ * Subdomain slug: this becomes `<slug>.dinedirect.manvion.ca`, so it must be DNS-safe and
  * must not collide with our own reserved hostnames.
  */
 export const RESERVED_SLUGS = [

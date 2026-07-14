@@ -51,8 +51,6 @@ type Column = {
   key: string;
   title: string;
   statuses: string[];
-  /** The one action a card in this column offers. */
-  action?: { label: string; to: string };
   tone: string;
 };
 
@@ -61,14 +59,17 @@ const COLUMNS: Column[] = [
     key: 'new',
     title: 'New',
     statuses: ['PENDING'],
-    action: { label: 'Accept', to: 'ACCEPTED' },
     tone: 'border-amber-400',
   },
   {
     key: 'cooking',
     title: 'Cooking',
+    // Two real backend statuses share this one visual bucket. The action button
+    // below is keyed off the CARD's own status, not the column, because ACCEPTED
+    // and PREPARING are different legal transitions -- ACCEPTED must become
+    // PREPARING before it can become READY. A column-wide "Ready" button here
+    // used to fire straight from ACCEPTED and the API correctly rejected it.
     statuses: ['ACCEPTED', 'PREPARING'],
-    action: { label: 'Ready', to: 'READY' },
     tone: 'border-blue-400',
   },
   {
@@ -80,6 +81,20 @@ const COLUMNS: Column[] = [
     tone: 'border-emerald-400',
   },
 ];
+
+/** The one legal next step for a card, given its OWN status -- not its column's. */
+function actionFor(status: string): { label: string; to: string } | undefined {
+  switch (status) {
+    case 'PENDING':
+      return { label: 'Accept', to: 'ACCEPTED' };
+    case 'ACCEPTED':
+      return { label: 'Start preparing', to: 'PREPARING' };
+    case 'PREPARING':
+      return { label: 'Ready', to: 'READY' };
+    default:
+      return undefined;
+  }
+}
 
 const FULFILLMENT = {
   PICKUP: { icon: ShoppingBag, label: 'Pickup' },
@@ -240,7 +255,7 @@ export function KitchenBoard() {
                     key={order.id}
                     order={order}
                     tone={col.tone}
-                    action={col.action}
+                    action={actionFor(order.status)}
                     onAdvance={(to) => advance.mutate({ id: order.id, to })}
                   />
                 ))}

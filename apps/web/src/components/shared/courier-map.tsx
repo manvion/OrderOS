@@ -218,7 +218,7 @@ function courierIcon(L: typeof import('leaflet'), color: string) {
         <span style="
           position:absolute;inset:0;border-radius:50%;
           background:${color};opacity:.28;
-          animation:orderos-pulse 1.8s ease-out infinite;
+          animation:dinedirect-pulse 1.8s ease-out infinite;
         "></span>
         <div style="
           position:absolute;inset:6px;border-radius:50%;
@@ -228,7 +228,7 @@ function courierIcon(L: typeof import('leaflet'), color: string) {
         ">🚗</div>
       </div>
       <style>
-        @keyframes orderos-pulse {
+        @keyframes dinedirect-pulse {
           0%   { transform: scale(.7); opacity: .45; }
           70%  { transform: scale(1.6); opacity: 0; }
           100% { transform: scale(1.6); opacity: 0; }

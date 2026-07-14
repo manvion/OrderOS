@@ -85,7 +85,7 @@ step('.env exists', Boolean(env), 'cp .env.example .env');
  * secret should crash at startup and not at 7pm on a Friday when a customer pays.
  */
 const REQUIRED = [
-  ['DATABASE_URL', 'Use postgresql://orderos:orderos@localhost:5432/orderos for local Docker'],
+  ['DATABASE_URL', 'Use postgresql://dinedirect:dinedirect@localhost:5432/dinedirect for local Docker'],
   ['CLERK_SECRET_KEY', 'clerk.com -> API keys -> sk_test_...'],
   ['CLERK_PUBLISHABLE_KEY', 'clerk.com -> API keys -> pk_test_...'],
   ['STRIPE_SECRET_KEY', 'dashboard.stripe.com (TEST mode) -> API keys -> sk_test_...'],
@@ -124,8 +124,8 @@ if (env?.STRIPE_SECRET_KEY && !isPlaceholder(env.STRIPE_SECRET_KEY)) {
 
 // --- 3. Infrastructure ------------------------------------------------------
 
-const pgUp = tryRun('docker ps --filter name=orderos-postgres --filter status=running -q');
-const redisUp = tryRun('docker ps --filter name=orderos-redis --filter status=running -q');
+const pgUp = tryRun('docker ps --filter name=dinedirect-postgres --filter status=running -q');
+const redisUp = tryRun('docker ps --filter name=dinedirect-redis --filter status=running -q');
 
 step('Postgres running', Boolean(pgUp), 'npm run infra:up');
 step('Redis running', Boolean(redisUp), 'npm run infra:up');
@@ -136,7 +136,7 @@ let migrated = false;
 if (pgUp && env?.DATABASE_URL) {
   // `migrate status` exits non-zero when migrations are pending, which is exactly
   // the signal we want.
-  migrated = tryRun('npm run db:status --workspace=@orderos/api') !== null;
+  migrated = tryRun('npm run db:status --workspace=@dinedirect/api') !== null;
 }
 step(
   'Migrations applied',
@@ -156,7 +156,7 @@ step(
 
 // --- Report -----------------------------------------------------------------
 
-console.log(bold('\n  OrderOS setup\n'));
+console.log(bold('\n  DineDirect setup\n'));
 
 for (const s of steps) {
   console.log(`  ${s.done ? green('OK  ') : red('TODO')}  ${s.name}`);

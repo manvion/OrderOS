@@ -6,7 +6,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_WIDGET_SETTINGS,
   type WidgetSettings,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi } from './dashboard-provider';
 import { ApiRequestError, type WebsiteIntegration } from '@/lib/api';
@@ -94,9 +94,9 @@ export function WidgetAppearance({
               </Select>
               <p className="text-xs text-muted-foreground">
                 {settings.mode === 'INLINE_MENU' &&
-                  'Add <div id="orderos-menu"></div> where the menu should appear.'}
+                  'Add <div id="dinedirect-menu"></div> where the menu should appear.'}
                 {settings.mode === 'MANUAL_TRIGGER' &&
-                  'Call OrderOS.open() from your own button, or OrderOS.attach("#my-button").'}
+                  'Call DineDirect.open() from your own button, or DineDirect.attach("#my-button").'}
                 {settings.mode === 'FLOATING_BUTTON' &&
                   'A button floats in the corner of every page the snippet is on.'}
               </p>

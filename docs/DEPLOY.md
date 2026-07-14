@@ -1,4 +1,4 @@
-# Deploying OrderOS — the detailed version
+# Deploying DineDirect — the detailed version
 
 Follow this in order. Each phase ends in a check that must pass before you move on;
 if a check fails, fix it there rather than carrying the problem forward.
@@ -24,7 +24,7 @@ minute and nothing else.
 Redis is still **required**: it holds the lock that stops two API instances
 dispatching two couriers for one order, and it backs the rate limiter.
 
-**One deployment serves every restaurant.** `joes.orderos.ai`, `marias.orderos.ai` and
+**One deployment serves every restaurant.** `joes.dinedirect.manvion.ca`, `marias.dinedirect.manvion.ca` and
 `joesburgers.com` all hit the same Vercel deployment;
 [middleware.ts](../apps/web/src/middleware.ts) reads the `Host` header and rewrites to
 `/s/<slug>`. There is no repo, project or build per tenant.
@@ -70,7 +70,7 @@ purpose, because a missing Stripe secret should crash at startup and not at 7pm 
 Friday when a customer tries to pay:
 
 ```ini
-DATABASE_URL=postgresql://orderos:orderos@localhost:5432/orderos
+DATABASE_URL=postgresql://dinedirect:dinedirect@localhost:5432/dinedirect
 CLERK_SECRET_KEY=sk_test_...
 CLERK_PUBLISHABLE_KEY=pk_test_...
 STRIPE_SECRET_KEY=sk_test_...
@@ -172,10 +172,10 @@ PORT=4000
 DATABASE_URL=postgres://…neon…
 REDIS_URL=rediss://…upstash…
 
-APP_DOMAIN=orderos.ai
-API_URL=https://api.orderos.ai
-WEB_URL=https://orderos.ai
-CORS_ORIGINS=https://orderos.ai
+APP_DOMAIN=dinedirect.manvion.ca
+API_URL=https://api.dinedirect.manvion.ca
+WEB_URL=https://dinedirect.manvion.ca
+CORS_ORIGINS=https://dinedirect.manvion.ca
 
 CLERK_SECRET_KEY=sk_live_...
 CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -189,13 +189,13 @@ domains and registered widget hosts are allowed **dynamically at runtime** by
 [main.ts](../apps/api/src/main.ts) — putting them here would be both wrong and
 impossible (you don't know them at boot).
 
-4. Add a custom domain: `api.orderos.ai`.
+4. Add a custom domain: `api.dinedirect.manvion.ca`.
 
 **Check:**
 
 ```bash
-curl https://api.orderos.ai/health         # {"status":"ok"}
-curl https://api.orderos.ai/health/ready   # {"status":"ok"} -- this one proves it reached Postgres AND Redis
+curl https://api.dinedirect.manvion.ca/health         # {"status":"ok"}
+curl https://api.dinedirect.manvion.ca/health/ready   # {"status":"ok"} -- this one proves it reached Postgres AND Redis
 ```
 
 `/health/ready` is the important one. A green deploy with an unreachable database is
@@ -208,8 +208,8 @@ the classic first production failure, and `/health` alone will happily lie about
 ## 3.1 Push the repo
 
 ```bash
-git add -A && git commit -m "OrderOS"
-gh repo create orderos --private --source=. --push
+git add -A && git commit -m "DineDirect"
+gh repo create dinedirect --private --source=. --push
 ```
 
 `.env` is gitignored. Confirm before pushing: `git ls-files | grep -c '^\.env$'` must
@@ -220,23 +220,23 @@ print `0`.
 vercel.com/new → import the repo, then:
 
 - **Root Directory: `apps/web`.** Vercel detects the npm workspace at the repo root,
-  which is what makes `@orderos/shared` resolve.
+  which is what makes `@dinedirect/shared` resolve.
 - **Do NOT override the Install Command.** Overriding it runs `npm install` inside
   `apps/web`, where the workspace root does not exist, and the build dies on
-  `@orderos/shared`. This is the single most common way this deploy fails.
+  `@dinedirect/shared`. This is the single most common way this deploy fails.
 - Environment variables:
 
 | Variable | Value |
 | --- | --- |
-| `NEXT_PUBLIC_API_URL` | `https://api.orderos.ai` |
-| `NEXT_PUBLIC_APP_DOMAIN` | `orderos.ai` |
+| `NEXT_PUBLIC_API_URL` | `https://api.dinedirect.manvion.ca` |
+| `NEXT_PUBLIC_APP_DOMAIN` | `dinedirect.manvion.ca` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` |
 | `CLERK_SECRET_KEY` | `sk_live_…` |
 
 `NEXT_PUBLIC_*` values are **inlined into the browser bundle at build time**. Changing
 one requires a redeploy, not a restart.
 
-Deploy. You now have `orderos-xxx.vercel.app`.
+Deploy. You now have `dinedirect-xxx.vercel.app`.
 
 ---
 
@@ -244,10 +244,10 @@ Deploy. You now have `orderos-xxx.vercel.app`.
 
 In Vercel → Project → Domains, add **both**:
 
-- `orderos.ai`
-- `*.orderos.ai`  ← the wildcard
+- `dinedirect.manvion.ca`
+- `*.dinedirect.manvion.ca`  ← the wildcard
 
-The wildcard is the whole product. It is what makes `anything.orderos.ai` resolve to a
+The wildcard is the whole product. It is what makes `anything.dinedirect.manvion.ca` resolve to a
 tenant without you touching DNS every time a restaurant signs up.
 
 At your registrar:
@@ -262,7 +262,7 @@ A wildcard CNAME needs a registrar that supports one (Cloudflare, Namecheap, Rou
 all do). If you use Cloudflare, set the wildcard record to **DNS only** (grey cloud),
 not proxied — proxying it breaks Vercel's certificate issuance.
 
-**Check:** `curl -s https://orderos.ai | grep -o '<title>[^<]*'` returns your marketing
+**Check:** `curl -s https://dinedirect.manvion.ca | grep -o '<title>[^<]*'` returns your marketing
 page, and a published restaurant's subdomain returns *their* page, not the marketing
 one. If a tenant subdomain shows the marketing homepage, the middleware isn't running —
 see Troubleshooting.
@@ -270,7 +270,7 @@ see Troubleshooting.
 ## Clerk production instance
 
 Clerk needs to know its production domain: Clerk dashboard → your app → **Domains** →
-add `orderos.ai`, and add the DNS records Clerk gives you (a few CNAMEs on
+add `dinedirect.manvion.ca`, and add the DNS records Clerk gives you (a few CNAMEs on
 `clerk.`, `accounts.`, etc). Until that is done, sign-in will fail in production even
 though it worked locally.
 
@@ -285,7 +285,7 @@ nothing anywhere will say why.
 
 dashboard.stripe.com → **Developers → Webhooks → Add endpoint**
 
-- URL: `https://api.orderos.ai/api/payments/webhook`
+- URL: `https://api.dinedirect.manvion.ca/api/payments/webhook`
 - Events — all five:
   - `checkout.session.completed` — the order is paid. Without this, **no order ever
     reaches PAID.**
@@ -305,7 +305,7 @@ failed — almost always the wrong `whsec_`, or the API not restarted after sett
 
 ## Uber Direct (only if you offer delivery)
 
-Set the webhook URL to `https://api.orderos.ai/api/delivery/webhook` and put the shared
+Set the webhook URL to `https://api.dinedirect.manvion.ca/api/delivery/webhook` and put the shared
 secret in `UBER_WEBHOOK_SECRET`, along with `UBER_CLIENT_ID`, `UBER_CLIENT_SECRET`,
 `UBER_CUSTOMER_ID`. Without these, delivery is simply disabled — the app runs fine on
 pickup and dine-in.
@@ -331,7 +331,7 @@ redeploy that silently erases every image every restaurant has ever uploaded.
 
 R2 is the easy option: free to 10GB, no egress fees.
 
-1. Cloudflare → **R2** → **Create bucket**, name it `orderos-media`.
+1. Cloudflare → **R2** → **Create bucket**, name it `dinedirect-media`.
 2. **Manage R2 API Tokens** → **Create API token** → *Object Read & Write* → copy the
    **Access Key ID** and **Secret Access Key**, and note the **endpoint**
    (`https://<account-id>.r2.cloudflarestorage.com`).
@@ -341,7 +341,7 @@ R2 is the easy option: free to 10GB, no egress fees.
 
 ```ini
 S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com   # where we UPLOAD
-S3_BUCKET=orderos-media
+S3_BUCKET=dinedirect-media
 S3_ACCESS_KEY_ID=...
 S3_SECRET_ACCESS_KEY=...
 S3_REGION=auto
@@ -368,16 +368,16 @@ admins live in their own table, and no role a restaurant can hold grants it. The
 console that sees every restaurant's revenue and can suspend any of them must not be
 reachable by escalating a role inside the product.
 
-1. Sign up at `https://orderos.ai/sign-up` like anybody else.
+1. Sign up at `https://dinedirect.manvion.ca/sign-up` like anybody else.
 2. Clerk dashboard → **Users** → you → copy the **User ID** (`user_2…`).
 3. From your machine, pointed at production:
 
 ```bash
 DATABASE_URL="postgres://…prod…" npm run admin:create -- \
-  --email you@orderos.ai --clerk-id user_2abc... --role SUPER_ADMIN
+  --email you@dinedirect.manvion.ca --clerk-id user_2abc... --role SUPER_ADMIN
 ```
 
-**Check:** `https://orderos.ai/admin` loads the console. If it says "Not found", the
+**Check:** `https://dinedirect.manvion.ca/admin` loads the console. If it says "Not found", the
 row didn't take, or you're signed in as a different Clerk user.
 
 ---
@@ -403,7 +403,7 @@ chart.
 # Phase 8 — Before you send a real customer
 
 ```bash
-API_URL=https://api.orderos.ai WEB_URL=https://orderos.ai npm run smoke
+API_URL=https://api.dinedirect.manvion.ca WEB_URL=https://dinedirect.manvion.ca npm run smoke
 ```
 
 Then, by hand, once, on production:
@@ -422,7 +422,7 @@ The middleware isn't running. It must live at `apps/web/src/middleware.ts` — N
 ignores a root-level `middleware.ts` when a `src/` directory exists, silently, while
 the build still reports success.
 
-**Vercel build fails on `@orderos/shared`.**
+**Vercel build fails on `@dinedirect/shared`.**
 You overrode the Install Command. Remove the override; Root Directory `apps/web` plus
 Vercel's own workspace detection is what makes it resolve.
 

@@ -12,7 +12,7 @@ interface TenantContextValue {
   /**
    * Prefix for every internal storefront link.
    *
-   * On a real subdomain (`joes.orderos.ai`) the storefront IS the site root, so
+   * On a real subdomain (`joes.dinedirect.manvion.ca`) the storefront IS the site root, so
    * this is `''` and links are plain `/menu`, `/cart`.
    *
    * On `localhost/s/joes` — the only form that works on Windows, which cannot

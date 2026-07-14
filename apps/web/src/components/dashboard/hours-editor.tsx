@@ -8,7 +8,7 @@ import {
   WEEKDAYS,
   type BusinessHours,
   type Weekday,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi } from './dashboard-provider';
 import { ApiRequestError } from '@/lib/api';

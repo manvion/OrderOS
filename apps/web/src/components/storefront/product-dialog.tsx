@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { Minus, Plus } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import type { MenuProduct } from '@/lib/api';
 import { useCart, type CartLine } from '@/lib/cart-store';
 import { Button } from '@/components/ui/button';

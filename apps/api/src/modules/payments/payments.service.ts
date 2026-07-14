@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import type { RefundInput } from '@orderos/shared';
+import type { RefundInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { AuditService } from '../../common/audit/audit.service';
@@ -222,7 +222,7 @@ export class PaymentsService {
    * failure mode is the worst kind: NO ERROR ANYWHERE. The button simply never
    * renders, on every iPhone, forever, and you assume the code is wrong.
    *
-   * Every restaurant is its own domain (`joes.orderos.ai`, plus any custom domain
+   * Every restaurant is its own domain (`joes.dinedirect.manvion.ca`, plus any custom domain
    * they attach later), so every one must be registered individually. Called on
    * publish, and again whenever a custom domain is attached.
    *
@@ -400,7 +400,7 @@ export class PaymentsService {
               ? order.payment.platformFeeCents + (order.payment.courierCostCents ?? 0)
               : undefined,
           // Metadata is our lifeline in the webhook: it's how we get from a
-          // Stripe event back to an OrderOS order without a lookup table.
+          // Stripe event back to an DineDirect order without a lookup table.
           metadata: {
             orderId: order.id,
             orderNumber: order.orderNumber,

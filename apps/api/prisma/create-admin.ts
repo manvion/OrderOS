@@ -10,8 +10,8 @@
  *
  * Usage (after the person has signed up in Clerk — we need their Clerk user id):
  *
- *   npm run admin:create --workspace=@orderos/api -- \
- *     --email you@orderos.ai --clerk-id user_2abc... --role SUPER_ADMIN
+ *   npm run admin:create --workspace=@dinedirect/api -- \
+ *     --email you@dinedirect.manvion.ca --clerk-id user_2abc... --role SUPER_ADMIN
  *
  * Re-running with the same email updates the existing row rather than failing, so
  * it is safe to use to fix a typo or promote someone.
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
 
   if (!email || !clerkUserId) {
     console.error(
-      'Usage: -- --email you@orderos.ai --clerk-id user_2abc... [--role SUPER_ADMIN|SUPPORT] [--name "Your Name"]\n\n' +
+      'Usage: -- --email you@dinedirect.manvion.ca --clerk-id user_2abc... [--role SUPER_ADMIN|SUPPORT] [--name "Your Name"]\n\n' +
         'The Clerk user id comes from the Clerk dashboard (Users -> the person -> "User ID").\n' +
         'They must have signed up first — we attach admin rights to an existing identity,\n' +
         'we do not mint one.',

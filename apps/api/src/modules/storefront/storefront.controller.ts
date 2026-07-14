@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { addressSchema, createOrderSchema, type CreateOrderInput } from '@orderos/shared';
+import { addressSchema, createOrderSchema, type CreateOrderInput } from '@dinedirect/shared';
 import { z } from 'zod';
 import { Public, TenantId } from '../../common/auth/decorators';
 import type { AuthedRequest } from '../../common/auth/request-context';

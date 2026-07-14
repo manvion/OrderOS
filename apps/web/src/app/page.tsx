@@ -8,7 +8,7 @@ export default function LandingPage() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b">
         <div className="container flex h-16 items-center justify-between">
-          <span className="text-lg font-bold tracking-tight">OrderOS</span>
+          <span className="text-lg font-bold tracking-tight">DineDirect</span>
           <div className="flex items-center gap-2">
             <SignedOut>
               <Button asChild variant="ghost" size="sm">
@@ -51,7 +51,7 @@ export default function LandingPage() {
           <Feature
             icon={Store}
             title="Your own ordering page"
-            body="A branded site at yourname.orderos.ai, live in an afternoon. Pickup, delivery and dine-in."
+            body="A branded site at yourname.dinedirect.manvion.ca, live in an afternoon. Pickup, delivery and dine-in."
           />
           <Feature
             icon={Truck}
@@ -67,7 +67,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t py-8">
-        <div className="container text-sm text-muted-foreground">OrderOS</div>
+        <div className="container text-sm text-muted-foreground">DineDirect</div>
       </footer>
     </div>
   );

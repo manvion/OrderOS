@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
 const SLUG = 'bellaburger';
 
 async function main(): Promise<void> {
-  console.log('Seeding OrderOS...');
+  console.log('Seeding DineDirect...');
 
   const restaurant = await prisma.restaurant.upsert({
     where: { slug: SLUG },

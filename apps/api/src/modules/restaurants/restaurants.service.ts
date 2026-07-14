@@ -27,7 +27,7 @@ import {
   type DeliverySettingsInput,
   type SetupStep,
   type UpdateRestaurantInput,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { RedisService } from '../../common/redis/redis.service';

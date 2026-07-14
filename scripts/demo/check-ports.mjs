@@ -27,7 +27,7 @@ import { connect } from 'node:net';
 
 const PORTS = [
   { port: 4000, what: 'mock widget API' },
-  { port: 3005, what: 'OrderOS web app (widget.js + embed)' },
+  { port: 3005, what: 'DineDirect web app (widget.js + embed)' },
   { port: 8090, what: "the demo restaurant's website" },
 ];
 
@@ -76,7 +76,7 @@ console.log('  ================================================================'
 console.log('');
 console.log('   THE PRODUCT  ->  http://localhost:3005/s/bellaburger');
 console.log('');
-console.log('     The real OrderOS storefront. Open this one.');
+console.log('     The real DineDirect storefront. Open this one.');
 console.log('     Menu -> cart -> checkout -> pay -> a courier moves on a map.');
 console.log('');
 console.log('   THE WIDGET   ->  http://localhost:8090');
@@ -84,7 +84,7 @@ console.log('');
 console.log('     A deliberately UGLY 2014 restaurant website with our widget');
 console.log('     embedded. The ugliness is THEIRS, on purpose - it proves the');
 console.log('     widget survives a page whose CSS we do not control.');
-console.log('     The only OrderOS thing there is the floating Order button.');
+console.log('     The only DineDirect thing there is the floating Order button.');
 console.log('');
 console.log('  ================================================================');
 console.log('');
@@ -93,7 +93,7 @@ console.log('');
 /**
  * NOT bellaburger.localhost:3005.
  *
- * In production a tenant lives on a real subdomain (joes.orderos.ai), and the
+ * In production a tenant lives on a real subdomain (joes.dinedirect.manvion.ca), and the
  * middleware maps that to /s/joes. But Windows does not resolve *.localhost at all
  * — the OS resolver simply fails — so anyone following that URL on Windows gets a
  * dead hostname and concludes the app is broken. It did exactly that.

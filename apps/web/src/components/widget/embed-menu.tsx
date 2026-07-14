@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import type { MenuCategory, MenuProduct, StorefrontRestaurant } from '@/lib/api';
 import { ProductDialog } from '@/components/storefront/product-dialog';
 

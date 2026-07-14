@@ -16,7 +16,7 @@ import {
   widgetEventSchema,
   type CreateOrderInput,
   type WidgetEventInput,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { z } from 'zod';
 import { Public } from '../../common/auth/decorators';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';

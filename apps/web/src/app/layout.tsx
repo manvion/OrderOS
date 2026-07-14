@@ -31,7 +31,7 @@ const sansFont = Schibsted_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'OrderOS — Take orders on your own website',
+  title: 'DineDirect — Take orders on your own website',
   description:
     'Direct ordering for restaurants. Your website, your customers, your margins — without the marketplace commission.',
 };

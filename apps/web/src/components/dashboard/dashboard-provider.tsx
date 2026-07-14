@@ -4,7 +4,7 @@ import { createContext, useContext, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { createDashboardApi, type DashboardApi, type RestaurantWithRole } from '@/lib/api';
-import { ROLE_RANK, type StaffRole } from '@orderos/shared';
+import { ROLE_RANK, type StaffRole } from '@dinedirect/shared';
 
 interface DashboardContextValue {
   api: DashboardApi;

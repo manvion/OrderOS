@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: orderos-postgres
+    container_name: dinedirect-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: orderos
-      POSTGRES_PASSWORD: orderos
-      POSTGRES_DB: orderos
+      POSTGRES_USER: dinedirect
+      POSTGRES_PASSWORD: dinedirect
+      POSTGRES_DB: dinedirect
     ports:
       - '5432:5432'
     volumes:
@@ -14,14 +14,14 @@ services:
     healthcheck:
       # The API's depends_on waits on this, so it never starts against a
       # database that is still initialising.
-      test: ['CMD-SHELL', 'pg_isready -U orderos -d orderos']
+      test: ['CMD-SHELL', 'pg_isready -U dinedirect -d dinedirect']
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: orderos-redis
+    container_name: dinedirect-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
@@ -38,14 +38,14 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: orderos-api
+    container_name: dinedirect-api
     restart: unless-stopped
     ports:
       - '4000:4000'
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://orderos:orderos@postgres:5432/orderos
+      DATABASE_URL: postgresql://dinedirect:dinedirect@postgres:5432/dinedirect
       REDIS_URL: redis://redis:6379
     env_file:
       - .env
@@ -70,9 +70,9 @@ services:
         # Next inlines NEXT_PUBLIC_* at BUILD time, not runtime — so these have
         # to be build args, not just environment variables.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
-        NEXT_PUBLIC_APP_DOMAIN: ${NEXT_PUBLIC_APP_DOMAIN:-orderos.ai}
+        NEXT_PUBLIC_APP_DOMAIN: ${NEXT_PUBLIC_APP_DOMAIN:-dinedirect.manvion.ca}
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-    container_name: orderos-web
+    container_name: dinedirect-web
     restart: unless-stopped
     ports:
       - '3000:3000'

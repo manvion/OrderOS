@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Check, ChefHat, CircleDot, ExternalLink, Package, Phone, Truck } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import type { TrackedOrder } from '@/lib/api';
 
 /**

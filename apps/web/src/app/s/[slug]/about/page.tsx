@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { headers } from 'next/headers';
 import { ArrowRight, Clock, Mail, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
-import { WEEKDAYS, aboutParagraphs, isOpenAt, type BusinessHours } from '@orderos/shared';
+import { WEEKDAYS, aboutParagraphs, isOpenAt, type BusinessHours } from '@dinedirect/shared';
 import { storefrontApi } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';

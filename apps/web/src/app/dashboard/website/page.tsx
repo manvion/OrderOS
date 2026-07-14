@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import { formatMoney, type WidgetSettings } from '@orderos/shared';
+import { formatMoney, type WidgetSettings } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError } from '@/lib/api';

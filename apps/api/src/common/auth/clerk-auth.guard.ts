@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLE_RANK, type StaffRole } from '@orderos/shared';
+import { ROLE_RANK, type StaffRole } from '@dinedirect/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClerkService } from './clerk.service';
 import { IS_PUBLIC_KEY, ROLES_KEY } from './decorators';
@@ -140,7 +140,7 @@ export class ClerkAuthGuard implements CanActivate {
    *
    * Note we do NOT give them a real User row. They are a visitor: the audit log
    * records the action against a null userId with the admin's email in metadata, so
-   * a restaurant reading their own history sees "OrderOS support did this", not a
+   * a restaurant reading their own history sees "DineDirect support did this", not a
    * phantom staff member they don't recognise.
    */
   private async tryResolveSupportSession(

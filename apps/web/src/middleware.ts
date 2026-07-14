@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'orderos.ai';
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'dinedirect.manvion.ca';
 
 /** Hostnames that are the platform itself, never a restaurant. */
 const RESERVED = new Set(['www', 'app', 'api', 'admin', 'dashboard', 'auth']);
@@ -22,8 +22,8 @@ const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/onboarding(.*)'
 /**
  * Two apps, one deployment.
  *
- * `orderos.ai`        -> the platform: marketing, sign-in, restaurant dashboard.
- * `joes.orderos.ai`   -> Joe's storefront.
+ * `dinedirect.manvion.ca`        -> the platform: marketing, sign-in, restaurant dashboard.
+ * `joes.dinedirect.manvion.ca`   -> Joe's storefront.
  *
  * The subdomain is extracted here and rewritten into `/s/<slug>`, so storefront
  * pages read the tenant from the path instead of every page re-parsing the Host
@@ -94,7 +94,7 @@ async function routeTenant(req: NextRequest): Promise<NextResponse | null> {
    * Not one of our own hostnames. It may be a restaurant's own domain.
    *
    * Checked ONLY after the subdomain path fails, so the common case (a tenant on
-   * <slug>.orderos.ai) never pays for a network call.
+   * <slug>.dinedirect.manvion.ca) never pays for a network call.
    */
   if (!slug) {
     const hostname = host.split(':')[0].toLowerCase();
@@ -112,7 +112,7 @@ async function routeTenant(req: NextRequest): Promise<NextResponse | null> {
   }
 
   if (slug) {
-    // A storefront host must never expose the dashboard: joes.orderos.ai/dashboard
+    // A storefront host must never expose the dashboard: joes.dinedirect.manvion.ca/dashboard
     // would otherwise render the platform UI under a tenant's brand.
     if (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding')) {
       const url = req.nextUrl.clone();

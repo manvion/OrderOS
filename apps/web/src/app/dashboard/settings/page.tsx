@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
-import type { BusinessHours } from '@orderos/shared';
+import type { BusinessHours } from '@dinedirect/shared';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';

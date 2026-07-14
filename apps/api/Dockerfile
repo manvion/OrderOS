@@ -35,8 +35,8 @@ COPY apps/api ./apps/api
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
-# (2) The API imports `@orderos/shared` via a tsconfig path alias. `nest build` leaves
-#     `require("@orderos/shared")` in the emitted JavaScript, which Node then resolves
+# (2) The API imports `@dinedirect/shared` via a tsconfig path alias. `nest build` leaves
+#     `require("@dinedirect/shared")` in the emitted JavaScript, which Node then resolves
 #     through packages/shared/package.json — whose `exports` points at src/index.ts, a
 #     TypeScript file Node cannot require. The build script runs `tsc-alias`, which
 #     rewrites those aliases to relative paths into the compiled output, so the runtime

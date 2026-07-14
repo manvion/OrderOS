@@ -2,7 +2,7 @@ import { BadRequestException, PipeTransform } from '@nestjs/common';
 import { ZodSchema, ZodError } from 'zod';
 
 /**
- * Validates a request body against a Zod schema from @orderos/shared — the same
+ * Validates a request body against a Zod schema from @dinedirect/shared — the same
  * schema the web form used, so the API and the UI agree on what "valid" means.
  *
  * On failure it returns a field-keyed error map that react-hook-form can render

@@ -11,7 +11,7 @@ import {
   Phone,
   X,
 } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError, type Order } from '@/lib/api';

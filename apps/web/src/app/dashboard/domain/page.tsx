@@ -91,7 +91,7 @@ export default function DomainPage() {
         <h1 className="text-2xl font-bold tracking-tight">Your own domain</h1>
         <p className="text-sm text-muted-foreground">
           Serve your ordering page at <strong>joesburgers.com</strong> instead of{' '}
-          {restaurant.slug}.orderos.ai.
+          {restaurant.slug}.dinedirect.manvion.ca.
         </p>
       </div>
 
@@ -145,7 +145,7 @@ export default function DomainPage() {
             <p className="mt-4 font-medium">No custom domain yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Your page is live at{' '}
-              <span className="font-mono">{restaurant.slug}.orderos.ai</span> — that works
+              <span className="font-mono">{restaurant.slug}.dinedirect.manvion.ca</span> — that works
               perfectly well. A custom domain is for when you want your own name on it.
             </p>
           </CardContent>

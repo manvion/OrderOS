@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { isOriginAllowed } from '@orderos/shared';
+import { isOriginAllowed } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import type { AuthedRequest } from '../../common/auth/request-context';
@@ -92,7 +92,7 @@ export class WidgetTenantGuard implements CanActivate {
         `Widget key ${widgetKey.slice(0, 12)}… used from unregistered origin ${origin}`,
       );
       throw new ForbiddenException(
-        'This widget is not authorised for this domain. Add it in your OrderOS dashboard.',
+        'This widget is not authorised for this domain. Add it in your DineDirect dashboard.',
       );
     }
 

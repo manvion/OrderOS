@@ -54,7 +54,7 @@ async function bootstrap(): Promise<void> {
   );
 
   /**
-   * CORS. Every tenant is its own origin (`joes.orderos.ai`), so we can't use a
+   * CORS. Every tenant is its own origin (`joes.dinedirect.manvion.ca`), so we can't use a
    * static allowlist — we match the apex domain's subdomains, plus any explicitly
    * configured origins (the dashboard, local dev).
    */
@@ -67,10 +67,10 @@ async function bootstrap(): Promise<void> {
 
   /**
    * CORS_ORIGINS entries may carry ONE wildcard in the hostname's first label:
-   * `https://order-os-*-myteam.vercel.app`.
+   * `https://dinedirect-*-myteam.vercel.app`.
    *
    * This exists for Vercel preview deployments, which mint a NEW hostname on every
-   * deploy (order-os-<hash>-<team>.vercel.app). Without it, the dashboard works on
+   * deploy (dinedirect-<hash>-<team>.vercel.app). Without it, the dashboard works on
    * the stable domain and dies with an opaque "could not reach the API" on every
    * preview URL — which reads like an outage and cost an afternoon of debugging a
    * server that was refusing exactly as configured.
@@ -171,7 +171,7 @@ async function bootstrap(): Promise<void> {
 
   if (config.get('NODE_ENV') !== 'production') {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('OrderOS API')
+      .setTitle('DineDirect API')
       .setDescription('Direct ordering platform for restaurants')
       .setVersion('0.1.0')
       .addBearerAuth()
@@ -189,7 +189,7 @@ async function bootstrap(): Promise<void> {
 
   const port = config.get<number>('PORT') ?? 4000;
   await app.listen(port, '0.0.0.0');
-  logger.log(`OrderOS API listening on port ${port} (${config.get('NODE_ENV')})`);
+  logger.log(`DineDirect API listening on port ${port} (${config.get('NODE_ENV')})`);
 }
 
 void bootstrap();

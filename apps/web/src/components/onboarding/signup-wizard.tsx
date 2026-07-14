@@ -24,7 +24,7 @@ import {
   type BusinessHours,
   type TaxComponent,
   type TaxCountry,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { TaxStep } from './tax-step';
 import { toast } from 'sonner';
 import { ApiRequestError, createDashboardApi, type OrderingMode } from '@/lib/api';

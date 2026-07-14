@@ -1,4 +1,4 @@
-import { canTransition, isOpenAt, priceOrder, type BusinessHours } from '@orderos/shared';
+import { canTransition, isOpenAt, priceOrder, type BusinessHours } from '@dinedirect/shared';
 
 /**
  * These cover the three places where a bug costs real money or real food:

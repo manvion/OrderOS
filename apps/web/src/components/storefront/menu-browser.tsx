@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { ArrowRight, Plus } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import type { MenuCategory, MenuProduct, StorefrontRestaurant } from '@/lib/api';
 import { ProductDialog } from './product-dialog';
 import { useCart } from '@/lib/cart-store';

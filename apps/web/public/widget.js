@@ -1,5 +1,5 @@
 /**
- * OrderOS embeddable widget loader.
+ * DineDirect embeddable widget loader.
  *
  * This file runs on OTHER PEOPLE'S WEBSITES — WordPress themes, Wix, Squarespace,
  * hand-written HTML from 2011. That constraint drives every decision here:
@@ -11,19 +11,19 @@
  *     hypothetical), and our styles cannot leak out and break their layout.
  *   - The ordering UI itself is an <iframe>. It is the only boundary that holds:
  *     their CSS can't touch our checkout, and our JS can't touch their page.
- *   - One global, `window.OrderOS`, so a site can wire its own button to us.
+ *   - One global, `window.DineDirect`, so a site can wire its own button to us.
  *
  * Load it like this:
- *   <script src="https://cdn.orderos.ai/widget.js" data-orderos-key="wk_..." defer></script>
+ *   <script src="https://cdn.dinedirect.manvion.ca/widget.js" data-dinedirect-key="wk_..." defer></script>
  */
 (function () {
   'use strict';
 
   // Guard against the snippet being pasted twice — which happens constantly on
   // WordPress, where it ends up in both the theme header and a plugin.
-  if (window.OrderOS && window.OrderOS.__loaded) return;
+  if (window.DineDirect && window.DineDirect.__loaded) return;
 
-  var NS = 'orderos';
+  var NS = 'dinedirect';
 
   // Where this script was served from is where the API and embed app live. That
   // means the snippet carries no URLs to get wrong, and a self-hosted deployment
@@ -39,13 +39,13 @@
     })();
 
   if (!script) {
-    console.error('[OrderOS] Could not locate the widget script tag.');
+    console.error('[DineDirect] Could not locate the widget script tag.');
     return;
   }
 
-  var widgetKey = script.getAttribute('data-orderos-key') || script.getAttribute('restaurant-id');
+  var widgetKey = script.getAttribute('data-dinedirect-key') || script.getAttribute('restaurant-id');
   if (!widgetKey) {
-    console.error('[OrderOS] Missing data-orderos-key on the script tag.');
+    console.error('[DineDirect] Missing data-dinedirect-key on the script tag.');
     return;
   }
 
@@ -63,10 +63,10 @@
    */
   var sessionId = (function () {
     try {
-      var existing = sessionStorage.getItem('orderos_sid');
+      var existing = sessionStorage.getItem('dinedirect_sid');
       if (existing) return existing;
       var fresh = 'sid_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      sessionStorage.setItem('orderos_sid', fresh);
+      sessionStorage.setItem('dinedirect_sid', fresh);
       return fresh;
     } catch (e) {
       // Safari in private mode throws on sessionStorage. Fall back to per-load.
@@ -180,7 +180,7 @@
 
   function mountShadowHost() {
     var host = document.createElement('div');
-    host.id = 'orderos-widget';
+    host.id = 'dinedirect-widget';
     // Belt and braces: even the host element is neutralised against inherited layout.
     host.style.cssText = 'all: initial; position: static;';
     document.body.appendChild(host);
@@ -209,7 +209,7 @@
     iframe.setAttribute('title', 'Order online');
     // allow-same-origin is required (the embed app needs its own localStorage for
     // the cart). It is safe here because the iframe's origin is OURS, not the
-    // host page's — same-origin refers to orderos.ai, so it gains nothing over
+    // host page's — same-origin refers to dinedirect.manvion.ca, so it gains nothing over
     // the restaurant's site.
     iframe.setAttribute(
       'sandbox',
@@ -398,7 +398,7 @@
       .catch(function (err) {
         // Loudly in the console, silently on the page. A restaurant's customers
         // should never see our error; their developer should see it immediately.
-        console.error('[OrderOS] ' + err.message);
+        console.error('[DineDirect] ' + err.message);
       });
   }
 
@@ -420,7 +420,7 @@
     }
 
     if (settings.mode === 'MANUAL_TRIGGER') {
-      // No UI of ours. The site calls window.OrderOS.open() from its own button.
+      // No UI of ours. The site calls window.DineDirect.open() from its own button.
       return;
     }
 
@@ -429,14 +429,14 @@
 
   /**
    * Inline mode: the menu renders in the page flow, wherever the site put
-   * <div id="orderos-menu">. Checkout still opens as a modal on top, because a
+   * <div id="dinedirect-menu">. Checkout still opens as a modal on top, because a
    * checkout that scrolls away inside a page is a checkout people abandon.
    */
   function renderInline(settings) {
-    var container = document.getElementById('orderos-menu');
+    var container = document.getElementById('dinedirect-menu');
     if (!container) {
       console.error(
-        '[OrderOS] Inline mode needs a container: add <div id="orderos-menu"></div> where the menu should appear.',
+        '[DineDirect] Inline mode needs a container: add <div id="dinedirect-menu"></div> where the menu should appear.',
       );
       return;
     }
@@ -455,7 +455,7 @@
   // Public API — lets a site wire its own "Order Now" button to us.
   // -------------------------------------------------------------------------
 
-  window.OrderOS = {
+  window.DineDirect = {
     __loaded: true,
     open: open,
     close: close,
@@ -463,7 +463,7 @@
     cartCount: function () {
       return state.cartCount;
     },
-    /** Attach to an existing element: OrderOS.attach('#my-order-button') */
+    /** Attach to an existing element: DineDirect.attach('#my-order-button') */
     attach: function (selector) {
       var elements = document.querySelectorAll(selector);
       for (var i = 0; i < elements.length; i++) {

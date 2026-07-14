@@ -2,7 +2,7 @@ import { InlineEmbed } from '@/components/widget/inline-embed';
 
 /**
  * Inline mode: the menu rendered in the page flow, wherever the restaurant put
- * <div id="orderos-menu">.
+ * <div id="dinedirect-menu">.
  *
  * Separate route from the modal embed because it has to measure and broadcast its
  * own height (an iframe has no intrinsic height — without a RESIZE message the

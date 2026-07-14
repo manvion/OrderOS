@@ -7,7 +7,7 @@
  * That is a decision, not a shortcut:
  *
  *  - A tenant who can store HTML that we inject into a page served on
- *    *.orderos.ai has stored XSS. Their page shares an origin with our cookies and,
+ *    *.dinedirect.manvion.ca has stored XSS. Their page shares an origin with our cookies and,
  *    on a custom domain, with their customers' sessions. "Just sanitise it" is a
  *    permanent commitment to being better at sanitising than the entire internet is
  *    at bypassing sanitisers, and that is a bet nobody wins forever.

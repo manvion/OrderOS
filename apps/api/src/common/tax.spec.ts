@@ -5,7 +5,7 @@ import {
   totalTaxBps,
   IN_GST_STANDARD,
   IN_GST_HOTEL,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 
 /**
  * Tax across the three countries we support.

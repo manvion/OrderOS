@@ -20,7 +20,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "paths": {
-      "@orderos/shared": ["../../packages/shared/src/index.ts"],
+      "@dinedirect/shared": ["../../packages/shared/src/index.ts"],
       "@/*": ["src/*"]
     }
   },

@@ -9,7 +9,7 @@ import {
   deriveLocaleDefaults,
   getCountry,
   type TaxComponent,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';

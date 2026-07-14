@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useCustomerAuth, CLERK_ENABLED } from '@/components/storefront/customer-auth';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Loader2, Search } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';

@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
-import { categorySchema, productSchema, type CategoryInput, type ProductInput } from '@orderos/shared';
+import { categorySchema, productSchema, type CategoryInput, type ProductInput } from '@dinedirect/shared';
 import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { Audit, Roles, TenantId } from '../../common/auth/decorators';

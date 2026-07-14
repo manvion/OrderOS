@@ -8,7 +8,7 @@ import {
   type StorefrontRestaurant,
   type TrackedOrder,
 } from './api';
-import type { WidgetSettings } from '@orderos/shared';
+import type { WidgetSettings } from '@dinedirect/shared';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 

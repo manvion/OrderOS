@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
 import { Button } from '@/components/ui/button';

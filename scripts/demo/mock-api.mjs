@@ -1,5 +1,5 @@
 /**
- * DEMO ONLY — a mock of the OrderOS widget API.
+ * DEMO ONLY — a mock of the DineDirect widget API.
  *
  * This exists so the widget can be demonstrated on a machine with no Postgres,
  * no Redis and no Stripe account. It implements the same HTTP contract as the
@@ -532,7 +532,7 @@ const server = createServer(async (req, res) => {
   // 401s and renders "Not found", which is what /admin should tell a stranger.
 
   if (path === '/api/admin/me') {
-    return send(res, 200, { id: 'pa_1', email: 'you@orderos.ai', role: 'SUPER_ADMIN' }, origin);
+    return send(res, 200, { id: 'pa_1', email: 'you@dinedirect.manvion.ca', role: 'SUPER_ADMIN' }, origin);
   }
 
   if (path === '/api/admin/overview') {
@@ -598,7 +598,7 @@ const server = createServer(async (req, res) => {
 
   // --- Storefront API --------------------------------------------------------
   //
-  // The hosted ordering site at <slug>.orderos.ai. This is the REAL OrderOS
+  // The hosted ordering site at <slug>.dinedirect.manvion.ca. This is the REAL DineDirect
   // product UI — the widget is only one of its two front doors — and serving these
   // endpoints is what lets the demo show it without a database.
 
@@ -851,7 +851,7 @@ function readBody(req) {
 
 server.listen(PORT, () => {
   console.log('');
-  console.log('  MOCK OrderOS widget API on http://localhost:4000');
+  console.log('  MOCK DineDirect widget API on http://localhost:4000');
   console.log('  (demo prop — no database, no Stripe, no domain allowlist)');
   console.log('');
 });

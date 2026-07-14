@@ -1,4 +1,4 @@
-import { getCountry, isValidTaxId, needsTaxIdForReceipts } from '@orderos/shared';
+import { getCountry, isValidTaxId, needsTaxIdForReceipts } from '@dinedirect/shared';
 
 /**
  * The tax number that makes a receipt a legal document.

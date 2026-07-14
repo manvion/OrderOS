@@ -15,7 +15,7 @@ export const widgetModeSchema = z.enum([
   'FLOATING_BUTTON',
   /** The menu rendered inline wherever the container div is placed. */
   'INLINE_MENU',
-  /** No UI of our own — the site's own button calls window.OrderOS.open(). */
+  /** No UI of our own — the site's own button calls window.DineDirect.open(). */
   'MANUAL_TRIGGER',
 ]);
 export type WidgetMode = z.infer<typeof widgetModeSchema>;
@@ -167,17 +167,17 @@ export type WidgetEventInput = z.infer<typeof widgetEventSchema>;
  * Both sides check `event.origin` before acting on a message — the host page may
  * contain other iframes, and any of them can postMessage to the parent.
  */
-export const WIDGET_MESSAGE_NAMESPACE = 'orderos';
+export const WIDGET_MESSAGE_NAMESPACE = 'dinedirect';
 
 export type WidgetToHostMessage =
-  | { ns: 'orderos'; type: 'READY' }
-  | { ns: 'orderos'; type: 'CLOSE' }
+  | { ns: 'dinedirect'; type: 'READY' }
+  | { ns: 'dinedirect'; type: 'CLOSE' }
   /** Inline mode: the iframe has no intrinsic height, so it tells us its content height. */
-  | { ns: 'orderos'; type: 'RESIZE'; height: number }
+  | { ns: 'dinedirect'; type: 'RESIZE'; height: number }
   /** Stripe refuses to be framed — the host page must open Checkout in a new tab. */
-  | { ns: 'orderos'; type: 'OPEN_CHECKOUT'; url: string }
-  | { ns: 'orderos'; type: 'CART_COUNT'; count: number };
+  | { ns: 'dinedirect'; type: 'OPEN_CHECKOUT'; url: string }
+  | { ns: 'dinedirect'; type: 'CART_COUNT'; count: number };
 
 export type HostToWidgetMessage =
-  | { ns: 'orderos'; type: 'INIT'; origin: string; pageUrl: string; sessionId: string }
-  | { ns: 'orderos'; type: 'OPEN' };
+  | { ns: 'dinedirect'; type: 'INIT'; origin: string; pageUrl: string; sessionId: string }
+  | { ns: 'dinedirect'; type: 'OPEN' };

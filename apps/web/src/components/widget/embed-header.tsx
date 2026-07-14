@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { ArrowLeft, ShoppingBag, X } from 'lucide-react';
-import type { WidgetSettings } from '@orderos/shared';
+import type { WidgetSettings } from '@dinedirect/shared';
 import type { StorefrontRestaurant } from '@/lib/api';
 import type { EmbedView } from './embed-app';
 

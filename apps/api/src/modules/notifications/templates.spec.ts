@@ -16,7 +16,7 @@ const ctx = (overrides: Partial<OrderContext> = {}): OrderContext => ({
   fulfillment: 'DELIVERY',
   totalCents: 5629,
   currency: 'USD',
-  trackingUrl: 'https://bellaburger.orderos.ai/track/trk_abc',
+  trackingUrl: 'https://bellaburger.dinedirect.manvion.ca/track/trk_abc',
   prepTimeMinutes: 20,
   itemSummary: '2x The Classic, 1x Fries',
   ...overrides,

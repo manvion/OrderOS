@@ -11,7 +11,7 @@ import {
   publishBlockers,
   setupProgress,
   type CreateRestaurantInput,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { EmailService } from '../notifications/email.service';
@@ -320,7 +320,7 @@ export class AdminService {
     const existing = await this.prisma.restaurant.findUnique({ where: { slug: input.slug } });
     if (existing) throw new BadRequestException(`The address "${input.slug}" is already taken`);
 
-    const { DEFAULT_BUSINESS_HOURS, totalTaxBps } = await import('@orderos/shared');
+    const { DEFAULT_BUSINESS_HOURS, totalTaxBps } = await import('@dinedirect/shared');
 
     /**
      * A QR-only restaurant serves people who are standing in the building. Dine-in

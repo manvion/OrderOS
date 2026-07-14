@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import type { Order, Restaurant } from '@prisma/client';
-import { formatMoney, getCountry } from '@orderos/shared';
+import { formatMoney, getCountry } from '@dinedirect/shared';
 import type { OrderContext } from './templates';
 import type { SendResult } from './sms.service';
 
@@ -466,7 +466,7 @@ export class EmailService {
               ${restaurant.phone ? `<br />${this.escape(restaurant.phone)}` : ''}
               ${this.legalIdentity(restaurant)}
             </p>
-            <p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">Powered by OrderOS</p>
+            <p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">Powered by DineDirect</p>
           </td></tr>
         </table>
       </td></tr>

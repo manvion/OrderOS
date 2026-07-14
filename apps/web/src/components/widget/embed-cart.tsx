@@ -1,7 +1,7 @@
 'use client';
 
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import type { StorefrontRestaurant } from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';
 

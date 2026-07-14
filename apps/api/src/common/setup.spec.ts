@@ -1,4 +1,4 @@
-import { buildSetupChecklist, publishBlockers, setupProgress, type SetupFacts } from '@orderos/shared';
+import { buildSetupChecklist, publishBlockers, setupProgress, type SetupFacts } from '@dinedirect/shared';
 
 /** A restaurant that has done everything. Each test breaks exactly one thing. */
 const READY: SetupFacts = {

@@ -62,7 +62,7 @@ export class StorageService {
       /**
        * The endpoint must be the HOST only. With `forcePathStyle` the SDK appends
        * `/<bucket>/<key>` itself, so an endpoint that already carries the bucket in
-       * its path ("…cloudflarestorage.com/orderos-media" — the URL Cloudflare's
+       * its path ("…cloudflarestorage.com/dinedirect-media" — the URL Cloudflare's
        * dashboard shows next to the bucket, which makes it the natural thing to
        * paste) writes every object under a DOUBLED prefix. The upload succeeds, the
        * stored public URL 404s, and every image on the platform silently vanishes

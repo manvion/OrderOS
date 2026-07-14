@@ -41,7 +41,7 @@ export async function generateMetadata({
 /**
  * The storefront shell for one restaurant.
  *
- * `[slug]` is populated by the middleware rewrite of `joes.orderos.ai` — the
+ * `[slug]` is populated by the middleware rewrite of `joes.dinedirect.manvion.ca` — the
  * customer never sees this path. The restaurant is fetched once here and handed
  * to the tree via context, so no child page re-fetches it.
  *
@@ -74,7 +74,7 @@ export default async function StorefrontLayout({
   /**
    * How was this page reached?
    *
-   * Via the tenant's own subdomain (`joes.orderos.ai`), the middleware rewrote the
+   * Via the tenant's own subdomain (`joes.dinedirect.manvion.ca`), the middleware rewrote the
    * request and the storefront IS the site root — internal links are plain `/menu`.
    *
    * Via `localhost/s/joes` — the only form that works on Windows, which cannot
@@ -182,7 +182,7 @@ export default async function StorefrontLayout({
                 {restaurant.phone}
               </a>
             </p>
-            <p className="pt-4 text-xs">Powered by OrderOS</p>
+            <p className="pt-4 text-xs">Powered by DineDirect</p>
           </div>
         </footer>
       </div>

@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { StaffRole } from '@orderos/shared';
+import type { StaffRole } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { ClerkService } from '../../common/auth/clerk.service';
@@ -256,11 +256,11 @@ export class StaffInvitesService {
     // Reuses EmailService's shell so invites look like everything else we send.
     await this.email.sendRaw({
       to: email,
-      subject: `You've been invited to join ${restaurant.name} on OrderOS`,
+      subject: `You've been invited to join ${restaurant.name} on DineDirect`,
       restaurant,
       body: `<h1 style="margin:0 0 8px;font-size:24px;">Join ${escapeHtml(restaurant.name)}</h1>
              <p style="margin:0 0 24px;color:#64748b;">
-               You've been invited to OrderOS as ${escapeHtml(roleLabel)}.
+               You've been invited to DineDirect as ${escapeHtml(roleLabel)}.
              </p>
              <div style="margin-top:24px;">
                <a href="${escapeHtml(acceptUrl)}"

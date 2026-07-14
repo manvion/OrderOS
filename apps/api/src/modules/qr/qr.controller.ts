@@ -14,7 +14,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
-import { qrCodeSchema, type QRCodeInput } from '@orderos/shared';
+import { qrCodeSchema, type QRCodeInput } from '@dinedirect/shared';
 import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { Audit, Public, Roles, TenantId } from '../../common/auth/decorators';

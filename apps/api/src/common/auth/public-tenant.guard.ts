@@ -9,7 +9,7 @@ import type { AuthedRequest } from './request-context';
  *
  * Resolution order:
  *   1. `X-Restaurant-Slug` header — set by the Next.js server when it proxies.
- *   2. The Host subdomain — `joes.orderos.ai` -> `joes`.
+ *   2. The Host subdomain — `joes.dinedirect.manvion.ca` -> `joes`.
  *
  * Only PUBLISHED, ACTIVE restaurants resolve. An unpublished tenant 404s, so a
  * half-configured restaurant can't take orders it can't fulfil.
@@ -92,7 +92,7 @@ export class PublicTenantGuard implements CanActivate {
 
     if (hostname.endsWith(`.${appDomain}`)) {
       const sub = hostname.slice(0, -(appDomain.length + 1));
-      // Reject nested subdomains ("a.b.orderos.ai") — only one label is a tenant.
+      // Reject nested subdomains ("a.b.dinedirect.manvion.ca") — only one label is a tenant.
       return sub.includes('.') ? null : sub;
     }
 

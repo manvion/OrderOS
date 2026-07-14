@@ -25,7 +25,7 @@ function configWith(values: Record<string, string | undefined>): ConfigService {
 
 const R2 = {
   S3_ENDPOINT: 'https://acct.r2.cloudflarestorage.com',
-  S3_BUCKET: 'orderos-media',
+  S3_BUCKET: 'dinedirect-media',
   S3_ACCESS_KEY_ID: 'key',
   S3_SECRET_ACCESS_KEY: 'secret',
   S3_REGION: 'auto',
@@ -72,7 +72,7 @@ describe('StorageService driver selection', () => {
             NODE_ENV: 'production',
             AZURE_STORAGE_CONNECTION_STRING:
               'DefaultEndpointsProtocol=https;AccountName=a;AccountKey=aaaa;EndpointSuffix=core.windows.net',
-            AZURE_STORAGE_CONTAINER: 'orderos-media',
+            AZURE_STORAGE_CONTAINER: 'dinedirect-media',
           }),
         ),
     ).not.toThrow();

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Users } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

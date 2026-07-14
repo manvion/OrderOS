@@ -11,8 +11,8 @@ account needed.
 
 ### 1. The product → **http://localhost:3005/s/bellaburger**
 
-**This is OrderOS.** The hosted storefront a restaurant gets at
-`theirname.orderos.ai`. Warm neutral palette, layered shadows, tabular figures on
+**This is DineDirect.** The hosted storefront a restaurant gets at
+`theirname.dinedirect.manvion.ca`. Warm neutral palette, layered shadows, tabular figures on
 every price, the whole design system.
 
 Walk it:
@@ -35,13 +35,13 @@ Walk it:
 from 2014 — Georgia serif, red Comic Sans buttons, a sticky header in a z-index
 war. Its CSS is hostile *on purpose*.
 
-The only OrderOS thing on that page is the floating **Order Now** button and the
+The only DineDirect thing on that page is the floating **Order Now** button and the
 panel it opens. That is the entire point: our widget has to survive a page we don't
 control, so it lives in a Shadow DOM (their CSS cannot reach it) and an iframe
 (their CSS cannot touch our checkout). Notice the site's *own* buttons are red and
 dashed. Ours isn't.
 
-If you want to judge how OrderOS looks, judge **:3005**. The ugly page is the test,
+If you want to judge how DineDirect looks, judge **:3005**. The ugly page is the test,
 not the product.
 
 ## What's real, what's a prop

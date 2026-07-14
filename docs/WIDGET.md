@@ -1,4 +1,4 @@
-# The OrderOS Widget
+# The DineDirect Widget
 
 Add online ordering to a website you already have. No rebuild, no migration, no
 moving your domain. Customers order and pay **without ever leaving your site**.
@@ -9,7 +9,7 @@ moving your domain. Customers order and pay **without ever leaving your site**.
 
 ### 1. Register your website
 
-In your OrderOS dashboard → **My website** → *Add a website*.
+In your DineDirect dashboard → **My website** → *Add a website*.
 
 Enter your domain (`joesburgers.com`). This is a security boundary, not a
 formality: the widget will only run on domains you register here, so if your code
@@ -18,7 +18,7 @@ snippet is copied onto someone else's site, it does nothing.
 You'll get a snippet that looks like this:
 
 ```html
-<script src="https://cdn.orderos.ai/widget.js" data-orderos-key="wk_9f3a…" defer></script>
+<script src="https://cdn.dinedirect.manvion.ca/widget.js" data-dinedirect-key="wk_9f3a…" defer></script>
 ```
 
 ### 2. Paste it into your website
@@ -41,15 +41,15 @@ your live site within minutes, without you editing your website again.
 
 ### WordPress
 
-**The plugin (recommended).** Install `orderos.zip`, go to **Settings → OrderOS**,
+**The plugin (recommended).** Install `dinedirect.zip`, go to **Settings → DineDirect**,
 paste your widget key, save. Done — you never touch a theme file.
 
 The plugin also gives you two shortcodes:
 
 | Shortcode | What it does |
 |---|---|
-| `[orderos_menu]` | Embeds your live menu in the page. Set the widget to *Menu embedded in the page* in your dashboard first. |
-| `[orderos_button text="Order Now"]` | A button, styled by your theme, that opens the ordering window. |
+| `[dinedirect_menu]` | Embeds your live menu in the page. Set the widget to *Menu embedded in the page* in your dashboard first. |
+| `[dinedirect_button text="Order Now"]` | A button, styled by your theme, that opens the ordering window. |
 
 **Without the plugin.** Appearance → Theme File Editor → `footer.php`, paste the
 snippet before `</body>`. Note that a theme update can overwrite this — the plugin
@@ -78,7 +78,7 @@ an includes/partial for the footer, put it there once.
 
 ```html
   <!-- … your page … -->
-  <script src="https://cdn.orderos.ai/widget.js" data-orderos-key="wk_…" defer></script>
+  <script src="https://cdn.dinedirect.manvion.ca/widget.js" data-dinedirect-key="wk_…" defer></script>
 </body>
 </html>
 ```
@@ -101,7 +101,7 @@ everywhere, needs no changes to your site.
 you put this container:
 
 ```html
-<div id="orderos-menu"></div>
+<div id="dinedirect-menu"></div>
 ```
 
 It sizes itself to its content (no scrollbar-inside-a-scrollbar). Checkout still
@@ -111,19 +111,19 @@ checkout people abandon.
 **My own button** — no UI from us. Wire up your existing button:
 
 ```html
-<button onclick="OrderOS.open()">Order Now</button>
+<button onclick="DineDirect.open()">Order Now</button>
 
 <!-- or, without touching your markup: -->
-<script>OrderOS.attach('#my-existing-order-button');</script>
+<script>DineDirect.attach('#my-existing-order-button');</script>
 ```
 
 ### The JavaScript API
 
 ```js
-OrderOS.open();        // open the ordering window
-OrderOS.close();       // close it
-OrderOS.cartCount();   // items currently in the cart
-OrderOS.attach(sel);   // make any element(s) open the widget on click
+DineDirect.open();        // open the ordering window
+DineDirect.close();       // close it
+DineDirect.cartCount();   // items currently in the cart
+DineDirect.attach(sel);   // make any element(s) open the widget on click
 ```
 
 ---
@@ -214,7 +214,7 @@ which dies with the tab, is all we need to compute a funnel — this is not a tr
 2. `not authorised for this domain` → the domain isn't registered. Add it in
    **My website**. Check whether you're on `www.` or a preview/staging domain.
 3. Nothing in the console at all → the snippet isn't on the page. View source and
-   search for `orderos`. On WordPress, a caching plugin may be serving an old page:
+   search for `dinedirect`. On WordPress, a caching plugin may be serving an old page:
    clear the cache.
 4. `This restaurant is not currently accepting orders` → your ordering page isn't
    published. **Settings → Publish**.
@@ -304,7 +304,7 @@ It's ~9KB after gzip; the bandwidth is irrelevant next to that.
 For production, point a CDN at the web app and set:
 
 ```bash
-WIDGET_CDN_URL=https://cdn.orderos.ai/widget.js
+WIDGET_CDN_URL=https://cdn.dinedirect.manvion.ca/widget.js
 ```
 
 This is baked into the snippet the dashboard generates, so **it is permanent once a

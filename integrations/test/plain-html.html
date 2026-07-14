@@ -82,7 +82,7 @@
       </p>
 
       <!-- INLINE_MENU mode mounts here. -->
-      <div id="orderos-menu"></div>
+      <div id="dinedirect-menu"></div>
 
       <h2 id="contact">Find us</h2>
       <p>535 Mission St, San Francisco · (415) 555-0123</p>
@@ -97,7 +97,7 @@
       For local testing, point data-api-url at the local API. In production the
       snippet is exactly two attributes and no more:
 
-        <script src="https://cdn.orderos.ai/widget.js" data-orderos-key="wk_..." defer></script>
+        <script src="https://cdn.dinedirect.manvion.ca/widget.js" data-dinedirect-key="wk_..." defer></script>
 
       Replace the key below with the one from your dashboard ("My website"), and
       make sure this page's origin (http://localhost:8080) is registered as an
@@ -107,20 +107,20 @@
     -->
     <script
       src="http://localhost:3000/widget.js"
-      data-orderos-key="REPLACE_WITH_YOUR_WIDGET_KEY"
+      data-dinedirect-key="REPLACE_WITH_YOUR_WIDGET_KEY"
       data-api-url="http://localhost:4000"
       defer
     ></script>
 
     <script>
       // Wire the site's own button to the widget. `attach` waits for nothing —
-      // window.OrderOS exists as soon as widget.js has run, and the click handler
+      // window.DineDirect exists as soon as widget.js has run, and the click handler
       // it registers works even before the config request has come back.
       window.addEventListener('load', function () {
-        if (window.OrderOS) {
-          window.OrderOS.attach('#my-own-order-button');
+        if (window.DineDirect) {
+          window.DineDirect.attach('#my-own-order-button');
         } else {
-          console.error('[test] OrderOS did not load — check the key and the allowed domain.');
+          console.error('[test] DineDirect did not load — check the key and the allowed domain.');
         }
       });
     </script>

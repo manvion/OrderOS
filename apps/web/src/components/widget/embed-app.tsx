@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { formatMoney, WIDGET_MESSAGE_NAMESPACE, type WidgetSettings } from '@orderos/shared';
+import { formatMoney, WIDGET_MESSAGE_NAMESPACE, type WidgetSettings } from '@dinedirect/shared';
 import { ApiRequestError } from '@/lib/api';
 import { createWidgetApi, type WidgetConfig } from '@/lib/widget-api';
 import type { MenuCategory, MenuProduct, TrackedOrder, DeliveryQuote } from '@/lib/api';

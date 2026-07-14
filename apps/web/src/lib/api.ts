@@ -9,7 +9,7 @@
  *    works at two restaurants can say which one they're acting as.
  */
 
-import type { TaxComponent } from '@orderos/shared';
+import type { TaxComponent } from '@dinedirect/shared';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -760,7 +760,7 @@ export interface Restaurant {
   aboutHeadline: string | null;
   aboutBody: string | null;
   timezone: string;
-  /** Derived from the country, never chosen. See deriveLocaleDefaults in @orderos/shared. */
+  /** Derived from the country, never chosen. See deriveLocaleDefaults in @dinedirect/shared. */
   currency: string;
   /** The tax actually charged, as named lines. Null for a restaurant that never set it. */
   taxComponents: TaxComponent[] | null;

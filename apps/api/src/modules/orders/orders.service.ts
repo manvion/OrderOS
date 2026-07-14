@@ -16,7 +16,7 @@ import {
   type BusinessHours,
   type CreateOrderInput,
   type PricedLineItem,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -620,7 +620,7 @@ export class OrdersService {
   /**
    * The only way an order's status ever changes. Every caller — dashboard,
    * Stripe webhook, Uber webhook — funnels through here, so the legal-transition
-   * table in @orderos/shared is genuinely the single source of truth, and every
+   * table in @dinedirect/shared is genuinely the single source of truth, and every
    * change lands in OrderEvent for the customer's timeline.
    */
   async transition(

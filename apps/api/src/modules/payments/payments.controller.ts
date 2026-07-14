@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { refundSchema, type RefundInput } from '@orderos/shared';
+import { refundSchema, type RefundInput } from '@dinedirect/shared';
 import type { Request } from 'express';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { Audit, CurrentUser, Public, Roles, TenantId } from '../../common/auth/decorators';

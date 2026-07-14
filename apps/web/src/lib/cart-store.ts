@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { priceOrder, type PricingResult } from '@orderos/shared';
+import { priceOrder, type PricingResult } from '@dinedirect/shared';
 import type { MenuProduct, StorefrontRestaurant } from './api';
 
 export interface CartLine {
@@ -148,7 +148,7 @@ export const useCart = create<CartState>()(
         ),
     }),
     {
-      name: 'orderos-cart',
+      name: 'dinedirect-cart',
       storage: createJSONStorage(() => localStorage),
     },
   ),
@@ -157,7 +157,7 @@ export const useCart = create<CartState>()(
 /**
  * The cart's live total, computed with the SAME function the API uses to bill.
  * If these two ever disagree, it's a bug in one place, not two — which is exactly
- * why the pricing engine lives in @orderos/shared.
+ * why the pricing engine lives in @dinedirect/shared.
  *
  * `deliveryFeeCents` is passed in because it can come from a live Uber quote
  * rather than the restaurant's default.

@@ -1,4 +1,4 @@
-import { formatMoney, type OrderStatus } from '@orderos/shared';
+import { formatMoney, type OrderStatus } from '@dinedirect/shared';
 
 /**
  * Every message the platform sends, in one file.

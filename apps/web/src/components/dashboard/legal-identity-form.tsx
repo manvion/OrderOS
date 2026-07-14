@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, Landmark } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCountry, isValidTaxId, needsTaxIdForReceipts } from '@orderos/shared';
+import { getCountry, isValidTaxId, needsTaxIdForReceipts } from '@dinedirect/shared';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';

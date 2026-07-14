@@ -17,7 +17,7 @@ import type { ConfigService } from '@nestjs/config';
  *
  * THE RULE (one inference, no new env var): subdomain tenancy exists only when
  * WEB_URL itself lives under APP_DOMAIN. If the operator's web app runs at
- * https://dashboard.orderos.ca and APP_DOMAIN=orderos.ca, then joes.orderos.ca
+ * https://dashboard.dinedirect.ca and APP_DOMAIN=dinedirect.ca, then joes.dinedirect.ca
  * is real — use it. If WEB_URL is a vercel.app host or localhost, no wildcard
  * subdomain can exist — use `${WEB_URL}/s/<slug>`, which the middleware serves
  * everywhere except on a real apex.

@@ -42,7 +42,7 @@ export class AuditInterceptor implements NestInterceptor {
          * is a synthetic `support:<adminId>`. Writing that to `userId` would break
          * the foreign key, so it goes in metadata instead.
          *
-         * The restaurant then reads their own audit log and sees "OrderOS support
+         * The restaurant then reads their own audit log and sees "DineDirect support
          * did this, and here is who" — rather than a phantom staff member they
          * don't recognise, which is exactly the kind of thing that destroys trust.
          */

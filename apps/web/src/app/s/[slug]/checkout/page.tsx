@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { storefrontApi, ApiRequestError, type Address, type DeliveryQuote } from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';

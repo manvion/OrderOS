@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { HANDOFF_CODE_LENGTH, generateHandoffCode, isUnambiguous } from '@orderos/shared';
+import { HANDOFF_CODE_LENGTH, generateHandoffCode, isUnambiguous } from '@dinedirect/shared';
 
 const gen = () => generateHandoffCode((n) => randomBytes(n));
 

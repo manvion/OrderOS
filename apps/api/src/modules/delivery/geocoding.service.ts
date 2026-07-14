@@ -157,7 +157,7 @@ export class GeocodingService {
     const res = await fetch(url, {
       // Nominatim's policy REQUIRES a real identifying User-Agent. Omitting it gets
       // you blocked, and rightly so.
-      headers: { 'User-Agent': 'OrderOS/1.0 (restaurant ordering platform)' },
+      headers: { 'User-Agent': 'DineDirect/1.0 (restaurant ordering platform)' },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`Nominatim ${res.status}`);

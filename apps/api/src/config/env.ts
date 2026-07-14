@@ -15,8 +15,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().default(4000),
   API_URL: z.string().url().default('http://localhost:4000'),
 
-  /** Apex domain for tenant subdomains: <slug>.orderos.ai */
-  APP_DOMAIN: z.string().default('orderos.ai'),
+  /** Apex domain for tenant subdomains: <slug>.dinedirect.manvion.ca */
+  APP_DOMAIN: z.string().default('dinedirect.manvion.ca'),
   WEB_URL: z.string().url().default('http://localhost:3000'),
   /** Comma-separated exact origins allowed in addition to *.APP_DOMAIN. */
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
@@ -67,7 +67,7 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
-  RESEND_FROM_EMAIL: z.string().email().default('orders@orderos.ai'),
+  RESEND_FROM_EMAIL: z.string().email().default('orders@dinedirect.manvion.ca'),
 
   /**
    * --- Object storage: logos, menu photos, gallery images, rendered QR PNGs ---
@@ -100,7 +100,7 @@ const envSchema = z.object({
   S3_PUBLIC_URL: z.string().url().optional(),
 
   AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
-  AZURE_STORAGE_CONTAINER: z.string().default('orderos-media'),
+  AZURE_STORAGE_CONTAINER: z.string().default('dinedirect-media'),
   /** Public CDN base in front of the blob container, if any. */
   AZURE_STORAGE_PUBLIC_URL: z.string().url().optional(),
 

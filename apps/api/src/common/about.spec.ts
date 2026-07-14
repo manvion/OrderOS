@@ -1,4 +1,4 @@
-import { aboutParagraphs, hasAboutContent } from '@orderos/shared';
+import { aboutParagraphs, hasAboutContent } from '@dinedirect/shared';
 
 describe('About page content', () => {
   describe('aboutParagraphs', () => {

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import { ABOUT_BODY_MAX, GALLERY_MAX_IMAGES, aboutParagraphs } from '@orderos/shared';
+import { ABOUT_BODY_MAX, GALLERY_MAX_IMAGES, aboutParagraphs } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
@@ -23,7 +23,7 @@ import { Label, Skeleton } from '@/components/ui/primitives';
  * place over another.
  *
  * PLAIN TEXT, deliberately. No rich text editor, no markdown, no HTML. A tenant who
- * can store HTML that we inject into a page on *.orderos.ai has stored XSS — they
+ * can store HTML that we inject into a page on *.dinedirect.manvion.ca has stored XSS — they
  * would be running script on a domain that carries other people's sessions. The
  * formatting model is "a blank line starts a new paragraph", which is enough.
  */

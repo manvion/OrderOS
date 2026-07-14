@@ -1,4 +1,4 @@
-import { isOriginAllowed, normalizeDomain, widgetSettingsSchema } from '@orderos/shared';
+import { isOriginAllowed, normalizeDomain, widgetSettingsSchema } from '@dinedirect/shared';
 
 /**
  * The widget key is public — it ships in the restaurant's page source. The ONLY

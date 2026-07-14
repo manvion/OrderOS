@@ -1,4 +1,4 @@
-// OrderOS — multi-tenant restaurant ordering platform.
+// DineDirect — multi-tenant restaurant ordering platform.
 //
 // TENANCY RULE: every table below except `User` (which is scoped by membership)
 // and `WebhookEvent` (which is global) carries a `restaurantId`. Every query in
@@ -46,7 +46,7 @@ enum FulfillmentType {
 
 /// How a restaurant is reached by customers.
 ///
-/// WEBSITE  — the full storefront at <slug>.orderos.ai (or their own domain):
+/// WEBSITE  — the full storefront at <slug>.dinedirect.manvion.ca (or their own domain):
 ///            homepage, about page, menu, the lot. Their online presence.
 ///
 /// QR_ONLY  — no website at all. The ONLY way in is scanning a QR code on the
@@ -121,7 +121,7 @@ enum OnboardingStep {
 
 model Restaurant {
   id   String @id @default(cuid())
-  /// Subdomain: <slug>.orderos.ai. Immutable after publish (links would break).
+  /// Subdomain: <slug>.dinedirect.manvion.ca. Immutable after publish (links would break).
   slug String @unique
 
   name        String
@@ -174,7 +174,7 @@ model Restaurant {
   ///
   /// PLAIN TEXT, not HTML or markdown, and it is rendered as escaped paragraphs.
   /// Letting a tenant store HTML that we then inject into a page served on
-  /// *.orderos.ai is stored XSS with extra steps — one restaurant could run script
+  /// *.dinedirect.manvion.ca is stored XSS with extra steps — one restaurant could run script
   /// on another's domain, or on ours. Blank lines separate paragraphs. That is the
   /// whole formatting model, and it is enough for "we opened in 1998".
   aboutHeadline String?
@@ -355,7 +355,7 @@ model CustomDomain {
   lastCheckedAt DateTime?
   verifiedAt    DateTime?
 
-  /// Serve the storefront at this domain instead of <slug>.orderos.ai.
+  /// Serve the storefront at this domain instead of <slug>.dinedirect.manvion.ca.
   isPrimary Boolean @default(true)
 
   restaurantId String
@@ -1085,7 +1085,7 @@ model QRCode {
   /// Only meaningful for TABLE codes. Pre-fills the order's table number.
   tableNumber String?
 
-  /// The encoded URL, e.g. https://joes.orderos.ai/menu?src=qr&c=<id>
+  /// The encoded URL, e.g. https://joes.dinedirect.manvion.ca/menu?src=qr&c=<id>
   targetUrl String
   /// Azure Blob URL of the rendered PNG.
   imageUrl  String?

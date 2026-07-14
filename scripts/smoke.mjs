@@ -8,7 +8,7 @@
  * answered. It does not tell you it was yours, or that it was right.
  *
  *   node scripts/smoke.mjs                              # against localhost
- *   API_URL=https://api.orderos.ai WEB_URL=https://orderos.ai node scripts/smoke.mjs
+ *   API_URL=https://api.dinedirect.manvion.ca WEB_URL=https://dinedirect.manvion.ca node scripts/smoke.mjs
  *
  * Exits non-zero on the first failure, so it can gate a deploy in CI.
  */
@@ -134,7 +134,7 @@ await check('Storefront page renders the restaurant (not the marketing site)', a
   if (!html.includes('__NEXT_DATA__') && !html.includes('_next')) {
     throw new Error('response is not a Next.js page — is something else on this port?');
   }
-  if (!/Powered by OrderOS/i.test(html)) {
+  if (!/Powered by DineDirect/i.test(html)) {
     throw new Error('page rendered, but it is not the storefront layout');
   }
   return `${html.length} bytes`;
@@ -147,7 +147,7 @@ await check('widget.js is served and is not the 404 page', async () => {
   if (body.includes('<!DOCTYPE') || body.includes('<html')) {
     throw new Error('widget.js returned HTML — the middleware is rewriting it (it must be excluded)');
   }
-  if (!body.includes('orderos') && !body.includes('OrderOS')) {
+  if (!body.includes('dinedirect') && !body.includes('DineDirect')) {
     throw new Error('served a JS file, but it does not look like our widget');
   }
   return `${body.length} bytes of JS`;

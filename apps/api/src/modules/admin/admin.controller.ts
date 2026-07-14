@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { createRestaurantSchema } from '@orderos/shared';
+import { createRestaurantSchema } from '@dinedirect/shared';
 import { z } from 'zod';
 import {
   PlatformAdminGuard,

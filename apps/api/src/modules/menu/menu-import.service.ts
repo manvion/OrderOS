@@ -343,8 +343,8 @@ export class MenuImportService {
         Authorization: `Bearer ${this.openRouterKey}`,
         'Content-Type': 'application/json',
         // OpenRouter attribution headers; free-tier routing likes them.
-        'HTTP-Referer': 'https://orderos.app',
-        'X-Title': 'OrderOS menu import',
+        'HTTP-Referer': 'https://dinedirect.app',
+        'X-Title': 'DineDirect menu import',
       },
       body: JSON.stringify({
         model,
@@ -451,7 +451,7 @@ export class MenuImportService {
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(15_000),
-        headers: { 'User-Agent': 'OrderOS-MenuImport/1.0' },
+        headers: { 'User-Agent': 'DineDirect-MenuImport/1.0' },
         redirect: 'follow',
       });
       if (!res.ok) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { WIDGET_MESSAGE_NAMESPACE } from '@orderos/shared';
+import { WIDGET_MESSAGE_NAMESPACE } from '@dinedirect/shared';
 import { EmbedApp } from './embed-app';
 
 /**

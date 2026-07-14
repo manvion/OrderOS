@@ -5,7 +5,7 @@ const config: NextConfig = {
 
   // The shared package ships TypeScript source, not a build artifact — Next
   // compiles it as part of the app so we don't need a watch-and-rebuild step.
-  transpilePackages: ['@orderos/shared'],
+  transpilePackages: ['@dinedirect/shared'],
 
   /**
    * Where uploaded images may be SERVED from.

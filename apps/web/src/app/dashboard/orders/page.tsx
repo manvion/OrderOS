@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Clock, ExternalLink, MapPin, Phone, Truck, UtensilsCrossed } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError, type Order } from '@/lib/api';

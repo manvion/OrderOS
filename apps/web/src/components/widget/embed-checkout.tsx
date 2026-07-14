@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, type DeliveryQuote, type StorefrontRestaurant } from '@/lib/api';
 import type { WidgetApi } from '@/lib/widget-api';

@@ -23,7 +23,7 @@ import {
   UtensilsCrossed,
   Wrench,
 } from 'lucide-react';
-import { formatMoney } from '@orderos/shared';
+import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, createDashboardApi, type AdminRestaurant } from '@/lib/api';
 import { tenantUrl } from '@/lib/tenant-url';
@@ -201,7 +201,7 @@ export function AdminConsole() {
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
-            <h1 className="text-lg font-bold tracking-tight">OrderOS · Platform</h1>
+            <h1 className="text-lg font-bold tracking-tight">DineDirect · Platform</h1>
             <p className="text-xs text-muted-foreground">
               {me.email} · {me.role.replace('_', ' ').toLowerCase()}
             </p>

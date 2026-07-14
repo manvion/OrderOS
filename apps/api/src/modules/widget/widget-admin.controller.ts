@@ -16,7 +16,7 @@ import {
   updateIntegrationSchema,
   type CreateIntegrationInput,
   type UpdateIntegrationInput,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { Audit, CurrentUser, Roles, TenantId } from '../../common/auth/decorators';
 import type { AuthUser } from '../../common/auth/request-context';
@@ -109,6 +109,6 @@ export class WidgetAdminController {
    */
   private buildSnippet(widgetKey: string): string {
     const cdnUrl = this.config.get<string>('WIDGET_CDN_URL') ?? `${this.config.getOrThrow<string>('WEB_URL')}/widget.js`;
-    return `<script src="${cdnUrl}" data-orderos-key="${widgetKey}" defer></script>`;
+    return `<script src="${cdnUrl}" data-dinedirect-key="${widgetKey}" defer></script>`;
   }
 }

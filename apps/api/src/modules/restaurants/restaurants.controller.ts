@@ -22,7 +22,7 @@ import {
   type DeliverySettingsInput,
   type StaffRole,
   type UpdateRestaurantInput,
-} from '@orderos/shared';
+} from '@dinedirect/shared';
 import { z } from 'zod';
 import { StaffInvitesService } from './staff-invites.service';
 

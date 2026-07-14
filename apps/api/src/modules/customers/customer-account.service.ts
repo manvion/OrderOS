@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { AddressInput } from '@orderos/shared';
+import type { AddressInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ClerkService } from '../../common/auth/clerk.service';
 

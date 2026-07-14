@@ -83,7 +83,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside className="hidden w-64 shrink-0 flex-col border-r bg-background lg:flex">
         <div className="border-b p-4">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">
-            OrderOS
+            DineDirect
           </Link>
         </div>
 
@@ -156,7 +156,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1">
         {/* Mobile nav. Kitchen staff run this on a phone as often as a tablet. */}
         <header className="flex items-center justify-between border-b bg-background p-4 lg:hidden">
-          <span className="font-bold">OrderOS</span>
+          <span className="font-bold">DineDirect</span>
           <UserButton />
         </header>
         <nav className="no-scrollbar flex gap-1 overflow-x-auto border-b bg-background p-2 lg:hidden">

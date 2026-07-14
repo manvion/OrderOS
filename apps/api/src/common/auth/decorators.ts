@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
-import type { StaffRole } from '@orderos/shared';
+import type { StaffRole } from '@dinedirect/shared';
 import type { AuthedRequest, AuthUser } from './request-context';
 
 /** Skip ClerkAuthGuard. Use on storefront and webhook routes. */

@@ -1,4 +1,4 @@
-# OrderOS roadmap
+# DineDirect roadmap
 
 What a mature version of this company builds, in the order it should build it.
 
@@ -153,7 +153,7 @@ blocker: a restaurant will not run two systems.
 
 ## The one thing I would not build
 
-**A consumer marketplace.** The moment OrderOS has a "browse restaurants near you"
+**A consumer marketplace.** The moment DineDirect has a "browse restaurants near you"
 page, it is competing with its own customers for the customer relationship — which
 is the exact thing they left DoorDash to escape. The entire value proposition is
 *these are your customers, not ours*. Breaking that would be the most tempting and
