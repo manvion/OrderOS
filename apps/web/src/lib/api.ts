@@ -999,7 +999,12 @@ export interface Customer {
 
 export interface AnalyticsOverview {
   period: string;
+  /** Gross, net of refunds only -- what customers paid. */
   revenueCents: number;
+  /** Gross minus platform commission minus courier cost -- what actually lands
+   *  in the restaurant's Stripe payout (before Stripe's own processing fee,
+   *  which Stripe's own payout report shows exactly). This is "your money". */
+  payoutCents: number;
   orderCount: number;
   averageOrderCents: number;
   newCustomers: number;

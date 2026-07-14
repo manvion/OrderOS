@@ -80,9 +80,14 @@ export default function DashboardOverview() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label="Revenue"
-          value={isLoading ? null : formatMoney(overview?.revenueCents ?? 0, currency)}
+          label="Your payout"
+          value={isLoading ? null : formatMoney(overview?.payoutCents ?? 0, currency)}
           change={overview?.changes.revenue ?? null}
+          caption={
+            overview && overview.revenueCents !== overview.payoutCents
+              ? `${formatMoney(overview.revenueCents, currency)} gross, before delivery + commission`
+              : undefined
+          }
         />
         <Stat
           label="Orders"
@@ -140,10 +145,12 @@ function Stat({
   label,
   value,
   change,
+  caption,
 }: {
   label: string;
   value: string | null;
   change: number | null;
+  caption?: string;
 }) {
   return (
     <Card>
@@ -171,6 +178,8 @@ function Stat({
             {Math.abs(change)}% vs previous 30 days
           </p>
         )}
+
+        {caption && <p className="mt-1 text-xs text-muted-foreground">{caption}</p>}
       </CardContent>
     </Card>
   );

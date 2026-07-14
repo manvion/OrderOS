@@ -16,6 +16,16 @@ export class AnalyticsService {
    *
    * Revenue counts PAID orders only, and is net of refunds. Counting gross would
    * flatter the number and make the dashboard a liar.
+   *
+   * `payoutCents` goes a step further: gross minus the platform's commission
+   * minus the courier's actual cost -- the two amounts application_fee_amount
+   * actually pulls out of the restaurant's Stripe payout on every charge (see
+   * PaymentsService). Delivery fee and platform fee were never the restaurant's
+   * money to begin with; showing gross revenue next to a smaller real deposit
+   * reads as a discrepancy instead of what it is. NOT further adjusted for
+   * Stripe's own card-processing fee -- that's a per-charge amount Stripe
+   * computes and deducts itself, and Stripe's own payout report is the correct
+   * place to see it exactly, not an estimate duplicated here.
    */
   async getOverview(restaurantId: string, period: Period = '30d') {
     const days = PERIOD_DAYS[period];
@@ -31,12 +41,13 @@ export class AnalyticsService {
     return {
       period,
       revenueCents: current.revenueCents,
+      payoutCents: current.payoutCents,
       orderCount: current.orderCount,
       averageOrderCents: current.averageOrderCents,
       newCustomers: current.newCustomers,
       refundedCents: current.refundedCents,
       changes: {
-        revenue: this.percentChange(current.revenueCents, previous.revenueCents),
+        revenue: this.percentChange(current.payoutCents, previous.payoutCents),
         orders: this.percentChange(current.orderCount, previous.orderCount),
         averageOrder: this.percentChange(current.averageOrderCents, previous.averageOrderCents),
       },
@@ -44,7 +55,7 @@ export class AnalyticsService {
   }
 
   private async aggregate(restaurantId: string, from: Date, to: Date) {
-    const [orderAgg, refundAgg, newCustomers] = await Promise.all([
+    const [orderAgg, paymentAgg, newCustomers] = await Promise.all([
       this.prisma.order.aggregate({
         where: {
           restaurantId,
@@ -57,7 +68,7 @@ export class AnalyticsService {
       }),
       this.prisma.payment.aggregate({
         where: { restaurantId, createdAt: { gte: from, lt: to } },
-        _sum: { refundedAmountCents: true },
+        _sum: { refundedAmountCents: true, platformFeeCents: true, courierCostCents: true },
       }),
       this.prisma.customer.count({
         where: { restaurantId, createdAt: { gte: from, lt: to } },
@@ -65,10 +76,14 @@ export class AnalyticsService {
     ]);
 
     const gross = orderAgg._sum.totalCents ?? 0;
-    const refunded = refundAgg._sum.refundedAmountCents ?? 0;
+    const refunded = paymentAgg._sum.refundedAmountCents ?? 0;
+    const platformFee = paymentAgg._sum.platformFeeCents ?? 0;
+    const courierCost = paymentAgg._sum.courierCostCents ?? 0;
+    const revenue = gross - refunded;
 
     return {
-      revenueCents: gross - refunded,
+      revenueCents: revenue,
+      payoutCents: Math.max(0, revenue - platformFee - courierCost),
       refundedCents: refunded,
       orderCount: orderAgg._count,
       averageOrderCents: Math.round(orderAgg._avg.totalCents ?? 0),
