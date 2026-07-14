@@ -32,9 +32,13 @@ const badgeVariants = cva(
         default: 'border-transparent bg-primary text-primary-foreground',
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         destructive: 'border-transparent bg-destructive text-destructive-foreground',
-        success: 'border-transparent bg-emerald-100 text-emerald-800',
-        warning: 'border-transparent bg-amber-100 text-amber-800',
-        info: 'border-transparent bg-sky-100 text-sky-800',
+        // Soft tint + a defining border, the same treatment .bg-brand-subtle uses
+        // elsewhere -- not flat pastel Bootstrap swatches. Hue stays semantic
+        // (green/amber/blue read instantly on a busy order board); the TONE now
+        // matches a considered system instead of a stock component library.
+        success: 'border-emerald-600/20 bg-emerald-600/10 text-emerald-700',
+        warning: 'border-amber-600/25 bg-amber-600/10 text-amber-700',
+        info: 'border-sky-600/20 bg-sky-600/10 text-sky-700',
         outline: 'text-foreground',
       },
     },

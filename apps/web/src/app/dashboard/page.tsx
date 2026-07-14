@@ -51,7 +51,7 @@ export default function DashboardOverview() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Rocket className="h-4 w-4" />
-              {readiness.ready ? 'You&apos;re ready to go live' : 'Finish setting up'}
+              {readiness.ready ? "You're ready to go live" : 'Finish setting up'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
