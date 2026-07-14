@@ -80,7 +80,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-muted/30">
-      <aside className="hidden w-64 shrink-0 flex-col border-r bg-background lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r bg-background shadow-soft lg:flex">
         <div className="border-b p-4">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">
             DineDirect
@@ -137,7 +137,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 href={href}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   active
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-brand text-brand-foreground shadow-soft'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 }`}
               >
@@ -167,7 +167,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
-                  active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                  active ? 'bg-brand text-brand-foreground' : 'text-muted-foreground'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
