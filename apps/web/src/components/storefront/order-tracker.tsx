@@ -55,16 +55,19 @@ export function OrderTracker({
   /**
    * Poll while the order is live.
    *
-   * Faster (8s) once a driver is actually moving, because that's when the map is
+   * Faster (4s) once a driver is actually moving, because that's when the map is
    * the thing the customer is staring at and a stale pin is the whole failure.
-   * Slower (20s) while the food is still in the kitchen, where nothing visible
-   * changes minute to minute. Stops entirely once the order is terminal.
+   * Still fast (6s) while the food is in the kitchen -- this used to be 20s on the
+   * theory that "nothing visible changes minute to minute", but every status
+   * change (accepted, preparing, ready) is exactly the moment the customer IS
+   * watching, right after paying, and a 20s lag there reads as broken, not calm.
+   * Stops entirely once the order is terminal.
    */
   useEffect(() => {
     if (TERMINAL.includes(order.status)) return;
 
     const isMoving = order.status === 'DRIVER_ASSIGNED' || order.status === 'OUT_FOR_DELIVERY';
-    const intervalMs = isMoving ? 8_000 : 20_000;
+    const intervalMs = isMoving ? 4_000 : 6_000;
 
     const interval = setInterval(async () => {
       try {

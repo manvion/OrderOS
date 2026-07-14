@@ -148,30 +148,38 @@ export class OrdersService {
      * tells them. Failure here must never block a paying customer: no quote means
      * the platform absorbs this one dispatch, logged, not thrown.
      */
-    let courierCostCents: number | null = null;
-    if (
+    // Independent of the courier quote and of each other -- run all three
+    // concurrently rather than paying for Uber/DoorDash's round-trip, THEN the
+    // customer upsert, THEN the order-number count, one after another. Checkout
+    // latency was the sum of all three; it is now whichever one is slowest.
+    const courierQuote =
       input.fulfillment === 'DELIVERY' &&
       input.deliveryAddress &&
       (restaurant.uberDirectEnabled || restaurant.doorDashEnabled)
-    ) {
-      try {
-        const { quote } = await this.couriers.bestQuote(restaurant, {
-          pickup: restaurant,
-          dropoff: input.deliveryAddress,
-          pickupReadyAt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000),
-          orderValueCents: pricing.totalCents,
-          externalId: `order-quote_${randomBytes(8).toString('hex')}`,
-        });
-        courierCostCents = quote?.feeCents ?? null;
-      } catch (err) {
-        this.logger.warn(
-          `Courier quote failed at order time -- platform absorbs this dispatch: ${(err as Error).message}`,
-        );
-      }
-    }
+        ? this.couriers
+            .bestQuote(restaurant, {
+              pickup: restaurant,
+              dropoff: input.deliveryAddress,
+              pickupReadyAt: new Date(Date.now() + restaurant.prepTimeMinutes * 60_000),
+              orderValueCents: pricing.totalCents,
+              externalId: `order-quote_${randomBytes(8).toString('hex')}`,
+            })
+            .then(({ quote }) => quote?.feeCents ?? null)
+            .catch((err: Error) => {
+              // Failure here must never block a paying customer: no quote means the
+              // platform absorbs this one dispatch, logged, not thrown.
+              this.logger.warn(
+                `Courier quote failed at order time -- platform absorbs this dispatch: ${err.message}`,
+              );
+              return null;
+            })
+        : Promise.resolve(null);
 
-    const customer = await this.upsertCustomer(restaurantId, input.customer, clerkUserId);
-    const orderNumber = await this.nextOrderNumber(restaurantId);
+    const [courierCostCents, customer, orderNumber] = await Promise.all([
+      courierQuote,
+      this.upsertCustomer(restaurantId, input.customer, clerkUserId),
+      this.nextOrderNumber(restaurantId),
+    ]);
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
