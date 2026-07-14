@@ -665,7 +665,7 @@ export default function CheckoutPage() {
       </Button>
 
       <p className="text-center text-xs text-muted-foreground">
-        You&apos;ll be redirected to Stripe to pay securely. We never see your card details.
+        You&apos;ll be redirected to a secure payment page. We never see your card details.
       </p>
     </form>
   );

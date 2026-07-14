@@ -14,8 +14,8 @@ import { Button } from '@/components/ui/button';
 
 const TICKER_ITEMS = [
   'No commission on direct orders',
-  'Secure checkout via Stripe',
-  'Delivery dispatched through Uber Direct',
+  'Secure, encrypted checkout',
+  'Delivery dispatched automatically',
   'QR ordering for every table',
   'Live the same day you sign up',
 ];
@@ -23,20 +23,46 @@ const TICKER_ITEMS = [
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
-      <header className="border-b bg-background/80 backdrop-blur-sm">
-        <div className="container flex h-16 items-center justify-between">
-          <span className="text-lg font-bold tracking-tight">DineDirect</span>
+      {/* Dark, permanently -- this header only ever lives on THIS page, and the
+          section right under it is always the dark hero. A light header here
+          was a leftover from before the hero went dark: a hard white-to-black
+          seam at the very first thing anyone sees. */}
+      <header className="border-b border-white/10 bg-foreground/95 text-background backdrop-blur-sm">
+        <div className="container flex h-16 items-center justify-between gap-6">
+          <span className="shrink-0 text-lg font-bold tracking-tight">DineDirect</span>
+
+          <nav className="hidden items-center gap-1 md:flex">
+            <a
+              href="#why-direct"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-background/70 transition-colors hover:bg-white/10 hover:text-background"
+            >
+              Why direct
+            </a>
+            <a
+              href="#features"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-background/70 transition-colors hover:bg-white/10 hover:text-background"
+            >
+              Features
+            </a>
+            <a
+              href="#how-it-works"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-background/70 transition-colors hover:bg-white/10 hover:text-background"
+            >
+              How it works
+            </a>
+          </nav>
+
           <div className="flex items-center gap-2">
             <SignedOut>
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm" className="text-background hover:bg-white/10 hover:text-background">
                 <Link href="/sign-in">Sign in</Link>
               </Button>
-              <Button asChild size="sm">
+              <Button asChild variant="brand" size="sm">
                 <Link href="/sign-up">Get started</Link>
               </Button>
             </SignedOut>
             <SignedIn>
-              <Button asChild size="sm">
+              <Button asChild variant="brand" size="sm">
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
             </SignedIn>
@@ -76,8 +102,9 @@ export default function LandingPage() {
               </h1>
 
               <p className="rise-3 mt-6 max-w-md text-lg text-background/70">
-                Take orders straight from your own site — pickup, delivery, dine-in. Stripe handles
-                the money, Uber handles the driving. Keep what a marketplace cut used to take.
+                Take orders straight from your own site — pickup, delivery, dine-in. Payments are
+                processed securely and delivery dispatches automatically. Keep what a marketplace
+                cut used to take.
               </p>
 
               <div className="rise-4 mt-9 flex flex-wrap items-center gap-4">
@@ -151,7 +178,7 @@ export default function LandingPage() {
           THE PROBLEM. A case, built with real, well-known industry figures --
           not invented stats about a product with no customers yet.
         */}
-        <section className="border-b bg-foreground py-20 text-background lg:py-24">
+        <section id="why-direct" className="border-b bg-foreground py-20 text-background lg:py-24">
           <div className="container">
             <p className="text-sm font-semibold uppercase tracking-widest text-brand">
               The problem
@@ -176,7 +203,7 @@ export default function LandingPage() {
             .animate-rise, not <Reveal> -- Reveal needs a real scroll past an
             IntersectionObserver with no SSR fallback in its current implementation,
             which is the wrong trade for copy that has to be readable unconditionally. */}
-        <section className="container space-y-20 py-20 lg:py-28">
+        <section id="features" className="container space-y-20 py-20 lg:py-28">
           <div className="animate-rise">
             <FeatureRow
               icon={ChefHat}
@@ -189,7 +216,7 @@ export default function LandingPage() {
             <FeatureRow
               icon={Bike}
               eyebrow="Delivery, without a fleet"
-              title="Mark it ready. Uber takes it from there."
+              title="Mark it ready. A courier takes it from there."
               body="One tap dispatches a courier automatically — no phone calls, no separate app. Your customer gets a live map and a real ETA, watching their own order move."
             />
           </div>
@@ -205,7 +232,7 @@ export default function LandingPage() {
 
         {/* How it works -- dark again, keeping the rhythm going. Three real steps
             from the actual onboarding flow, not a generic "1-2-3, magic" beat. */}
-        <section className="border-y bg-foreground py-20 text-background lg:py-24">
+        <section id="how-it-works" className="border-y bg-foreground py-20 text-background lg:py-24">
           <div className="container">
             <p className="text-sm font-semibold uppercase tracking-widest text-brand">
               Go live in three steps
@@ -224,8 +251,8 @@ export default function LandingPage() {
               <Step
                 number={2}
                 icon={CreditCard}
-                title="Connect Stripe"
-                body="A few minutes of Stripe's own onboarding. Once it's done, you can take a card."
+                title="Connect payment methods"
+                body="A few minutes of secure onboarding. Once it's done, you can take a card."
               />
               <Step
                 number={3}

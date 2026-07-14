@@ -336,8 +336,8 @@ export function EmbedCheckout({
       </button>
 
       <p className="text-center text-xs text-muted-foreground">
-        Payment opens in a new tab, secured by Stripe. You&apos;ll come straight back here to track
-        your order.
+        Payment opens in a new tab on a secure payment page. You&apos;ll come straight back here to
+        track your order.
       </p>
     </form>
   );
