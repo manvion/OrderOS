@@ -132,7 +132,19 @@ export class DeliveryService {
     if (!restaurant) throw new NotFoundException('Restaurant not found');
 
     if (this.couriers.enabledFor(restaurant).length === 0) {
-      throw new BadRequestException('This restaurant does not dispatch couriers');
+      // The restaurant switched a courier on in Settings, but this deployment has no
+      // credentials for it (never configured, revoked, wrong region) -- OUR gap, not
+      // the customer's. Every other branch below hands back a specific, actionable
+      // reason instead of failing checkout outright; this one used to throw a bare
+      // 400, which the storefront's generic error handler flattened into "we could
+      // not check delivery for that address" with no way for anyone to tell why.
+      this.logger.warn(
+        `${restaurant.slug} has a courier toggled on with no working credentials -- quote unavailable`,
+      );
+      return {
+        deliverable: false as const,
+        reason: 'Delivery is temporarily unavailable. Please try pickup, or call us.',
+      };
     }
 
     // The restaurant's own radius, checked before we spend an Uber call on it.
