@@ -83,7 +83,7 @@ const COLUMNS: Column[] = [
 ];
 
 /** The one legal next step for a card, given its OWN status -- not its column's. */
-function actionFor(status: string): { label: string; to: string } | undefined {
+function actionFor(status: string, fulfillment: string): { label: string; to: string } | undefined {
   switch (status) {
     case 'PENDING':
       return { label: 'Accept', to: 'ACCEPTED' };
@@ -91,6 +91,11 @@ function actionFor(status: string): { label: string; to: string } | undefined {
       return { label: 'Start preparing', to: 'PREPARING' };
     case 'PREPARING':
       return { label: 'Ready', to: 'READY' };
+    case 'READY':
+      // A delivery order at READY is Uber's problem now -- it advances on its own
+      // once a courier is assigned, and the kitchen tapping "Picked up" would hide
+      // a food-still-waiting order from the board while no driver is actually here.
+      return fulfillment === 'DELIVERY' ? undefined : { label: 'Picked up', to: 'COMPLETED' };
     default:
       return undefined;
   }
@@ -255,7 +260,7 @@ export function KitchenBoard() {
                     key={order.id}
                     order={order}
                     tone={col.tone}
-                    action={actionFor(order.status)}
+                    action={actionFor(order.status, order.fulfillment)}
                     onAdvance={(to) => advance.mutate({ id: order.id, to })}
                   />
                 ))}
