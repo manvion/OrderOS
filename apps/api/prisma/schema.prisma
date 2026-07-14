@@ -44,6 +44,28 @@ enum FulfillmentType {
   DINE_IN
 }
 
+/// See Restaurant.websiteTemplate.
+enum WebsiteTemplate {
+  /// Full-bleed cover photo hero, gallery grid, a facts row, a closing pitch.
+  /// Editorial and photo-forward -- the right choice when a restaurant has (or
+  /// will get) real photography.
+  CLASSIC
+  /// Solid brand-colour hero, no photo dependency, menu-forward. Built for
+  /// speed: a QR scan should land on "order now", not a magazine spread.
+  BOLD
+  /// Small centered logo/name, generous whitespace, plain text facts. No
+  /// photography anywhere -- the right choice for a restaurant with none yet,
+  /// rather than the CLASSIC hero's gradient-wash fallback standing in for one.
+  MINIMAL
+}
+
+/// See Restaurant.logoDisplayMode.
+enum LogoDisplayMode {
+  LOGO_AND_NAME
+  LOGO_ONLY
+  NAME_ONLY
+}
+
 /// How a restaurant is reached by customers.
 ///
 /// WEBSITE  — the full storefront at <slug>.dinedirect.manvion.ca (or their own domain):
@@ -179,6 +201,14 @@ model Restaurant {
   coverImageUrl     String?
   brandPrimaryColor String  @default("#EA580C")
   brandAccentColor  String  @default("#0F172A")
+  /// Three genuinely different storefront LAYOUTS, not a palette swap -- see
+  /// apps/web/src/app/s/[slug]/page.tsx, which branches its entire JSX tree on
+  /// this rather than reusing one template with theme variables.
+  websiteTemplate   WebsiteTemplate @default(CLASSIC)
+  /// A logo that already has the restaurant's name baked into the artwork reads
+  /// as a typo the moment the text name repeats right next to it. LOGO_ONLY and
+  /// NAME_ONLY exist so the header shows exactly one, not always both.
+  logoDisplayMode   LogoDisplayMode @default(LOGO_AND_NAME)
 
   /// Their About page, in their own words.
   ///

@@ -191,6 +191,8 @@ export const updateRestaurantSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .optional(),
+  websiteTemplate: z.enum(['CLASSIC', 'BOLD', 'MINIMAL']).optional(),
+  logoDisplayMode: z.enum(['LOGO_AND_NAME', 'LOGO_ONLY', 'NAME_ONLY']).optional(),
 
   /**
    * Where the RESTAURANT wants to be alerted. Distinct from `phone`/`email`, which

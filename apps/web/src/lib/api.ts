@@ -602,6 +602,10 @@ export interface StorefrontRestaurant {
   coverImageUrl: string | null;
   brandPrimaryColor: string;
   brandAccentColor: string;
+  /** Three genuinely different storefront layouts -- see the homepage, which
+   *  branches its whole render tree on this. */
+  websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL';
+  logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
   currency: string;
   timezone: string;
   isOpen: boolean;
@@ -766,6 +770,8 @@ export interface Restaurant {
   coverImageUrl: string | null;
   brandPrimaryColor: string;
   brandAccentColor: string;
+  websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL';
+  logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
   /** About page content. Plain text, never HTML. */
   aboutHeadline: string | null;
   aboutBody: string | null;

@@ -123,20 +123,26 @@ export default async function StorefrontLayout({
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
           <div className="container flex h-16 items-center justify-between gap-4">
             <Link href={href(isQrOnly ? '/menu' : '/')} className="flex min-w-0 items-center gap-3">
-              {restaurant.logoUrl ? (
-                <Image
-                  src={restaurant.logoUrl}
-                  alt={restaurant.name}
-                  width={36}
-                  height={36}
-                  className="h-9 w-9 rounded-md object-cover"
-                />
-              ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand text-sm font-bold text-brand-foreground">
-                  {restaurant.name.charAt(0)}
-                </div>
+              {/* NAME_ONLY needs no logo at all. LOGO_ONLY is only honored when a logo
+                  actually exists -- a restaurant that picked it and then removed their
+                  logo must still show SOMETHING, not a blank header. */}
+              {restaurant.logoDisplayMode !== 'NAME_ONLY' &&
+                (restaurant.logoUrl ? (
+                  <Image
+                    src={restaurant.logoUrl}
+                    alt={restaurant.name}
+                    width={36}
+                    height={36}
+                    className="h-9 w-9 rounded-md object-cover"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand text-sm font-bold text-brand-foreground">
+                    {restaurant.name.charAt(0)}
+                  </div>
+                ))}
+              {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
+                <span className="truncate font-display text-lg font-semibold">{restaurant.name}</span>
               )}
-              <span className="truncate font-display text-lg font-semibold">{restaurant.name}</span>
             </Link>
 
             <nav className="flex items-center gap-1">

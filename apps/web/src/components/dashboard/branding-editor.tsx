@@ -71,6 +71,26 @@ export function BrandingEditor() {
     onError: () => toast.error('Could not save the colours'),
   });
 
+  const saveTemplate = useMutation({
+    mutationFn: (websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL') =>
+      api.updateCurrent({ websiteTemplate }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Website template updated');
+    },
+    onError: () => toast.error('Could not switch templates'),
+  });
+
+  const saveLogoMode = useMutation({
+    mutationFn: (logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY') =>
+      api.updateCurrent({ logoDisplayMode }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Header style updated');
+    },
+    onError: () => toast.error('Could not update the header style'),
+  });
+
   if (!restaurant) return null;
   const readOnly = !can('MANAGER');
 
@@ -201,6 +221,78 @@ export function BrandingEditor() {
           </div>
         </div>
 
+        {/* ---------- Header style ---------- */}
+        <div className="space-y-2">
+          <Label>Header style</Label>
+          <p className="text-xs text-muted-foreground">
+            If your logo already has your name built into the artwork, showing the text name again
+            right next to it just repeats itself.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(
+              [
+                { value: 'LOGO_AND_NAME', label: 'Logo + name' },
+                { value: 'LOGO_ONLY', label: 'Logo only' },
+                { value: 'NAME_ONLY', label: 'Name only' },
+              ] as const
+            ).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                disabled={readOnly || saveLogoMode.isPending || (value !== 'NAME_ONLY' && !restaurant.logoUrl)}
+                onClick={() => saveLogoMode.mutate(value)}
+                className={`rounded-xl border p-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  restaurant.logoDisplayMode === value
+                    ? 'border-brand-subtle bg-brand-subtle'
+                    : 'hover:bg-accent/50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {!restaurant.logoUrl && (
+            <p className="text-xs text-muted-foreground">Upload a logo above to unlock these.</p>
+          )}
+        </div>
+
+        {/* ---------- Website template ---------- */}
+        <div className="space-y-2">
+          <Label>Website template</Label>
+          <p className="text-xs text-muted-foreground">
+            Three different layouts, not a colour change — switch anytime and see it live instantly.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <TemplateOption
+              swatch="photo"
+              title="Classic"
+              description="Full-bleed cover photo, a gallery, a closing pitch. Best with real photography."
+              active={restaurant.websiteTemplate === 'CLASSIC'}
+              onSelect={() => saveTemplate.mutate('CLASSIC')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+            <TemplateOption
+              swatch="bold"
+              title="Bold"
+              description="Solid colour hero, menu-forward. Built for a fast QR scan-to-order."
+              active={restaurant.websiteTemplate === 'BOLD'}
+              onSelect={() => saveTemplate.mutate('BOLD')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+            <TemplateOption
+              swatch="minimal"
+              title="Minimal"
+              description="Centered, text-first, no photo needed. Quiet and clean."
+              active={restaurant.websiteTemplate === 'MINIMAL'}
+              onSelect={() => saveTemplate.mutate('MINIMAL')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+          </div>
+        </div>
+
         {/* ---------- Colours ---------- */}
         <div className="grid gap-6 sm:grid-cols-2">
           <ColorField
@@ -240,6 +332,62 @@ export function BrandingEditor() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** A tiny stylised mockup of each layout's shape -- enough to tell them apart
+ *  at a glance without shipping three real screenshots into the settings page. */
+function TemplateOption({
+  swatch,
+  title,
+  description,
+  active,
+  onSelect,
+  disabled,
+  accent,
+}: {
+  swatch: 'photo' | 'bold' | 'minimal';
+  title: string;
+  description: string;
+  active: boolean;
+  onSelect: () => void;
+  disabled: boolean;
+  accent: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      className={`overflow-hidden rounded-xl border text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+        active ? 'border-brand-subtle bg-brand-subtle' : 'hover:bg-accent/50'
+      }`}
+    >
+      <div className="aspect-[4/3] w-full border-b bg-muted/40 p-2">
+        {swatch === 'photo' && (
+          <div className="flex h-full flex-col justify-end gap-1 rounded-md p-2" style={{ background: `linear-gradient(160deg, ${accent}55, #00000055)` }}>
+            <div className="h-2 w-3/5 rounded-sm bg-white/90" />
+            <div className="h-1.5 w-2/5 rounded-sm bg-white/60" />
+          </div>
+        )}
+        {swatch === 'bold' && (
+          <div className="flex h-full flex-col justify-center gap-1.5 rounded-md p-2" style={{ background: accent }}>
+            <div className="h-2 w-4/5 rounded-sm bg-white" />
+            <div className="h-2 w-2/5 rounded-sm bg-white/70" />
+          </div>
+        )}
+        {swatch === 'minimal' && (
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md bg-white p-2">
+            <div className="h-1.5 w-2/5 rounded-sm" style={{ background: accent }} />
+            <div className="h-1 w-3/5 rounded-sm bg-muted-foreground/30" />
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+      </div>
+    </button>
   );
 }
 

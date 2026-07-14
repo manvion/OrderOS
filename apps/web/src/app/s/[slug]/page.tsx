@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
-import { storefrontApi } from '@/lib/api';
+import { storefrontApi, type StorefrontRestaurant } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/shared/reveal';
@@ -17,6 +17,10 @@ export const revalidate = 60;
  * big, the open/closed status is honest, and "Order now" is the ONLY primary action
  * on the page. A homepage that makes someone hunt for how to order is a homepage
  * that sends them back to the marketplace app they came from.
+ *
+ * Three genuinely different LAYOUTS live below (Classic/Bold/Minimal, chosen in
+ * Settings -> Branding), not one template with swapped colours. Fetching and the
+ * QR-only redirect happen once here; each template only renders.
  */
 export default async function StorefrontHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -49,11 +53,34 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
   const basePath = (await headers()).get('x-restaurant-slug') ? '' : `/s/${slug}`;
   const href = (path: string) => `${basePath}${path}`;
 
-  const options = [
+  switch (restaurant.websiteTemplate) {
+    case 'BOLD':
+      return <BoldHome restaurant={restaurant} href={href} />;
+    case 'MINIMAL':
+      return <MinimalHome restaurant={restaurant} href={href} />;
+    case 'CLASSIC':
+    default:
+      return <ClassicHome restaurant={restaurant} href={href} />;
+  }
+}
+
+type TemplateProps = { restaurant: StorefrontRestaurant; href: (path: string) => string };
+
+function fulfillmentOptions(restaurant: StorefrontRestaurant) {
+  return [
     restaurant.pickupEnabled && { icon: ShoppingBag, label: 'Pickup' },
     restaurant.deliveryEnabled && { icon: Truck, label: 'Delivery' },
     restaurant.dineInEnabled && { icon: UtensilsCrossed, label: 'Dine in' },
   ].filter(Boolean) as Array<{ icon: typeof ShoppingBag; label: string }>;
+}
+
+/**
+ * CLASSIC. Full-bleed cover photo hero, a gallery, a facts row, a closing pitch.
+ * Editorial and photo-forward — the original, and still the right default for a
+ * restaurant with (or planning to get) real photography.
+ */
+function ClassicHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
 
   return (
     <div className="animate-rise">
@@ -174,53 +201,226 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
         </section>
       )}
 
-      {/* Three facts, no chrome. Anything more is a brochure nobody reads. */}
-      <section className="mx-auto max-w-5xl px-5 py-14 sm:px-8">
-        <dl className="grid gap-8 sm:grid-cols-3">
-          <Detail icon={MapPin} label="Find us">
-            {restaurant.street}
-            <br />
-            {restaurant.city}, {restaurant.state} {restaurant.postalCode}
-          </Detail>
+      <FactsRow restaurant={restaurant} />
+      <ClosingPitch restaurant={restaurant} href={href} />
+    </div>
+  );
+}
 
-          <Detail icon={Phone} label="Call us">
-            <a href={`tel:${restaurant.phone}`} className="hover:underline">
-              {restaurant.phone}
-            </a>
-          </Detail>
+/**
+ * BOLD. No photo dependency at all -- a solid brand-colour hero, big confident
+ * type, menu-forward. Built for a QR scan that should land on "order now" in
+ * under a second, not a magazine spread. Skips the gallery entirely, even if
+ * one exists: this template's whole identity is "fast", not "photo-forward".
+ */
+function BoldHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
 
-          <Detail icon={Clock} label="How long">
-            About {restaurant.prepTimeMinutes} minutes
-            {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
-          </Detail>
-        </dl>
+  return (
+    <div className="animate-rise">
+      <section
+        className="relative isolate overflow-hidden"
+        style={{ background: restaurant.brandPrimaryColor }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            background: `radial-gradient(ellipse 800px 500px at 85% -10%, ${restaurant.brandAccentColor}, transparent 60%)`,
+          }}
+        />
+
+        <div className="relative mx-auto max-w-4xl px-5 py-20 text-center sm:px-8 sm:py-28">
+          <div className="rise-1 inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25">
+            <span
+              className={`pulse-dot h-1.5 w-1.5 rounded-full ${
+                restaurant.isOpen ? 'bg-emerald-300 text-emerald-300' : 'bg-white/70'
+              }`}
+            />
+            {restaurant.isOpen ? 'Open now' : 'Closed'}
+            {restaurant.isOpen && (
+              <>
+                <span className="text-white/50">·</span>
+                ready in ~{restaurant.prepTimeMinutes} min
+              </>
+            )}
+          </div>
+
+          <h1 className="rise-2 mt-6 text-5xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-7xl">
+            {restaurant.name}
+          </h1>
+
+          {restaurant.description && (
+            <p className="rise-3 mx-auto mt-5 max-w-lg text-lg text-white/85">
+              {restaurant.description}
+            </p>
+          )}
+
+          <div className="rise-4 mt-9 flex flex-col items-center gap-4">
+            <Button
+              asChild
+              size="lg"
+              className="w-full max-w-xs rounded-xl bg-white px-8 text-base font-bold text-black shadow-floating hover:bg-white/90 sm:w-auto"
+            >
+              <Link href={href('/menu')} className="group">
+                {restaurant.isOpen ? 'Order now' : 'View the menu'}
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </Button>
+
+            {options.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {options.map(({ icon: Icon, label }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-white/90 ring-1 ring-white/20"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
+            <p className="mt-5 text-sm text-white/75">
+              We&apos;re closed right now — but you can schedule an order for later.
+            </p>
+          )}
+        </div>
       </section>
 
-      {/*
-        The closing argument.
+      <FactsRow restaurant={restaurant} />
+      <ClosingPitch restaurant={restaurant} href={href} />
+    </div>
+  );
+}
 
-        This is the entire pitch of direct ordering, and it belongs in front of the
-        CUSTOMER, not just the restaurant. They are choosing to buy here instead of
-        on an app, and they deserve to know why that's worth doing.
-      */}
-      <section className="border-t bg-muted/40">
-        <div className="mx-auto max-w-5xl px-5 py-14 text-center sm:px-8">
-          <p className="mx-auto max-w-lg text-lg font-medium leading-relaxed">
-            Ordering here sends your money to the kitchen, not to a marketplace.
+/**
+ * MINIMAL. No photography anywhere -- the deliberate choice for a restaurant
+ * with none yet, rather than CLASSIC's gradient-wash standing in for a photo it
+ * doesn't have. Centered, generous whitespace, plain text facts. Quiet on
+ * purpose: the menu button is the only thing asking for attention.
+ */
+function MinimalHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
+
+  return (
+    <div className="animate-rise">
+      <section className="mx-auto max-w-2xl px-5 py-24 text-center sm:px-8 sm:py-32">
+        <div className="rise-1 inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-500' : 'bg-muted-foreground/50'}`}
+          />
+          {restaurant.isOpen ? 'Open now' : 'Closed'}
+          {restaurant.isOpen && <>· ready in ~{restaurant.prepTimeMinutes} min</>}
+        </div>
+
+        <h1 className="rise-2 mt-6 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+          {restaurant.name}
+        </h1>
+
+        {restaurant.description && (
+          <p className="rise-3 mx-auto mt-4 max-w-md text-muted-foreground">
+            {restaurant.description}
           </p>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            No 30% commission. Same food, same people — more of what you pay stays with
-            them.
-          </p>
-          <Button asChild variant="brand" size="lg" className="mt-7 rounded-xl px-8">
+        )}
+
+        <div className="rise-4 mt-8 flex flex-col items-center gap-3">
+          <Button asChild variant="brand" size="lg" className="rounded-xl px-8">
             <Link href={href('/menu')}>
-              See the menu
+              {restaurant.isOpen ? 'Order now' : 'View the menu'}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
+
+          {options.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {options.map((o) => o.label).join(' · ')}
+            </p>
+          )}
+
+          {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
+            <p className="text-sm text-muted-foreground">
+              Closed right now — but you can schedule an order for later.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Plain text, no icons, no cards -- the quietest version of the same facts
+          every template shows. */}
+      <section className="border-t">
+        <div className="mx-auto max-w-2xl px-5 py-14 text-center text-sm text-muted-foreground sm:px-8">
+          <p>
+            {restaurant.street}, {restaurant.city}, {restaurant.state} {restaurant.postalCode}
+          </p>
+          <p className="mt-1.5">
+            <a href={`tel:${restaurant.phone}`} className="hover:underline">
+              {restaurant.phone}
+            </a>
+          </p>
+          <p className="mt-1.5">
+            About {restaurant.prepTimeMinutes} minutes
+            {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
+          </p>
         </div>
       </section>
     </div>
+  );
+}
+
+/** Three facts, no chrome. Shared by CLASSIC and BOLD; MINIMAL has its own quieter version. */
+function FactsRow({ restaurant }: { restaurant: StorefrontRestaurant }) {
+  return (
+    <section className="mx-auto max-w-5xl px-5 py-14 sm:px-8">
+      <dl className="grid gap-8 sm:grid-cols-3">
+        <Detail icon={MapPin} label="Find us">
+          {restaurant.street}
+          <br />
+          {restaurant.city}, {restaurant.state} {restaurant.postalCode}
+        </Detail>
+
+        <Detail icon={Phone} label="Call us">
+          <a href={`tel:${restaurant.phone}`} className="hover:underline">
+            {restaurant.phone}
+          </a>
+        </Detail>
+
+        <Detail icon={Clock} label="How long">
+          About {restaurant.prepTimeMinutes} minutes
+          {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
+        </Detail>
+      </dl>
+    </section>
+  );
+}
+
+/**
+ * The closing argument. Shared by CLASSIC and BOLD.
+ *
+ * This is the entire pitch of direct ordering, and it belongs in front of the
+ * CUSTOMER, not just the restaurant. They are choosing to buy here instead of
+ * on an app, and they deserve to know why that's worth doing.
+ */
+function ClosingPitch({ href }: TemplateProps) {
+  return (
+    <section className="border-t bg-muted/40">
+      <div className="mx-auto max-w-5xl px-5 py-14 text-center sm:px-8">
+        <p className="mx-auto max-w-lg text-lg font-medium leading-relaxed">
+          Ordering here sends your money to the kitchen, not to a marketplace.
+        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+          No 30% commission. Same food, same people — more of what you pay stays with them.
+        </p>
+        <Button asChild variant="brand" size="lg" className="mt-7 rounded-xl px-8">
+          <Link href={href('/menu')}>
+            See the menu
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+    </section>
   );
 }
 
