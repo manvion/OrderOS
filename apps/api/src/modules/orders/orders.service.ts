@@ -732,6 +732,46 @@ export class OrdersService {
    * order id — so the URL we text a customer can't be walked to read someone
    * else's order. Returns a trimmed projection: no internal ids, no Uber fee.
    */
+  /**
+   * The public "now serving" board -- a TV by the counter or a link a table
+   * QR points at, so a pickup/dine-in customer can watch their own order
+   * without asking staff. Deliberately no name, phone, or item contents:
+   * the handoff code is already what the customer reads out at the counter
+   * (see packages/shared/src/handoff.ts), so it's the one identifier that's
+   * both safe to show a room full of strangers and meaningful to the one
+   * customer it belongs to. Delivery orders never appear here -- nobody
+   * standing in the restaurant is waiting on one.
+   */
+  async listStatusBoard(restaurantId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        restaurantId,
+        fulfillment: { in: ['PICKUP', 'DINE_IN'] },
+        status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'] },
+        payment: { status: { in: ['PAID', 'PARTIALLY_REFUNDED'] } },
+      },
+      select: {
+        handoffCode: true,
+        status: true,
+        fulfillment: true,
+        tableNumber: true,
+        createdAt: true,
+        acceptedAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+
+    return orders.map((o) => ({
+      handoffCode: o.handoffCode,
+      status: o.status,
+      fulfillment: o.fulfillment,
+      tableNumber: o.tableNumber,
+      createdAt: o.createdAt,
+      acceptedAt: o.acceptedAt,
+    }));
+  }
+
   async findByTrackingToken(token: string) {
     const order = await this.prisma.order.findUnique({
       where: { trackingToken: token },

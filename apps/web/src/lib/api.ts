@@ -139,6 +139,10 @@ export const storefrontApi = {
   track: (slug: string, token: string) =>
     storefrontApi.request<TrackedOrder>(`/storefront/track/${token}`, slug),
 
+  /** The public "now serving" board -- no customer PII, safe for a TV or a QR. */
+  getStatusBoard: (slug: string) =>
+    storefrontApi.request<StatusBoardEntry[]>('/storefront/order-status-board', slug),
+
   /**
    * A guest finding their own order again after closing the tab or losing the SMS.
    * Needs order number AND phone — an order number alone is sequential and would
@@ -742,6 +746,15 @@ export interface CreateOrderResponse {
   totalCents: number;
   currency: string;
   checkoutUrl: string;
+}
+
+export interface StatusBoardEntry {
+  handoffCode: string | null;
+  status: string;
+  fulfillment: string;
+  tableNumber: string | null;
+  createdAt: string;
+  acceptedAt: string | null;
 }
 
 export interface TrackedOrder {

@@ -269,6 +269,18 @@ export class StorefrontController {
   }
 
   /**
+   * The public "now serving" board -- a TV by the counter, or a QR/link a
+   * pickup or dine-in customer scans to watch their own order. Tenant-scoped
+   * like every other storefront route; carries no customer PII (see
+   * OrdersService.listStatusBoard).
+   */
+  @Get('order-status-board')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  statusBoard(@TenantId() restaurantId: string) {
+    return this.orders.listStatusBoard(restaurantId);
+  }
+
+  /**
    * Order tracking. Keyed by the tracking token, not the order id, so the link we
    * text someone can't be incremented into reading a stranger's order.
    *
