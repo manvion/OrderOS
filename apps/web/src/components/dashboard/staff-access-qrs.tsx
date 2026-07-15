@@ -121,14 +121,41 @@ export function StaffAccessQrs() {
             </div>
 
             {images[path] ? (
-              // Plain <img>, deliberately: the source is a local data URL, so
-              // next/image's remote-host machinery has nothing to add but ways to fail.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={images[path]}
-                alt={`QR code for the ${label}`}
-                className="w-full max-w-56 rounded-xl border bg-white p-3"
-              />
+              // Same branded frame as the print version -- a bare matrix on
+              // screen just gets printed bare too, because "Print" only ever
+              // captures what's already here.
+              <div className="w-full max-w-56 overflow-hidden rounded-xl border bg-white">
+                <div
+                  className="h-2"
+                  style={{
+                    background: `linear-gradient(90deg, var(--brand), ${restaurant?.brandAccentColor ?? 'var(--brand)'})`,
+                  }}
+                />
+                <div className="space-y-2 p-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    {restaurant?.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={restaurant.logoUrl}
+                        alt=""
+                        className="h-6 w-6 rounded-md object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand text-[10px] font-bold text-brand-foreground">
+                        {(restaurant?.name.charAt(0) ?? '?').toUpperCase()}
+                      </span>
+                    )}
+                    <span className="text-xs font-bold uppercase tracking-wide text-brand">
+                      {restaurant?.name}
+                    </span>
+                  </div>
+                  {/* Plain <img>, deliberately: the source is a local data URL, so
+                      next/image's remote-host machinery has nothing to add but ways to fail. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={images[path]} alt={`QR code for the ${label}`} className="mx-auto w-full" />
+                  <p className="text-[11px] text-muted-foreground">Staff sign-in required</p>
+                </div>
+              </div>
             ) : (
               <div className="aspect-square w-full max-w-56 animate-pulse rounded-xl bg-muted" />
             )}
