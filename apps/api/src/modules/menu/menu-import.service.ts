@@ -332,11 +332,24 @@ export class MenuImportService {
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(15_000),
-        headers: { 'User-Agent': 'DineDirect-MenuImport/1.0' },
+        // A named bot UA gets flatly blocked by any site with even basic bot
+        // protection -- which is most delivery marketplaces (SkipTheDishes,
+        // DoorDash, UberEats all sit behind one). A browser UA at least gets
+        // past naive User-Agent sniffing; it won't get past a real Cloudflare
+        // challenge, but nothing short of a headless browser would, and that's
+        // a lot of machinery for "read a menu off a page".
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
         redirect: 'follow',
       });
       if (!res.ok) {
-        throw new BadRequestException(`That page answered ${res.status} -- check the link`);
+        throw new BadRequestException(
+          res.status === 403 || res.status === 429
+            ? "That site blocked our request -- some delivery marketplaces (SkipTheDishes, DoorDash, UberEats) don't allow this. Try the restaurant's own website instead, or add items by hand."
+            : `That page answered ${res.status} -- check the link`,
+        );
       }
       html = (await res.text()).slice(0, 800_000);
     } catch (err) {
