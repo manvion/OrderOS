@@ -312,6 +312,7 @@ export class QrService {
       where: { id: restaurantId },
       select: {
         name: true,
+        logoUrl: true,
         brandPrimaryColor: true,
         brandAccentColor: true,
         phone: true,
@@ -344,10 +345,17 @@ export class QrService {
             ? `Table ${escapeHtml(code.tableNumber ?? '')}`
             : escapeHtml(code.label);
 
+        const mark = restaurant.logoUrl
+          ? `<img src="${escapeHtml(restaurant.logoUrl)}" alt="" class="logo" />`
+          : `<span class="logo logo-fallback">${escapeHtml(restaurant.name.charAt(0))}</span>`;
+
         return `
         <div class="tent">
           <div class="tent-inner">
-            <div class="rule"><span></span><p class="restaurant">${escapeHtml(restaurant.name)}</p><span></span></div>
+            <div class="brand-row">
+              ${mark}
+              <p class="restaurant">${escapeHtml(restaurant.name)}</p>
+            </div>
             <p class="headline">Scan to order</p>
             <div class="qr-frame"><img src="${png}" alt="" class="qr" /></div>
             <p class="table">${heading}</p>
@@ -404,29 +412,40 @@ export class QrService {
       }
 
       .tent {
-        /* The dashed outline is the cut line; the brand bar is the design. */
+        /* The dashed outline is the cut line; the brand bar and shadow are the
+           design. Real corner radius so this reads as a printed card, not a
+           spreadsheet cell. */
+        position: relative;
         border: 1px dashed #d6d3d1;
-        border-radius: 6px;
+        border-radius: 7mm;
         background: #fff;
         padding: 0;
         overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
         break-inside: avoid;   /* never split a tent across two pages */
         page-break-inside: avoid;
       }
       .tent::before {
         content: '';
         display: block;
-        height: 3mm;
+        height: 4mm;
         background: linear-gradient(90deg, ${escapeHtml(restaurant.brandPrimaryColor)}, ${escapeHtml(restaurant.brandAccentColor)});
       }
 
-      .tent-inner { text-align: center; padding: 6mm; }
+      .tent-inner { text-align: center; padding: 7mm 6mm 6mm; }
 
-      /* Restaurant name between two hairlines -- the printed-menu register. */
-      .rule { display: flex; align-items: center; gap: 3mm; }
-      .rule span { flex: 1; height: 1px; background: #e7e5e4; }
+      .brand-row { display: flex; align-items: center; justify-content: center; gap: 2.5mm; }
+      .logo {
+        width: 9mm; height: 9mm; border-radius: 3mm; object-fit: cover;
+        border: 1px solid #eeeceb;
+      }
+      .logo-fallback {
+        display: flex; align-items: center; justify-content: center;
+        background: ${escapeHtml(restaurant.brandPrimaryColor)};
+        color: #fff; font-size: 12px; font-weight: 700;
+      }
       .restaurant {
-        font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+        font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
         color: ${escapeHtml(restaurant.brandPrimaryColor)};
         white-space: nowrap;
       }
@@ -436,12 +455,19 @@ export class QrService {
       }
       .qr-frame {
         display: inline-block; margin: 5mm auto 4mm; padding: 3mm;
+        background: #fff;
         border: 1.5px solid ${escapeHtml(restaurant.brandPrimaryColor)};
-        border-radius: 5mm;
+        border-radius: 6mm;
       }
-      .qr { width: 42mm; height: 42mm; display: block; }
-      .table { font-size: 20px; font-weight: 700; }
-      .hint { margin-top: 4px; font-size: 10.5px; line-height: 1.5; color: #78716c; }
+      .qr { width: 42mm; height: 42mm; display: block; border-radius: 2mm; }
+      .table {
+        display: inline-block;
+        font-size: 18px; font-weight: 700;
+        padding: 1.5mm 5mm; border-radius: 999px;
+        background: color-mix(in srgb, ${escapeHtml(restaurant.brandPrimaryColor)} 10%, transparent);
+        color: ${escapeHtml(restaurant.brandPrimaryColor)};
+      }
+      .hint { margin-top: 4mm; font-size: 10.5px; line-height: 1.5; color: #78716c; }
       .foot {
         display: flex; justify-content: center; gap: 2mm;
         margin-top: 5mm; padding-top: 3mm; border-top: 1px solid #f0efed;
