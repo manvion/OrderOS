@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { storefrontApi } from '@/lib/api';
+import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { AccountButton } from '@/components/storefront/account-button';
 import { CartButton } from '@/components/storefront/cart-button';
@@ -33,7 +33,11 @@ export async function generateMetadata({
       description: restaurant.description ?? `Order from ${restaurant.name}`,
       robots: restaurant.orderingMode === 'QR_ONLY' ? { index: false, follow: false } : undefined,
     };
-  } catch {
+  } catch (err) {
+    console.error(
+      `Storefront metadata fetch failed for "${slug}":`,
+      err instanceof ApiRequestError ? `status=${err.status} body=${JSON.stringify(err.body)}` : err,
+    );
     return { title: 'Not found' };
   }
 }
@@ -65,9 +69,18 @@ export default async function StorefrontLayout({
   let restaurant;
   try {
     restaurant = await storefrontApi.getRestaurant(slug, previewToken);
-  } catch {
-    // Unpublished, inactive or simply nonexistent — all indistinguishable, on
-    // purpose. A 404 must not confirm that a restaurant exists but is offline.
+  } catch (err) {
+    // Unpublished, inactive or simply nonexistent — all indistinguishable to the
+    // CUSTOMER, on purpose. A 404 must not confirm that a restaurant exists but
+    // is offline. But that same swallow makes a real backend error (a bad query,
+    // a missing column) indistinguishable from a real 404 in our OWN logs too --
+    // so log the real reason server-side before presenting the generic page.
+    console.error(
+      `Storefront fetch failed for "${slug}":`,
+      err instanceof ApiRequestError
+        ? `status=${err.status} body=${JSON.stringify(err.body)}`
+        : err,
+    );
     notFound();
   }
 
