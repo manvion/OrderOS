@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatMoney } from '@dinedirect/shared';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/primitives';
@@ -25,6 +25,7 @@ type Period = (typeof PERIODS)[number];
 export default function AnalyticsPage() {
   const api = useApi();
   const { restaurant } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
   const [period, setPeriod] = useState<Period>('30d');
 
   const { data: revenue, isLoading: loadingRevenue } = useQuery({

@@ -24,25 +24,33 @@ import { Skeleton, Badge } from '@/components/ui/primitives';
 import { Select } from '@/components/ui/input';
 import { tenantUrl } from '@/lib/tenant-url';
 
+/**
+ * `minRole` is the same hierarchy the API already enforces on writes --
+ * mirrored here so the nav a role SEES matches what it can actually reach.
+ * Kitchen and Orders are the only screens a plain STAFF login (kitchen,
+ * front-desk, order-flow display) ever needs; everything else is business
+ * admin that only MANAGER/OWNER should see exists at all.
+ */
 const NAV = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/setup', label: 'Get set up', icon: Rocket },
+  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true, minRole: 'MANAGER' as const },
+  { href: '/dashboard/setup', label: 'Get set up', icon: Rocket, minRole: 'MANAGER' as const },
   // The screen staff actually live in, on a tablet by the pass. High in the list
   // because during service it is the only one that matters.
-  { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat },
-  { href: '/dashboard/orders', label: 'Orders', icon: Receipt },
-  { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed },
-  { href: '/dashboard/customers', label: 'Customers', icon: Users },
-  { href: '/dashboard/staff', label: 'Team', icon: UserCog },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/dashboard/qr', label: 'QR codes', icon: QrCode },
-  { href: '/dashboard/website', label: 'My website', icon: Globe },
-  { href: '/dashboard/domain', label: 'Domain', icon: Link2 },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' as const },
+  { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' as const },
+  { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' as const },
+  { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' as const },
+  { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' as const },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, minRole: 'MANAGER' as const },
+  { href: '/dashboard/qr', label: 'QR codes', icon: QrCode, minRole: 'MANAGER' as const },
+  { href: '/dashboard/website', label: 'My website', icon: Globe, minRole: 'MANAGER' as const },
+  { href: '/dashboard/domain', label: 'Domain', icon: Link2, minRole: 'OWNER' as const },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings, minRole: 'OWNER' as const },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { restaurant, restaurants, isLoading, switchRestaurant } = useDashboard();
+  const { restaurant, restaurants, isLoading, switchRestaurant, can } = useDashboard();
+  const visibleNav = NAV.filter((n) => can(n.minRole));
   const pathname = usePathname();
   const router = useRouter();
 
@@ -129,7 +137,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {NAV.map(({ href, label, icon: Icon, exact }) => {
+          {visibleNav.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
             return (
               <Link
@@ -160,7 +168,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <UserButton />
         </header>
         <nav className="no-scrollbar flex gap-1 overflow-x-auto border-b bg-background p-2 lg:hidden">
-          {NAV.map(({ href, label, icon: Icon, exact }) => {
+          {visibleNav.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
             return (
               <Link

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Users } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge, Skeleton } from '@/components/ui/primitives';
@@ -12,6 +12,7 @@ import { Badge, Skeleton } from '@/components/ui/primitives';
 export default function CustomersPage() {
   const api = useApi();
   const { restaurant } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
   const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({

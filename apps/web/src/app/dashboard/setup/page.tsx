@@ -14,7 +14,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError, type SetupStep } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,6 +39,7 @@ export default function SetupPage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
 
   const { data: readiness, isLoading } = useQuery({
     queryKey: ['publish-readiness', restaurant?.id],

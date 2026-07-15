@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, Mail, Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ export default function StaffPage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'OWNER' | 'MANAGER' | 'STAFF'>('STAFF');

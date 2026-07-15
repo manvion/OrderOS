@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { createDashboardApi, type DashboardApi, type RestaurantWithRole } from '@/lib/api';
 import { ROLE_RANK, type StaffRole } from '@dinedirect/shared';
@@ -27,6 +28,25 @@ export function useDashboard(): DashboardContextValue {
 /** Convenience: the api client already bound to the active restaurant. */
 export function useApi(): DashboardApi {
   return useDashboard().api;
+}
+
+/**
+ * Gate a whole page behind a role, redirecting away if the signed-in staff
+ * member doesn't have it.
+ *
+ * The sidebar already hides links a role can't use, but hiding a link doesn't
+ * stop someone typing the URL directly -- kitchen and front-desk staff aren't
+ * supposed to see owner-level admin (settings, analytics, customer data) at
+ * all, not just "not find it in the nav". This is the enforcement; the nav
+ * filter in DashboardShell is just so the menu matches what's actually there.
+ */
+export function useRequireRole(minRole: StaffRole, redirectTo: string): void {
+  const { can, restaurant, isLoading } = useDashboard();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && restaurant && !can(minRole)) router.replace(redirectTo);
+  }, [isLoading, restaurant, can, minRole, redirectTo, router]);
 }
 
 function DashboardInner({ children }: { children: React.ReactNode }) {

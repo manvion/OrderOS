@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, CircleAlert, Rocket } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/primitives';
@@ -12,6 +12,9 @@ import { Skeleton } from '@/components/ui/primitives';
 export default function DashboardOverview() {
   const api = useApi();
   const { restaurant } = useDashboard();
+  // Revenue/payout live here -- kitchen and front-desk logins land on the
+  // Kitchen board instead, not a bookkeeping-adjacent screen they never asked for.
+  useRequireRole('MANAGER', '/dashboard/kitchen');
 
   const { data: overview, isLoading } = useQuery({
     queryKey: ['analytics', 'overview', restaurant?.id],

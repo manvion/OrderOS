@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError, type Product } from '@/lib/api';
 import { MenuPhotoImport } from '@/components/dashboard/menu-photo-import';
 import { ProductEditor } from '@/components/dashboard/product-editor';
@@ -19,6 +19,7 @@ export default function MenuPage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
 
   const [tab, setTab] = useState<'items' | 'promotions'>('items');
   const [editing, setEditing] = useState<Product | 'new' | null>(null);

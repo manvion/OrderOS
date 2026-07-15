@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { formatMoney, type WidgetSettings } from '@dinedirect/shared';
 import { toast } from 'sonner';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
 import type { WebsiteIntegration, WidgetFunnel } from '@/lib/api';
 import { WidgetAppearance } from '@/components/dashboard/widget-appearance';
@@ -27,6 +27,7 @@ export default function WebsitePage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
 
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');

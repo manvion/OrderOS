@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BusinessHours } from '@dinedirect/shared';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';
 import { BusinessLocationForm } from '@/components/dashboard/business-location-form';
@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
+  useRequireRole('OWNER', '/dashboard');
   const searchParams = useSearchParams();
 
   const { data: stripe, isLoading: loadingStripe } = useQuery({

@@ -15,7 +15,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +48,7 @@ export default function QrPage() {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
+  useRequireRole('MANAGER', '/dashboard/kitchen');
 
   // COUNTER first: the universal "scan to order" code every restaurant needs.
   // TABLE is the dine-in specialisation (and errors when dine-in is off).
