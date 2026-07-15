@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import type { QRCodeType } from '@prisma/client';
 import * as QRCodeLib from 'qrcode';
+import sharp from 'sharp';
 import type { QRCodeInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { storefrontBaseUrl } from '../../common/tenant-url';
@@ -226,37 +227,110 @@ export class QrService {
     }
   }
 
-  /** Raw PNG bytes, for the dashboard's download button. */
+  /**
+   * Branded PNG for the dashboard's download button -- the restaurant's own
+   * logo and name, not a bare matrix. This is the file an owner prints and
+   * tapes to a table; a code with no identity on it looks like it fell off
+   * a delivery-app truck, which is the exact opposite of the point.
+   */
   async downloadPng(restaurantId: string, id: string): Promise<{ buffer: Buffer; filename: string }> {
-    const qr = await this.prisma.qRCode.findFirst({ where: { id, restaurantId } });
-    if (!qr) throw new NotFoundException('QR code not found');
-
-    const preset = RENDER_PRESETS[qr.type];
-    const buffer = await QRCodeLib.toBuffer(qr.targetUrl, {
-      type: 'png',
-      width: preset.width,
-      margin: preset.margin,
-      errorCorrectionLevel: preset.ecc,
-    });
+    const { qr, restaurant } = await this.loadQrAndBranding(restaurantId, id);
+    const svg = await this.buildBrandedSvg(qr, restaurant);
+    const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
 
     const safeLabel = qr.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     return { buffer, filename: `qr-${qr.type.toLowerCase()}-${safeLabel || qr.id}.png` };
   }
 
-  /** SVG, for print shops that want vector art for large-format flyers. */
+  /** Same branded card, as vector art for print shops doing large-format flyers. */
   async downloadSvg(restaurantId: string, id: string): Promise<{ svg: string; filename: string }> {
-    const qr = await this.prisma.qRCode.findFirst({ where: { id, restaurantId } });
-    if (!qr) throw new NotFoundException('QR code not found');
-
-    const preset = RENDER_PRESETS[qr.type];
-    const svg = await QRCodeLib.toString(qr.targetUrl, {
-      type: 'svg',
-      margin: preset.margin,
-      errorCorrectionLevel: preset.ecc,
-    });
+    const { qr, restaurant } = await this.loadQrAndBranding(restaurantId, id);
+    const svg = await this.buildBrandedSvg(qr, restaurant);
 
     const safeLabel = qr.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     return { svg, filename: `qr-${qr.type.toLowerCase()}-${safeLabel || qr.id}.svg` };
+  }
+
+  private async loadQrAndBranding(restaurantId: string, id: string) {
+    const [qr, restaurant] = await Promise.all([
+      this.prisma.qRCode.findFirst({ where: { id, restaurantId } }),
+      this.prisma.restaurant.findUniqueOrThrow({
+        where: { id: restaurantId },
+        select: { name: true, logoUrl: true, brandPrimaryColor: true, brandAccentColor: true },
+      }),
+    ]);
+    if (!qr) throw new NotFoundException('QR code not found');
+    return { qr, restaurant };
+  }
+
+  /** A restaurant's logo, inlined as a data URI so it survives inside a standalone SVG/PNG. */
+  private async fetchAsDataUri(url: string): Promise<string | null> {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type') ?? 'image/png';
+      const buffer = Buffer.from(await res.arrayBuffer());
+      return `data:${contentType};base64,${buffer.toString('base64')}`;
+    } catch {
+      // A logo that fails to fetch falls back to the initial-in-a-circle mark
+      // below -- never worth failing the whole download over.
+      return null;
+    }
+  }
+
+  /**
+   * The single-card branded design: logo/name, "Scan to order", the QR framed
+   * in the brand colour, and the table/counter label -- the same visual
+   * language as the print sheet's tents, at the scale of one downloadable file.
+   */
+  private async buildBrandedSvg(
+    qr: { type: QRCodeType; label: string; tableNumber: string | null; targetUrl: string },
+    restaurant: { name: string; logoUrl: string | null; brandPrimaryColor: string; brandAccentColor: string },
+  ): Promise<string> {
+    const preset = RENDER_PRESETS[qr.type];
+    const qrPng = await QRCodeLib.toBuffer(qr.targetUrl, {
+      type: 'png',
+      width: 560,
+      margin: 1,
+      errorCorrectionLevel: preset.ecc,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    const qrDataUri = `data:image/png;base64,${qrPng.toString('base64')}`;
+    const logoDataUri = restaurant.logoUrl ? await this.fetchAsDataUri(restaurant.logoUrl) : null;
+
+    const heading =
+      qr.type === 'TABLE' ? `Table ${escapeHtml(qr.tableNumber ?? '')}` : escapeHtml(qr.label);
+
+    const W = 640;
+    const qrSize = 460;
+    const qrX = (W - qrSize) / 2;
+    const qrY = 214;
+    const H = qrY + qrSize + 130;
+
+    const mark = logoDataUri
+      ? `<clipPath id="logoClip"><rect x="${W / 2 - 28}" y="44" width="56" height="56" rx="16" /></clipPath>
+         <image href="${logoDataUri}" x="${W / 2 - 28}" y="44" width="56" height="56" clip-path="url(#logoClip)" preserveAspectRatio="xMidYMid slice" />`
+      : `<rect x="${W / 2 - 28}" y="44" width="56" height="56" rx="16" fill="${restaurant.brandPrimaryColor}" />
+         <text x="${W / 2}" y="80" font-family="Georgia, serif" font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">${escapeHtml(restaurant.name.charAt(0))}</text>`;
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="${restaurant.brandPrimaryColor}" />
+      <stop offset="1" stop-color="${restaurant.brandAccentColor}" />
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" rx="36" fill="#ffffff" />
+  <rect width="${W}" height="14" rx="7" fill="url(#bar)" />
+  ${mark}
+  <text x="${W / 2}" y="136" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" letter-spacing="2" fill="${restaurant.brandPrimaryColor}" text-anchor="middle">${escapeHtml(restaurant.name.toUpperCase())}</text>
+  <text x="${W / 2}" y="182" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="600" fill="#1c1917" text-anchor="middle">Scan to order</text>
+  <rect x="${qrX - 16}" y="${qrY - 16}" width="${qrSize + 32}" height="${qrSize + 32}" rx="24" fill="#ffffff" stroke="${restaurant.brandPrimaryColor}" stroke-width="2" />
+  <image href="${qrDataUri}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />
+  <text x="${W / 2}" y="${qrY + qrSize + 58}" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="26" font-weight="700" fill="#1c1917" text-anchor="middle">${heading}</text>
+  <text x="${W / 2}" y="${qrY + qrSize + 90}" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="14" fill="#78716c" text-anchor="middle">Point your phone camera at the code</text>
+</svg>`;
   }
 
   /**

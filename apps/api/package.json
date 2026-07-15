@@ -31,6 +31,7 @@
     "@aws-sdk/client-s3": "^3.1085.0",
     "@azure/storage-blob": "^12.26.0",
     "@clerk/backend": "^1.24.0",
+    "@dinedirect/shared": "*",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/common": "^11.0.6",
     "@nestjs/config": "^4.0.0",
@@ -40,7 +41,6 @@
     "@nestjs/swagger": "^11.0.3",
     "@nestjs/terminus": "^11.0.0",
     "@nestjs/throttler": "^6.4.0",
-    "@dinedirect/shared": "*",
     "@prisma/client": "^6.3.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -50,6 +50,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^4.1.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.34.5",
     "stripe": "^17.6.0",
     "twilio": "^5.4.3",
     "zod": "^3.24.1"
