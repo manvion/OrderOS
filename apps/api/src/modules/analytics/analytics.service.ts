@@ -275,4 +275,146 @@ export class AnalyticsService {
     if (previous === 0) return null;
     return Math.round(((current - previous) / previous) * 100);
   }
+
+  /**
+   * Daily tax totals, broken out by NAME (GST, QST, whatever the restaurant's
+   * tax setup calls them) -- an accountant filing a return needs to know which
+   * jurisdiction collected what, not just one lump "tax" figure. Every order's
+   * taxLines was frozen at checkout with the rates in force that day (see
+   * packages/shared/src/tax.ts), so this stays correct even after the
+   * restaurant later changes its tax rates.
+   */
+  async getTaxReport(restaurantId: string, from: Date, to: Date) {
+    const taxRows = await this.prisma.$queryRaw<
+      Array<{ day: Date; tax_name: string; amount_cents: bigint }>
+    >`
+      SELECT
+        date_trunc('day', o."createdAt") AS day,
+        COALESCE(tax_line->>'name', 'Tax') AS tax_name,
+        SUM((tax_line->>'amountCents')::bigint)::bigint AS amount_cents
+      FROM orders o
+      JOIN payments p ON p."orderId" = o.id
+      CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o."taxLines", '[]'::jsonb)) AS tax_line
+      WHERE o."restaurantId" = ${restaurantId}
+        AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+        AND p.status IN ('PAID', 'PARTIALLY_REFUNDED')
+      GROUP BY 1, 2
+      ORDER BY 1 ASC, 2 ASC
+    `;
+
+    const totalRows = await this.prisma.$queryRaw<
+      Array<{
+        day: Date;
+        subtotal_cents: bigint;
+        discount_cents: bigint;
+        tax_cents: bigint;
+        total_cents: bigint;
+        order_count: bigint;
+      }>
+    >`
+      SELECT
+        date_trunc('day', o."createdAt") AS day,
+        COALESCE(SUM(o."subtotalCents"), 0)::bigint AS subtotal_cents,
+        COALESCE(SUM(o."discountCents"), 0)::bigint AS discount_cents,
+        COALESCE(SUM(o."taxCents"), 0)::bigint AS tax_cents,
+        COALESCE(SUM(o."totalCents"), 0)::bigint AS total_cents,
+        COUNT(*)::bigint AS order_count
+      FROM orders o
+      JOIN payments p ON p."orderId" = o.id
+      WHERE o."restaurantId" = ${restaurantId}
+        AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+        AND p.status IN ('PAID', 'PARTIALLY_REFUNDED')
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `;
+
+    const taxNames = Array.from(new Set(taxRows.map((r) => r.tax_name))).sort();
+
+    const taxByDay = new Map<string, Record<string, number>>();
+    for (const r of taxRows) {
+      const date = r.day.toISOString().slice(0, 10);
+      const entry = taxByDay.get(date) ?? {};
+      entry[r.tax_name] = Number(r.amount_cents);
+      taxByDay.set(date, entry);
+    }
+
+    const daily = totalRows.map((t) => {
+      const date = t.day.toISOString().slice(0, 10);
+      const taxByName: Record<string, number> = {};
+      for (const name of taxNames) taxByName[name] = taxByDay.get(date)?.[name] ?? 0;
+      return {
+        date,
+        subtotalCents: Number(t.subtotal_cents),
+        discountCents: Number(t.discount_cents),
+        taxCents: Number(t.tax_cents),
+        totalCents: Number(t.total_cents),
+        orderCount: Number(t.order_count),
+        taxByName,
+      };
+    });
+
+    const summary = daily.reduce(
+      (acc, d) => ({
+        subtotalCents: acc.subtotalCents + d.subtotalCents,
+        discountCents: acc.discountCents + d.discountCents,
+        taxCents: acc.taxCents + d.taxCents,
+        totalCents: acc.totalCents + d.totalCents,
+        orderCount: acc.orderCount + d.orderCount,
+      }),
+      { subtotalCents: 0, discountCents: 0, taxCents: 0, totalCents: 0, orderCount: 0 },
+    );
+
+    const taxByName = taxNames.map((name) => ({
+      name,
+      amountCents: daily.reduce((sum, d) => sum + (d.taxByName[name] ?? 0), 0),
+    }));
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      taxNames,
+      summary,
+      taxByName,
+      daily,
+    };
+  }
+
+  /** Same report, as a spreadsheet -- one row per day, one column per named tax. */
+  async getTaxReportCsv(restaurantId: string, from: Date, to: Date): Promise<string> {
+    const report = await this.getTaxReport(restaurantId, from, to);
+    const dollars = (cents: number) => (cents / 100).toFixed(2);
+    const quote = (v: string) => `"${v.replace(/"/g, '""')}"`;
+
+    const header = [
+      'Date',
+      'Subtotal',
+      'Discount',
+      ...report.taxNames,
+      'Total Tax',
+      'Order Total',
+      'Orders',
+    ];
+    const rows = report.daily.map((d) => [
+      d.date,
+      dollars(d.subtotalCents),
+      dollars(d.discountCents),
+      ...report.taxNames.map((name) => dollars(d.taxByName[name] ?? 0)),
+      dollars(d.taxCents),
+      dollars(d.totalCents),
+      String(d.orderCount),
+    ]);
+    const totalRow = [
+      'Total',
+      dollars(report.summary.subtotalCents),
+      dollars(report.summary.discountCents),
+      ...report.taxNames.map(
+        (name) => dollars(report.taxByName.find((t) => t.name === name)?.amountCents ?? 0),
+      ),
+      dollars(report.summary.taxCents),
+      dollars(report.summary.totalCents),
+      String(report.summary.orderCount),
+    ];
+
+    return [header, ...rows, totalRow].map((cols) => cols.map(quote).join(',')).join('\n');
+  }
 }

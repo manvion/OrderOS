@@ -527,6 +527,28 @@ export function createDashboardApi(
       ),
     getDeliveryEconomics: (period = '30d') =>
       call<DeliveryEconomics>(`/analytics/delivery-economics?period=${period}`),
+
+    /** `from`/`to` are ISO date strings, e.g. "2026-07-01". */
+    getTaxReport: (from: string, to: string) =>
+      call<TaxReport>(
+        `/analytics/tax-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      ),
+
+    /** Raw text, not JSON -- can't go through `call`, which always parses the body. */
+    downloadTaxReportCsv: async (from: string, to: string): Promise<Blob> => {
+      const token = await getToken();
+      const res = await fetch(
+        `${API_URL}/api/analytics/tax-report.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(restaurantId ? { 'X-Restaurant-Id': restaurantId } : {}),
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Could not download the report');
+      return res.blob();
+    },
   };
 }
 
@@ -1145,6 +1167,30 @@ export interface DeliveryEconomics {
   uberCostCents: number;
   marginCents: number;
   averageUberFeeCents: number;
+}
+
+export interface TaxReport {
+  from: string;
+  to: string;
+  /** Whatever tax component names actually appeared in this window's orders, e.g. ["GST", "QST"]. */
+  taxNames: string[];
+  summary: {
+    subtotalCents: number;
+    discountCents: number;
+    taxCents: number;
+    totalCents: number;
+    orderCount: number;
+  };
+  taxByName: Array<{ name: string; amountCents: number }>;
+  daily: Array<{
+    date: string;
+    subtotalCents: number;
+    discountCents: number;
+    taxCents: number;
+    totalCents: number;
+    orderCount: number;
+    taxByName: Record<string, number>;
+  }>;
 }
 
 // --- Platform admin (us, not the restaurants) --------------------------------
