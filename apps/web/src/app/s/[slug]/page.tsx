@@ -415,11 +415,11 @@ function RusticHome({ restaurant, href }: TemplateProps) {
   const cardText = tone(mode, '#ffffff', '#241a10');
   const cardTextMuted = tone(mode, 'rgba(255,255,255,0.7)', 'rgba(36,26,16,0.7)');
   const cardChipBg = tone(mode, 'rgba(255,255,255,0.1)', 'rgba(36,26,16,0.1)');
-  const bodyText = tone(mode, '#f3e6cc', '#241a10');
-  const bodyTextMuted = tone(mode, 'rgba(243,230,204,0.65)', 'rgba(36,26,16,0.65)');
-  const dashBorder = tone(mode, 'rgba(243,230,204,0.25)', 'rgba(36,26,16,0.2)');
-  const dashCardBg = tone(mode, 'rgba(0,0,0,0.2)', 'rgba(255,255,255,0.6)');
-  const labelColor = tone(mode, '#c9a876', '#8a6f4d');
+  const bodyText = tone(mode, '#241a10', '#f3e6cc');
+  const bodyTextMuted = tone(mode, 'rgba(36,26,16,0.65)', 'rgba(243,230,204,0.65)');
+  const dashBorder = tone(mode, 'rgba(36,26,16,0.2)', 'rgba(243,230,204,0.22)');
+  const dashCardBg = tone(mode, 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0.07)');
+  const labelColor = tone(mode, '#8a6f4d', '#c9a876');
 
   return (
     <div className="animate-rise" style={{ background: page }}>
@@ -813,6 +813,30 @@ function BentoHome({ restaurant, href }: TemplateProps) {
             About {restaurant.prepTimeMinutes} min
             {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
           </BentoCard>
+        </div>
+      </section>
+
+      <section className="px-5 pb-16 sm:px-8">
+        <div
+          className="mx-auto max-w-6xl rounded-[2rem] p-8 text-center sm:p-14"
+          style={{ background: restaurant.brandAccentColor }}
+        >
+          <p className="mx-auto max-w-lg font-display text-2xl font-black uppercase leading-tight tracking-tight text-white">
+            Ordering here sends your money to the kitchen, not a marketplace.
+          </p>
+          <p className="mx-auto mt-3 max-w-md text-sm text-white/80">
+            No 30% commission — same food, same people, more stays with them.
+          </p>
+          <Button
+            asChild
+            size="lg"
+            className="mt-7 rounded-full bg-white px-8 font-bold text-black hover:bg-white/90"
+          >
+            <Link href={href('/menu')}>
+              See the menu
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
       </section>
     </div>

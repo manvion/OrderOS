@@ -133,7 +133,7 @@ export default async function StorefrontLayout({
             '--brand-foreground': '#ffffff',
           } as React.CSSProperties
         }
-        className={`flex min-h-screen flex-col bg-background ${themeClass}`}
+        className={`flex min-h-screen flex-col bg-background text-foreground ${themeClass}`}
       >
         {/* Staff preview of an unpublished page. Says so plainly, because the most
             expensive misunderstanding available here is an owner believing they are
