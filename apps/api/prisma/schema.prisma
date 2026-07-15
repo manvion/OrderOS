@@ -57,6 +57,21 @@ enum WebsiteTemplate {
   /// photography anywhere -- the right choice for a restaurant with none yet,
   /// rather than the CLASSIC hero's gradient-wash fallback standing in for one.
   MINIMAL
+  /// Warm cream palette, rounded coupon-card sections, a dashed-border closing
+  /// pitch. Playful and artisanal -- built for a place that wants to feel
+  /// hand-made, not corporate.
+  RUSTIC
+  /// Bold black display type, a personal greeting, pill-shaped facts, a
+  /// bright accent CTA with a prep-time badge. Built for speed and personality
+  /// over photography -- the app-like choice.
+  BUILDER
+  /// Chunky rounded display type, bright color-blocked bento cards, a
+  /// top-picks list. Playful and confident -- built for a place with a fun,
+  /// youthful brand.
+  BENTO
+  /// Cream-and-forest-green palette, serif display type, a dark band behind
+  /// the hero photo. Editorial and upscale -- the fine-dining choice.
+  ELEGANT
 }
 
 /// See Restaurant.logoDisplayMode.

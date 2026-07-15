@@ -191,7 +191,9 @@ export const updateRestaurantSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .optional(),
-  websiteTemplate: z.enum(['CLASSIC', 'BOLD', 'MINIMAL']).optional(),
+  websiteTemplate: z
+    .enum(['CLASSIC', 'BOLD', 'MINIMAL', 'RUSTIC', 'BUILDER', 'BENTO', 'ELEGANT'])
+    .optional(),
   logoDisplayMode: z.enum(['LOGO_AND_NAME', 'LOGO_ONLY', 'NAME_ONLY']).optional(),
 
   /**

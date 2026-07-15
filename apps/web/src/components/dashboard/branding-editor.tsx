@@ -72,8 +72,9 @@ export function BrandingEditor() {
   });
 
   const saveTemplate = useMutation({
-    mutationFn: (websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL') =>
-      api.updateCurrent({ websiteTemplate }),
+    mutationFn: (
+      websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT',
+    ) => api.updateCurrent({ websiteTemplate }),
     onSuccess: () => {
       void queryClient.invalidateQueries();
       toast.success('Website template updated');
@@ -260,9 +261,9 @@ export function BrandingEditor() {
         <div className="space-y-2">
           <Label>Website template</Label>
           <p className="text-xs text-muted-foreground">
-            Three different layouts, not a colour change — switch anytime and see it live instantly.
+            Seven different layouts, not a colour change — switch anytime and see it live instantly.
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <TemplateOption
               swatch="photo"
               title="Classic"
@@ -287,6 +288,42 @@ export function BrandingEditor() {
               description="Centered, text-first, no photo needed. Quiet and clean."
               active={restaurant.websiteTemplate === 'MINIMAL'}
               onSelect={() => saveTemplate.mutate('MINIMAL')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+            <TemplateOption
+              swatch="rustic"
+              title="Rustic"
+              description="Warm cream palette, dashed borders, a dark coupon-card hero. Artisanal."
+              active={restaurant.websiteTemplate === 'RUSTIC'}
+              onSelect={() => saveTemplate.mutate('RUSTIC')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+            <TemplateOption
+              swatch="builder"
+              title="Builder"
+              description="Bold black type, a floating status card. App-like and fast."
+              active={restaurant.websiteTemplate === 'BUILDER'}
+              onSelect={() => saveTemplate.mutate('BUILDER')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+            <TemplateOption
+              swatch="bento"
+              title="Bento"
+              description="Chunky rounded type, bright colour-blocked cards. Playful and confident."
+              active={restaurant.websiteTemplate === 'BENTO'}
+              onSelect={() => saveTemplate.mutate('BENTO')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
+            <TemplateOption
+              swatch="elegant"
+              title="Elegant"
+              description="Cream and forest green, serif type, a dark band behind the hero. Fine dining."
+              active={restaurant.websiteTemplate === 'ELEGANT'}
+              onSelect={() => saveTemplate.mutate('ELEGANT')}
               disabled={readOnly || saveTemplate.isPending}
               accent={primary}
             />
@@ -346,7 +383,7 @@ function TemplateOption({
   disabled,
   accent,
 }: {
-  swatch: 'photo' | 'bold' | 'minimal';
+  swatch: 'photo' | 'bold' | 'minimal' | 'rustic' | 'builder' | 'bento' | 'elegant';
   title: string;
   description: string;
   active: boolean;
@@ -380,6 +417,33 @@ function TemplateOption({
           <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md bg-white p-2">
             <div className="h-1.5 w-2/5 rounded-sm" style={{ background: accent }} />
             <div className="h-1 w-3/5 rounded-sm bg-muted-foreground/30" />
+          </div>
+        )}
+        {swatch === 'rustic' && (
+          <div className="flex h-full items-center gap-1.5 rounded-md p-2" style={{ background: '#241a10' }}>
+            <div className="flex flex-1 flex-col gap-1">
+              <div className="h-2 w-full rounded-sm bg-white/90" />
+              <div className="h-1.5 w-2/3 rounded-sm" style={{ background: accent }} />
+            </div>
+            <div className="h-full w-1/3 rounded-sm" style={{ background: accent }} />
+          </div>
+        )}
+        {swatch === 'builder' && (
+          <div className="flex h-full flex-col justify-between gap-1.5 rounded-md bg-white p-2">
+            <div className="h-3 w-4/5 rounded-sm bg-foreground" />
+            <div className="h-4 w-2/5 self-end rounded-md border" style={{ borderColor: accent }} />
+          </div>
+        )}
+        {swatch === 'bento' && (
+          <div className="grid h-full grid-cols-3 gap-1 rounded-md p-1">
+            <div className="col-span-2 rounded-sm" style={{ background: accent }} />
+            <div className="rounded-sm bg-[#1c1c1c]" />
+          </div>
+        )}
+        {swatch === 'elegant' && (
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md p-2" style={{ background: '#f7f2e7' }}>
+            <div className="h-1.5 w-2/5 rounded-sm bg-[#2a2118]" />
+            <div className="h-3 w-3/5 rounded-sm" style={{ background: '#1f3d2b' }} />
           </div>
         )}
       </div>

@@ -2,7 +2,18 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
+import {
+  ArrowRight,
+  Clock,
+  Flame,
+  MapPin,
+  Phone,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Truck,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { storefrontApi, type StorefrontRestaurant } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
@@ -58,6 +69,14 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
       return <BoldHome restaurant={restaurant} href={href} />;
     case 'MINIMAL':
       return <MinimalHome restaurant={restaurant} href={href} />;
+    case 'RUSTIC':
+      return <RusticHome restaurant={restaurant} href={href} />;
+    case 'BUILDER':
+      return <BuilderHome restaurant={restaurant} href={href} />;
+    case 'BENTO':
+      return <BentoHome restaurant={restaurant} href={href} />;
+    case 'ELEGANT':
+      return <ElegantHome restaurant={restaurant} href={href} />;
     case 'CLASSIC':
     default:
       return <ClassicHome restaurant={restaurant} href={href} />;
@@ -364,6 +383,470 @@ function MinimalHome({ restaurant, href }: TemplateProps) {
             About {restaurant.prepTimeMinutes} minutes
             {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
           </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * RUSTIC. Warm cream palette, dark rounded "coupon card" hero, dashed borders
+ * throughout. Artisanal and hand-made-feeling rather than corporate -- the
+ * opposite instinct from BOLD's flat brand-colour confidence.
+ */
+function RusticHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
+
+  return (
+    <div className="animate-rise bg-[#f6ecd9]">
+      <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8 sm:pt-14">
+        <div className="grid gap-6 overflow-hidden rounded-[2rem] bg-[#241a10] lg:grid-cols-2">
+          <div className="p-8 sm:p-12">
+            <div className="rise-1 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/90 ring-1 ring-white/15">
+              <span
+                className={`pulse-dot h-1.5 w-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-400 text-emerald-400' : 'bg-white/50'}`}
+              />
+              {restaurant.isOpen ? 'Open now' : 'Closed'}
+            </div>
+
+            <h1 className="rise-2 mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl">
+              {restaurant.name}
+            </h1>
+
+            {restaurant.description && (
+              <p className="rise-3 mt-4 max-w-md text-white/70">{restaurant.description}</p>
+            )}
+
+            <div className="rise-4 mt-8 flex flex-wrap items-center gap-3">
+              <Button
+                asChild
+                size="lg"
+                className="rounded-full px-7 shadow-floating"
+                style={{ background: restaurant.brandPrimaryColor, color: '#fff' }}
+              >
+                <Link href={href('/menu')}>
+                  {restaurant.isOpen ? 'Order online' : 'View the menu'}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <a
+                href={`tel:${restaurant.phone}`}
+                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2.5 text-sm font-medium text-white ring-1 ring-white/15"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {restaurant.phone}
+              </a>
+            </div>
+
+            <div className="mt-8 flex items-center gap-5 text-sm text-white/70">
+              <span className="inline-flex items-center gap-1.5">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                Fresh, made to order
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Flame className="h-4 w-4 text-orange-400" />
+                Ready in ~{restaurant.prepTimeMinutes} min
+              </span>
+            </div>
+          </div>
+
+          <div className="relative min-h-[16rem]">
+            {restaurant.coverImageUrl ? (
+              <Image
+                src={restaurant.coverImageUrl}
+                alt=""
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover"
+              />
+            ) : (
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(120% 100% at 100% 0%, ${restaurant.brandAccentColor}, ${restaurant.brandPrimaryColor})`,
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
+        <div className="grid gap-5 sm:grid-cols-3">
+          <RusticCard icon={MapPin} label="Find us">
+            {restaurant.street}, {restaurant.city}
+          </RusticCard>
+          <RusticCard icon={Phone} label="Call us">
+            <a href={`tel:${restaurant.phone}`} className="hover:underline">
+              {restaurant.phone}
+            </a>
+          </RusticCard>
+          <RusticCard icon={Clock} label="How long">
+            About {restaurant.prepTimeMinutes} min
+            {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
+          </RusticCard>
+        </div>
+      </section>
+
+      <section className="px-5 pb-16 sm:px-8">
+        <div className="mx-auto max-w-4xl rounded-[2rem] border-2 border-dashed border-[#241a10]/25 bg-white/50 px-8 py-12 text-center">
+          <p className="mx-auto max-w-lg font-display text-2xl font-semibold text-[#241a10]">
+            Ordering here sends your money to the kitchen, not a marketplace.
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-[#241a10]/70">
+            No 30% commission — same food, same people, more stays with them.
+          </p>
+          <Button
+            asChild
+            size="lg"
+            className="mt-7 rounded-full px-8"
+            style={{ background: restaurant.brandPrimaryColor, color: '#fff' }}
+          >
+            <Link href={href('/menu')}>
+              See the menu
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          {options.length > 0 && (
+            <p className="mt-4 text-xs text-[#241a10]/60">{options.map((o) => o.label).join(' · ')}</p>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function RusticCard({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: typeof MapPin;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-[#241a10]/20 bg-white/60 p-5">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#8a6f4d]">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <p className="mt-2 text-sm font-medium text-[#241a10]">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * BUILDER. Bold black display type, a bright accent CTA with a prep-time
+ * badge, and a floating status card -- the app-like, configurator-flavoured
+ * choice. No photo dependency: the personality is in the type, not the plate.
+ */
+function BuilderHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
+
+  return (
+    <div className="animate-rise bg-white">
+      <section className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+          <div>
+            <p className="rise-1 text-sm font-semibold text-muted-foreground">{restaurant.name}</p>
+            <h1 className="rise-2 mt-2 font-display text-5xl font-black leading-[0.95] tracking-tight text-foreground sm:text-6xl">
+              What are you craving today?
+            </h1>
+
+            {restaurant.description && (
+              <p className="rise-3 mt-5 max-w-md text-lg text-muted-foreground">
+                {restaurant.description}
+              </p>
+            )}
+
+            <div className="rise-4 mt-8 flex flex-wrap items-center gap-3">
+              {options.map(({ icon: Icon, label }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1.5 rounded-full border-2 border-foreground/10 px-4 py-2 text-sm font-semibold"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            <div className="rise-4 mt-8">
+              <Button
+                asChild
+                size="lg"
+                className="rounded-full px-8 text-base font-bold shadow-floating"
+                style={{ background: restaurant.brandPrimaryColor, color: '#fff' }}
+              >
+                <Link href={href('/menu')} className="group">
+                  {restaurant.isOpen ? 'Start your order' : 'View the menu'}
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* The floating status card -- the configurator-panel energy of the
+              reference, repurposed: instead of toppings, it shows the facts
+              that actually matter before ordering. */}
+          <div className="rise-3 rounded-3xl border bg-card p-6 shadow-floating">
+            <div className="flex items-center justify-between">
+              <p className="font-display text-lg font-semibold">Right now</p>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  restaurant.isOpen ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {restaurant.isOpen ? 'Open' : 'Closed'}
+              </span>
+            </div>
+            <div className="mt-5 space-y-3 text-sm">
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-muted-foreground">Ready in</span>
+                <span className="font-semibold tabular-nums">~{restaurant.prepTimeMinutes} min</span>
+              </div>
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-muted-foreground">Location</span>
+                <span className="font-medium">{restaurant.city}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Call</span>
+                <a href={`tel:${restaurant.phone}`} className="font-medium hover:underline">
+                  {restaurant.phone}
+                </a>
+              </div>
+            </div>
+            {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Closed now, but you can schedule an order for later.
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <FactsRow restaurant={restaurant} />
+      <ClosingPitch restaurant={restaurant} href={href} />
+    </div>
+  );
+}
+
+/**
+ * BENTO. Chunky rounded display type, bright colour-blocked cards in a bento
+ * grid. Playful and confident -- built for a brand that wants energy, not
+ * restraint.
+ */
+function BentoHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
+
+  return (
+    <div className="animate-rise bg-[#faf6ec]">
+      <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8 sm:pt-14">
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div
+            className="relative overflow-hidden rounded-[2rem] p-8 sm:p-10 lg:col-span-2"
+            style={{ background: restaurant.brandPrimaryColor }}
+          >
+            <div
+              className="pointer-events-none absolute inset-0 opacity-30"
+              style={{
+                background: `radial-gradient(ellipse 600px 400px at 90% 100%, ${restaurant.brandAccentColor}, transparent 70%)`,
+              }}
+            />
+            <div className="relative">
+              <div className="rise-1 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">
+                <Sparkles className="h-3 w-3" />
+                {restaurant.isOpen ? 'Open now' : 'Closed'}
+              </div>
+              <h1 className="rise-2 mt-5 font-display text-5xl font-black uppercase leading-[0.9] tracking-tight text-white sm:text-6xl">
+                {restaurant.name}
+              </h1>
+              {restaurant.description && (
+                <p className="rise-3 mt-4 max-w-md text-white/85">{restaurant.description}</p>
+              )}
+              <Button
+                asChild
+                size="lg"
+                className="rise-4 mt-7 rounded-full bg-white px-7 font-bold text-black hover:bg-white/90"
+              >
+                <Link href={href('/menu')}>
+                  {restaurant.isOpen ? 'Order now' : 'View the menu'}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-5">
+            <div className="rounded-[2rem] bg-[#1c1c1c] p-6 text-white">
+              <p className="font-display text-2xl font-black uppercase tracking-tight">Ready in</p>
+              <p className="mt-1 text-3xl font-black tabular-nums">~{restaurant.prepTimeMinutes}m</p>
+            </div>
+            <div
+              className="rounded-[2rem] p-6 text-white"
+              style={{ background: restaurant.brandAccentColor }}
+            >
+              <p className="font-display text-xl font-black uppercase tracking-tight">
+                {options.map((o) => o.label).join(' + ') || 'Order direct'}
+              </p>
+              <p className="mt-1 text-sm text-white/85">No marketplace commission</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
+        <div className="grid gap-5 sm:grid-cols-3">
+          <BentoCard icon={MapPin} label="Find us" color={restaurant.brandPrimaryColor}>
+            {restaurant.street}, {restaurant.city}
+          </BentoCard>
+          <BentoCard icon={Phone} label="Call us" color={restaurant.brandAccentColor}>
+            <a href={`tel:${restaurant.phone}`} className="hover:underline">
+              {restaurant.phone}
+            </a>
+          </BentoCard>
+          <BentoCard icon={Clock} label="How long" color="#1c1c1c">
+            About {restaurant.prepTimeMinutes} min
+            {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
+          </BentoCard>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function BentoCard({
+  icon: Icon,
+  label,
+  color,
+  children,
+}: {
+  icon: typeof MapPin;
+  label: string;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-3xl p-6 text-white" style={{ background: color }}>
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/70">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <p className="mt-2 text-base font-bold">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * ELEGANT. Cream-and-forest-green, serif display type, a dark angled band
+ * behind the hero photo. Upscale and editorial -- the fine-dining choice.
+ */
+function ElegantHome({ restaurant, href }: TemplateProps) {
+  const FOREST = '#1f3d2b';
+
+  return (
+    <div className="animate-rise bg-[#f7f2e7]">
+      <section className="mx-auto max-w-4xl px-5 pt-16 text-center sm:px-8 sm:pt-24">
+        <p className="rise-1 text-sm font-semibold uppercase tracking-[0.2em]" style={{ color: FOREST }}>
+          {restaurant.isOpen ? 'Open now' : 'Currently closed'}
+        </p>
+        <h1 className="rise-2 mt-4 font-display text-4xl font-medium italic leading-tight tracking-tight text-[#2a2118] sm:text-6xl">
+          {restaurant.name}
+        </h1>
+        {restaurant.description && (
+          <p className="rise-3 mx-auto mt-5 max-w-lg text-[#2a2118]/70">{restaurant.description}</p>
+        )}
+        <div className="rise-4 mt-8">
+          <Button
+            asChild
+            size="lg"
+            className="rounded-full px-8"
+            style={{ background: FOREST, color: '#fff' }}
+          >
+            <Link href={href('/menu')}>
+              {restaurant.isOpen ? 'Explore the menu' : 'View the menu'}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+
+      <section className="relative mx-auto mt-14 max-w-5xl px-5 sm:px-8">
+        {/* The signature move: a dark band bleeding to both edges, the photo
+            floating on top of it -- the paint-smear device from the reference,
+            approximated without needing real illustration assets. */}
+        <div
+          className="absolute inset-x-0 top-1/2 h-2/3 -translate-y-1/2"
+          style={{ background: '#161310' }}
+          aria-hidden
+        />
+        <div className="relative aspect-[16/9] overflow-hidden rounded-[2rem] shadow-dramatic">
+          {restaurant.coverImageUrl ? (
+            <Image
+              src={restaurant.coverImageUrl}
+              alt=""
+              fill
+              sizes="(max-width: 1024px) 100vw, 1024px"
+              className="object-cover"
+            />
+          ) : (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(140deg, ${restaurant.brandPrimaryColor}, ${FOREST})`,
+              }}
+            />
+          )}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-5 py-16 sm:px-8">
+        <dl className="grid gap-8 text-center sm:grid-cols-3">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-widest" style={{ color: FOREST }}>
+              Find us
+            </dt>
+            <dd className="mt-2 font-display text-lg text-[#2a2118]">
+              {restaurant.street}, {restaurant.city}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-widest" style={{ color: FOREST }}>
+              Call us
+            </dt>
+            <dd className="mt-2 font-display text-lg text-[#2a2118]">
+              <a href={`tel:${restaurant.phone}`} className="hover:underline">
+                {restaurant.phone}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-widest" style={{ color: FOREST }}>
+              How long
+            </dt>
+            <dd className="mt-2 font-display text-lg text-[#2a2118]">
+              ~{restaurant.prepTimeMinutes} min
+              {restaurant.deliveryEnabled && <> · +15 delivery</>}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="px-5 pb-20 sm:px-8">
+        <div
+          className="mx-auto max-w-4xl rounded-[2rem] border border-dotted border-white/25 px-8 py-14 text-center"
+          style={{ background: FOREST }}
+        >
+          <p className="mx-auto max-w-lg font-display text-2xl italic text-white">
+            Craving something delicious? Reserve your order and savor the experience.
+          </p>
+          <Button asChild size="lg" className="mt-7 rounded-full bg-white px-8 text-[#1f3d2b] hover:bg-white/90">
+            <Link href={href('/menu')}>
+              Explore the menu
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
       </section>
     </div>
