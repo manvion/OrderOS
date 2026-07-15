@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import { Plus, Sparkles, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi } from './dashboard-provider';
 import { ApiRequestError, type Category, type Product } from '@/lib/api';
@@ -107,6 +107,16 @@ export function ProductEditor({
     );
   };
 
+  const generateDescription = useMutation({
+    mutationFn: () => {
+      const categoryName = categories.find((c) => c.id === categoryId)?.name;
+      return api.generateProductDescription(name.trim(), categoryName);
+    },
+    onSuccess: ({ description }) => setDescription(description),
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not write a description'),
+  });
+
   const save = useMutation({
     mutationFn: async () => {
       const priceCents = Math.round(parseFloat(price || '0') * 100);
@@ -197,7 +207,18 @@ export function ProductEditor({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="p-description">Description</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="p-description">Description</Label>
+              <button
+                type="button"
+                onClick={() => generateDescription.mutate()}
+                disabled={!name.trim() || generateDescription.isPending}
+                className="flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:opacity-50"
+              >
+                <Sparkles className="h-3 w-3" />
+                {generateDescription.isPending ? 'Writing…' : 'AI fill'}
+              </button>
+            </div>
             <Textarea
               id="p-description"
               value={description}

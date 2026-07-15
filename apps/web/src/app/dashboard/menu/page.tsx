@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
@@ -40,6 +40,41 @@ export default function MenuPage() {
     void queryClient.invalidateQueries({ queryKey: ['products'] });
     void queryClient.invalidateQueries({ queryKey: ['categories'] });
   };
+
+  const [bulkFillProgress, setBulkFillProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+
+  /**
+   * Sweeps every item with no description, one at a time -- sequential on
+   * purpose, so it never fires more than one request at once against the
+   * free-model ladder's throttle. One item's failure (a model having a bad
+   * moment) doesn't stop the rest of the sweep.
+   */
+  const bulkFillDescriptions = useMutation({
+    mutationFn: async () => {
+      const targets = (products ?? []).filter((p) => !p.description?.trim());
+      setBulkFillProgress({ done: 0, total: targets.length });
+      for (const [i, product] of targets.entries()) {
+        const categoryName = categories?.find((c) => c.id === product.categoryId)?.name;
+        try {
+          const { description } = await api.generateProductDescription(product.name, categoryName);
+          await api.updateProduct(product.id, { description });
+        } catch {
+          // Keep going -- one bad item shouldn't stop the sweep.
+        }
+        setBulkFillProgress({ done: i + 1, total: targets.length });
+      }
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Descriptions filled in');
+    },
+    onError: () => toast.error('Something went wrong filling descriptions'),
+    onSettled: () => setBulkFillProgress(null),
+  });
+
+  const missingDescriptionCount = (products ?? []).filter((p) => !p.description?.trim()).length;
 
   const createCategory = useMutation({
     mutationFn: (name: string) => api.createCategory({ name, sortOrder: categories?.length ?? 0 }),
@@ -123,6 +158,18 @@ export default function MenuPage() {
             {/* One photo instead of an hour of typing. Renders nothing when the
                 server has no vision key — see MenuPhotoImport. */}
             <MenuPhotoImport categories={categories ?? []} />
+            {missingDescriptionCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => bulkFillDescriptions.mutate()}
+                disabled={bulkFillDescriptions.isPending}
+              >
+                <Sparkles className="h-4 w-4" />
+                {bulkFillProgress
+                  ? `Filling ${bulkFillProgress.done}/${bulkFillProgress.total}…`
+                  : `AI fill ${missingDescriptionCount} description${missingDescriptionCount === 1 ? '' : 's'}`}
+              </Button>
+            )}
             <Button onClick={() => setEditing('new')} disabled={!categories?.length}>
               <Plus className="h-4 w-4" />
               Add product

@@ -144,17 +144,24 @@ export default async function StorefrontLayout({
                   <Image
                     src={restaurant.logoUrl}
                     alt={restaurant.name}
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 rounded-md object-cover"
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 rounded-xl border object-cover shadow-soft"
                   />
                 ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand text-sm font-bold text-brand-foreground">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-base font-bold text-brand-foreground shadow-soft">
                     {restaurant.name.charAt(0)}
                   </div>
                 ))}
               {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
-                <span className="truncate font-display text-lg font-semibold">{restaurant.name}</span>
+                <span className="min-w-0 truncate leading-tight">
+                  <span className="block font-display text-xl font-semibold tracking-tight">
+                    {restaurant.name}
+                  </span>
+                  <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-brand sm:block">
+                    {restaurant.city}
+                  </span>
+                </span>
               )}
             </Link>
 

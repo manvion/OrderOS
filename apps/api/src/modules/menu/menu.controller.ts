@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { categorySchema, productSchema, type CategoryInput, type ProductInput } from '@dinedirect/shared';
 import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
@@ -25,6 +26,10 @@ import { MenuService } from './menu.service';
 const reorderSchema = z.object({ orderedIds: z.array(z.string().cuid()).min(1).max(500) });
 const availabilitySchema = z.object({ isAvailable: z.boolean() });
 const importUrlSchema = z.object({ url: z.string().min(8).max(500) });
+const aiDescriptionSchema = z.object({
+  name: z.string().min(1).max(120),
+  categoryName: z.string().max(80).optional(),
+});
 
 /** Staff-only menu management. Storefront reads live in StorefrontController. */
 @ApiTags('menu')
@@ -188,6 +193,19 @@ export class MenuController {
   ) {
     const restaurant = await this.menu.getRestaurantCurrency(restaurantId);
     return this.menuImport.extractFromUrl(body.url, restaurant.currency);
+  }
+
+  /**
+   * One sentence, written from just the item name and its category -- for the
+   * single "AI fill" button on one item, and for the bulk sweep across every
+   * item missing a description. Free OpenRouter models, same ladder as import.
+   */
+  @Post('ai-description')
+  @Roles('MANAGER')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async aiDescription(@Body(new ZodValidationPipe(aiDescriptionSchema)) body: z.infer<typeof aiDescriptionSchema>) {
+    const description = await this.menuImport.generateDescription(body.name, body.categoryName ?? null);
+    return { description };
   }
 
   @Post('products/:id/image')

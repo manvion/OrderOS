@@ -386,6 +386,44 @@ export class MenuImportService {
 
     return this.toDraft(extracted);
   }
+
+  /**
+   * One short, appetizing sentence for an item that has none -- the same free
+   * OpenRouter ladder as the menu importer, just text instead of vision. Never
+   * invents specifics the owner didn't provide (ingredients, allergens); it
+   * writes around the name and category the way a menu copywriter would from
+   * a one-line brief.
+   */
+  async generateDescription(name: string, categoryName: string | null): Promise<string> {
+    if (!this.available) {
+      throw new ServiceUnavailableException(
+        'AI description writing is not configured on this server.',
+      );
+    }
+
+    const system =
+      'You write short, appetizing restaurant menu descriptions. Rules: (1) ONE sentence, ' +
+      'under 120 characters. (2) Plain, appealing language -- no purple prose, no invented ' +
+      "ingredients or allergens you weren't given. (3) No quotation marks, no markdown, no " +
+      'preamble -- respond with ONLY the sentence itself.';
+    const prompt = categoryName
+      ? `Menu item: "${name}" (category: ${categoryName}). Write the description.`
+      : `Menu item: "${name}". Write the description.`;
+
+    for (const model of this.openRouterModels) {
+      try {
+        const text = await this.callOpenRouter(model, system, { prompt });
+        const cleaned = text.trim().replace(/^["']|["']$/g, '').split('\n')[0].trim();
+        if (cleaned) return cleaned.slice(0, 160);
+      } catch (err) {
+        this.logger.warn(
+          `${model} failed description generation (${(err as Error).message}) -- trying the next model`,
+        );
+      }
+    }
+
+    throw new BadRequestException('Could not write a description right now -- try again in a minute.');
+  }
 }
 
 /**
