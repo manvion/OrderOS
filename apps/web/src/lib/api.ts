@@ -125,6 +125,13 @@ export const storefrontApi = {
       body: JSON.stringify(body),
     }),
 
+  /** Live "how much does this code save me" preview for the cart page. */
+  previewPromotion: (slug: string, subtotalCents: number, code?: string) =>
+    storefrontApi.request<{ discountCents: number }>('/storefront/promotions/preview', slug, {
+      method: 'POST',
+      body: JSON.stringify({ subtotalCents, code }),
+    }),
+
   track: (slug: string, token: string) =>
     storefrontApi.request<TrackedOrder>(`/storefront/track/${token}`, slug),
 
@@ -399,6 +406,18 @@ export function createDashboardApi(
       call<QRCode>('/qr', { method: 'POST', body: JSON.stringify(body) }),
     getQrStats: () => call<QrStat[]>('/qr/stats'),
     deleteQrCode: (id: string) => call<{ success: boolean }>(`/qr/${id}`, { method: 'DELETE' }),
+
+    // Promotions
+    listPromotions: () => call<Promotion[]>('/promotions'),
+    createPromotion: (body: unknown) =>
+      call<Promotion>('/promotions', { method: 'POST', body: JSON.stringify(body) }),
+    setPromotionActive: (id: string, isActive: boolean) =>
+      call<Promotion>(`/promotions/${id}/active`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+    deletePromotion: (id: string) =>
+      call<{ success: boolean }>(`/promotions/${id}`, { method: 'DELETE' }),
 
     // Staff & invitations
     listStaff: () => call<StaffMember[]>('/restaurants/current/staff'),
@@ -991,6 +1010,19 @@ export interface QrStat {
   scans: number;
   orders: number;
   conversionRate: number;
+}
+
+export interface Promotion {
+  id: string;
+  name: string;
+  type: 'PERCENT' | 'FIXED';
+  value: number;
+  code: string | null;
+  minSubtotalCents: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  isActive: boolean;
+  redemptions: number;
 }
 
 export interface Customer {

@@ -22,6 +22,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourierRouter } from '../delivery/courier.router';
 import { GeocodingService } from '../delivery/geocoding.service';
+import { PromotionsService } from '../promotions/promotions.service';
 
 export interface ListOrdersOptions {
   status?: OrderStatus[];
@@ -57,6 +58,7 @@ export class OrdersService {
     private readonly geocoding: GeocodingService,
     // Prices the courier at order time so the cost is recouped inside the charge.
     private readonly couriers: CourierRouter,
+    private readonly promotions: PromotionsService,
   ) {}
 
   /**
@@ -173,10 +175,14 @@ export class OrdersService {
             })
         : Promise.resolve(null);
 
-    const [courierCostCents, customer, orderNumber] = await Promise.all([
+    const [courierCostCents, customer, orderNumber, discount] = await Promise.all([
       courierQuote,
       this.upsertCustomer(restaurantId, input.customer, clerkUserId),
       this.nextOrderNumber(restaurantId),
+      // Resolved against goodsValueCents (subtotal before tax/fees/tip), same
+      // figure a coupon should ever discount against. A bad or expired code
+      // throws here and fails the order, same as it did in the cart preview.
+      this.promotions.resolveDiscount(restaurantId, goodsValueCents, input.promoCode, restaurant.currency),
     ]);
 
     const pricing = priceOrder({
@@ -193,6 +199,7 @@ export class OrdersService {
       deliveryFeeCents: courierCostCents ?? restaurant.deliveryFeeCents,
       serviceFeeCents: restaurant.serviceFeeCents,
       tipCents: input.tipCents,
+      discountCents: discount?.discountCents ?? 0,
     });
 
     if (pricing.subtotalCents < restaurant.minOrderCents) {
@@ -224,6 +231,7 @@ export class OrdersService {
           serviceFeeCents: pricing.serviceFeeCents,
           tipCents: pricing.tipCents,
           discountCents: pricing.discountCents,
+          promotionId: discount?.promotionId,
           totalCents: pricing.totalCents,
           currency: restaurant.currency,
           taxRateBps: restaurant.taxRateBps,
@@ -298,6 +306,14 @@ export class OrdersService {
     });
 
     this.logger.log(`Order ${order.orderNumber} created for ${restaurant.slug}`);
+
+    if (discount) {
+      // Informational only -- never blocks the response the customer is waiting on.
+      this.promotions
+        .recordRedemption(discount.promotionId)
+        .catch((err: Error) => this.logger.warn(`Failed to record promotion redemption: ${err.message}`));
+    }
+
     return order;
   }
 

@@ -336,6 +336,8 @@ export const createOrderSchema = z
     /** Set when the order came from a table QR code. */
     tableNumber: z.string().max(20).optional(),
     qrCodeId: z.string().cuid().optional(),
+    /** Customer-entered promo code. Re-validated server-side; never trust the discount from the client. */
+    promoCode: z.string().max(40).optional(),
   })
   .refine((o) => o.fulfillment !== 'DELIVERY' || !!o.deliveryAddress, {
     message: 'A delivery address is required for delivery orders',
@@ -349,6 +351,24 @@ export const qrCodeSchema = z.object({
   tableNumber: z.string().max(20).optional(),
 });
 export type QRCodeInput = z.infer<typeof qrCodeSchema>;
+
+export const promotionSchema = z
+  .object({
+    name: z.string().min(1).max(80),
+    type: z.enum(['PERCENT', 'FIXED']),
+    /** PERCENT: basis points (500 = 5%, max 10000 = 100%). FIXED: cents. */
+    value: z.number().int().min(1),
+    /** Blank/omitted applies automatically to every qualifying order. */
+    code: z.string().max(40).optional(),
+    minSubtotalCents: z.number().int().min(0).default(0),
+    startsAt: z.string().datetime().optional(),
+    endsAt: z.string().datetime().optional(),
+  })
+  .refine((p) => p.type !== 'PERCENT' || p.value <= 10_000, {
+    message: 'A percentage discount cannot exceed 100%',
+    path: ['value'],
+  });
+export type PromotionInput = z.infer<typeof promotionSchema>;
 
 export const refundSchema = z.object({
   amountCents: z.number().int().min(1).optional(), // omit for a full refund

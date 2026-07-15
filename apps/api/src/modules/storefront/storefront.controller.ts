@@ -43,7 +43,13 @@ import { DeliveryService } from '../delivery/delivery.service';
 import { MenuService } from '../menu/menu.service';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
+import { PromotionsService } from '../promotions/promotions.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
+
+const promoPreviewSchema = z.object({
+  subtotalCents: z.number().int().min(0),
+  code: z.string().max(40).optional(),
+});
 
 const quoteSchema = z.object({
   address: addressSchema,
@@ -85,6 +91,7 @@ export class StorefrontController {
     private readonly addresses: AddressAutocompleteService,
     private readonly prisma: PrismaService,
     private readonly accounts: CustomerAccountService,
+    private readonly promotions: PromotionsService,
   ) {}
 
   /** Homepage: branding, hours, whether they're open right now. */
@@ -105,6 +112,30 @@ export class StorefrontController {
   @Get('menu')
   menuForRestaurant(@TenantId() restaurantId: string) {
     return this.menu.getPublicMenu(restaurantId);
+  }
+
+  /**
+   * The cart's "how much does this save me" preview -- the exact same resolution
+   * the real order uses at checkout, so a code that previews here can never fail
+   * silently at checkout with a different number.
+   */
+  @Post('promotions/preview')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async previewPromotion(
+    @TenantId() restaurantId: string,
+    @Body(new ZodValidationPipe(promoPreviewSchema)) body: z.infer<typeof promoPreviewSchema>,
+  ) {
+    const restaurant = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { currency: true },
+    });
+    const discount = await this.promotions.resolveDiscount(
+      restaurantId,
+      body.subtotalCents,
+      body.code,
+      restaurant.currency,
+    );
+    return { discountCents: discount?.discountCents ?? 0 };
   }
 
   /**

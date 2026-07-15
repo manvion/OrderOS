@@ -26,6 +26,13 @@ interface CartState {
   tipCents: number;
   tableNumber: string | null;
   qrCodeId: string | null;
+  /** Entered at the cart page. Re-validated server-side at checkout — never trusted client-side. */
+  promoCode: string | null;
+  /** The server's answer to "how much does that code save", cached so the cart
+   *  can show it without re-asking on every render. Cleared whenever the cart
+   *  contents change, so a stale discount can never linger past the order it
+   *  was computed for. */
+  promoDiscountCents: number;
 
   addLine: (product: MenuProduct, modifiers: CartLine['modifiers'], quantity: number, notes?: string) => void;
   removeLine: (lineId: string) => void;
@@ -33,6 +40,7 @@ interface CartState {
   setFulfillment: (f: CartState['fulfillment']) => void;
   setTip: (cents: number) => void;
   setTableContext: (tableNumber: string | null, qrCodeId: string | null) => void;
+  setPromo: (code: string | null, discountCents: number) => void;
   ensureRestaurant: (slug: string) => void;
   clear: () => void;
 
@@ -58,6 +66,8 @@ export const useCart = create<CartState>()(
       tipCents: 0,
       tableNumber: null,
       qrCodeId: null,
+      promoCode: null,
+      promoDiscountCents: 0,
 
       /**
        * Drop the cart if the customer has moved to a different restaurant.
@@ -72,6 +82,8 @@ export const useCart = create<CartState>()(
             tipCents: 0,
             tableNumber: null,
             qrCodeId: null,
+            promoCode: null,
+            promoDiscountCents: 0,
             fulfillment: 'PICKUP',
           });
         }
@@ -90,6 +102,7 @@ export const useCart = create<CartState>()(
                 ? { ...l, quantity: Math.min(99, l.quantity + quantity) }
                 : l,
             ),
+            promoDiscountCents: 0,
           });
           return;
         }
@@ -108,20 +121,23 @@ export const useCart = create<CartState>()(
               modifiers,
             },
           ],
+          promoDiscountCents: 0,
         });
       },
 
-      removeLine: (lineId) => set({ lines: get().lines.filter((l) => l.lineId !== lineId) }),
+      removeLine: (lineId) =>
+        set({ lines: get().lines.filter((l) => l.lineId !== lineId), promoDiscountCents: 0 }),
 
       setQuantity: (lineId, quantity) => {
         if (quantity <= 0) {
-          set({ lines: get().lines.filter((l) => l.lineId !== lineId) });
+          set({ lines: get().lines.filter((l) => l.lineId !== lineId), promoDiscountCents: 0 });
           return;
         }
         set({
           lines: get().lines.map((l) =>
             l.lineId === lineId ? { ...l, quantity: Math.min(99, quantity) } : l,
           ),
+          promoDiscountCents: 0,
         });
       },
 
@@ -135,8 +151,17 @@ export const useCart = create<CartState>()(
           // room. Defaulting them to pickup would be absurd.
           ...(tableNumber ? { fulfillment: 'DINE_IN' as const } : {}),
         }),
+      setPromo: (promoCode, promoDiscountCents) => set({ promoCode, promoDiscountCents }),
 
-      clear: () => set({ lines: [], tipCents: 0, tableNumber: null, qrCodeId: null }),
+      clear: () =>
+        set({
+          lines: [],
+          tipCents: 0,
+          tableNumber: null,
+          qrCodeId: null,
+          promoCode: null,
+          promoDiscountCents: 0,
+        }),
 
       itemCount: () => get().lines.reduce((sum, l) => sum + l.quantity, 0),
       subtotalCents: () =>
@@ -169,6 +194,7 @@ export function useCartTotals(
   const lines = useCart((s) => s.lines);
   const fulfillment = useCart((s) => s.fulfillment);
   const tipCents = useCart((s) => s.tipCents);
+  const promoDiscountCents = useCart((s) => s.promoDiscountCents);
 
   if (!restaurant) return null;
 
@@ -190,5 +216,6 @@ export function useCartTotals(
     deliveryFeeCents: deliveryFeeOverrideCents ?? restaurant.deliveryFeeCents,
     serviceFeeCents: restaurant.serviceFeeCents,
     tipCents,
+    discountCents: promoDiscountCents,
   });
 }

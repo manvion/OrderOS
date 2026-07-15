@@ -307,9 +307,52 @@ model Restaurant {
   notifications       NotificationLog[]
   customDomains       CustomDomain[]
   galleryImages       GalleryImage[]
+  promotions          Promotion[]
 
   @@index([isPublished, isActive])
   @@map("restaurants")
+}
+
+/// PERCENT: `value` is basis points (500 = 5%). FIXED: `value` is cents off.
+enum PromotionType {
+  PERCENT
+  FIXED
+}
+
+/// A discount a restaurant runs on its own storefront -- "10% off", "$5 off
+/// orders over $30", a code for regulars, a weekend deal. Resolved server-side
+/// at order-creation time (see OrdersService), never trusted from the client.
+///
+/// `code` null means it applies automatically to every qualifying order; set,
+/// it means a customer must type it in at checkout. The unique constraint only
+/// bites when a code is set -- Postgres treats each NULL as distinct, so any
+/// number of auto-apply promotions can coexist.
+model Promotion {
+  id           String   @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name  String
+  type  PromotionType
+  value Int
+
+  code String?
+
+  minSubtotalCents Int       @default(0)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  isActive         Boolean   @default(true)
+
+  /// How many orders have used this. Denormalised so the dashboard doesn't
+  /// scan orders to show it.
+  redemptions Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, code])
+  @@index([restaurantId, isActive])
+  @@map("promotions")
 }
 
 /// A photo on the restaurant's About page.
@@ -722,6 +765,10 @@ model Order {
   serviceFeeCents  Int @default(0)
   tipCents         Int @default(0)
   discountCents    Int @default(0)
+  /// Which Promotion produced discountCents, if any. Not a relation FK -- a
+  /// promotion can be edited or deleted later and the order's frozen discount
+  /// must still make sense on its own.
+  promotionId      String?
   totalCents       Int
   currency         String @default("USD")
 

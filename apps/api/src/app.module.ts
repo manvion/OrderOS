@@ -22,6 +22,7 @@ import { MenuModule } from './modules/menu/menu.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 import { QrModule } from './modules/qr/qr.module';
 import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -73,6 +74,7 @@ import { WidgetModule } from './modules/widget/widget.module';
     MenuModule,
     OrdersModule,
     PaymentsModule,
+    PromotionsModule,
     DeliveryModule,
     QrModule,
     StorefrontModule,

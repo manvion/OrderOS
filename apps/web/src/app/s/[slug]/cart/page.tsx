@@ -1,13 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { Minus, Plus, ShoppingBag, Tag, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatMoney } from '@dinedirect/shared';
+import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 export default function CartPage() {
   const restaurant = useTenant();
@@ -15,7 +19,33 @@ export default function CartPage() {
   const lines = useCart((s) => s.lines);
   const setQuantity = useCart((s) => s.setQuantity);
   const removeLine = useCart((s) => s.removeLine);
+  const promoCode = useCart((s) => s.promoCode);
+  const promoDiscountCents = useCart((s) => s.promoDiscountCents);
+  const setPromo = useCart((s) => s.setPromo);
   const totals = useCartTotals(restaurant);
+
+  const [promoInput, setPromoInput] = useState('');
+  const [applyingPromo, setApplyingPromo] = useState(false);
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code || !totals) return;
+    setApplyingPromo(true);
+    try {
+      const { discountCents } = await storefrontApi.previewPromotion(
+        restaurant.slug,
+        totals.subtotalCents,
+        code,
+      );
+      setPromo(code, discountCents);
+      setPromoInput('');
+      toast.success(`Code applied — you saved ${formatMoney(discountCents, restaurant.currency)}`);
+    } catch (err) {
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not apply that code');
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
 
   if (lines.length === 0) {
     return (
@@ -115,14 +145,63 @@ export default function CartPage() {
 
       {totals && (
         <Card className="mt-6">
-          <CardContent className="space-y-2 p-6 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="tabular-nums">
-                {formatMoney(totals.subtotalCents, restaurant.currency)}
-              </span>
+          <CardContent className="space-y-4 p-6 text-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="tabular-nums">
+                  {formatMoney(totals.subtotalCents, restaurant.currency)}
+                </span>
+              </div>
+              {promoDiscountCents > 0 && (
+                <div className="flex justify-between text-brand">
+                  <span className="font-medium">
+                    Discount{promoCode ? ` · ${promoCode.toUpperCase()}` : ''}
+                  </span>
+                  <span className="tabular-nums">
+                    -{formatMoney(promoDiscountCents, restaurant.currency)}
+                  </span>
+                </div>
+              )}
             </div>
-            <p className="pt-2 text-xs text-muted-foreground">
+
+            {promoCode && promoDiscountCents > 0 ? (
+              <div className="flex items-center justify-between rounded-lg bg-brand-subtle px-3 py-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-brand">
+                  <Tag className="h-3.5 w-3.5" />
+                  {promoCode.toUpperCase()} applied
+                </span>
+                <button
+                  onClick={() => {
+                    setPromo(null, 0);
+                    toast('Code removed');
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="Remove promo code"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
+                  placeholder="Promo code"
+                  className="uppercase placeholder:normal-case"
+                />
+                <Button
+                  variant="outline"
+                  onClick={applyPromo}
+                  disabled={!promoInput.trim() || applyingPromo}
+                >
+                  {applyingPromo ? 'Checking…' : 'Apply'}
+                </Button>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
               Tax, fees and any tip are calculated at checkout.
             </p>
           </CardContent>
@@ -158,7 +237,11 @@ export default function CartPage() {
               <span>Minimum not met</span>
             ) : (
               <Link href={href('/checkout')}>
-                Checkout · {formatMoney(totals?.subtotalCents ?? 0, restaurant.currency)}
+                Checkout ·{' '}
+                {formatMoney(
+                  (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
+                  restaurant.currency,
+                )}
               </Link>
             )}
           </Button>

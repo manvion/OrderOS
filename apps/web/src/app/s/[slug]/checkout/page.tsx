@@ -30,6 +30,7 @@ export default function CheckoutPage() {
   const setTip = useCart((s) => s.setTip);
   const tableNumber = useCart((s) => s.tableNumber);
   const qrCodeId = useCart((s) => s.qrCodeId);
+  const promoCode = useCart((s) => s.promoCode);
   const clear = useCart((s) => s.clear);
 
   // NOT Clerk's hook: the storefront must render with no auth provider at all.
@@ -237,6 +238,7 @@ export default function CheckoutPage() {
           notes: notes.trim() || undefined,
           ...(tableNumber ? { tableNumber } : {}),
           ...(qrCodeId ? { qrCodeId } : {}),
+          ...(promoCode ? { promoCode } : {}),
         },
         token ?? undefined,
       );
@@ -625,6 +627,14 @@ export default function CheckoutPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Subtotal" cents={totals.subtotalCents} currency={restaurant.currency} />
+            {totals.discountCents > 0 && (
+              <div className="flex justify-between text-brand">
+                <span className="font-medium">Discount</span>
+                <span className="tabular-nums">
+                  -{formatMoney(totals.discountCents, restaurant.currency)}
+                </span>
+              </div>
+            )}
             {totals.serviceFeeCents > 0 && (
               <Row
                 label="Service fee"

@@ -9,6 +9,7 @@ import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider'
 import { ApiRequestError, type Product } from '@/lib/api';
 import { MenuPhotoImport } from '@/components/dashboard/menu-photo-import';
 import { ProductEditor } from '@/components/dashboard/product-editor';
+import { PromotionsPanel } from '@/components/dashboard/promotions-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ export default function MenuPage() {
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
 
+  const [tab, setTab] = useState<'items' | 'promotions'>('items');
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const [newCategory, setNewCategory] = useState('');
 
@@ -116,7 +118,7 @@ export default function MenuPage() {
             {products?.length ?? 0} items across {categories?.length ?? 0} categories
           </p>
         </div>
-        {!readOnly && (
+        {!readOnly && tab === 'items' && (
           <div className="flex flex-wrap gap-2">
             {/* One photo instead of an hour of typing. Renders nothing when the
                 server has no vision key — see MenuPhotoImport. */}
@@ -129,7 +131,25 @@ export default function MenuPage() {
         )}
       </div>
 
-      {!categories?.length && (
+      <div className="inline-flex rounded-lg border bg-muted/40 p-1">
+        {(['items', 'promotions'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+              tab === t
+                ? 'bg-background text-foreground shadow-soft'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'promotions' && <PromotionsPanel />}
+
+      {tab === 'items' && !categories?.length && (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="font-medium">Start with a category</p>
@@ -140,7 +160,7 @@ export default function MenuPage() {
         </Card>
       )}
 
-      {!readOnly && (
+      {tab === 'items' && !readOnly && (
         <Card>
           <CardContent className="flex gap-2 p-4">
             <Input
@@ -164,7 +184,7 @@ export default function MenuPage() {
         </Card>
       )}
 
-      <div className="space-y-6">
+      <div className={tab === 'items' ? 'space-y-6' : 'hidden'}>
         {categories?.map((category) => {
           const items = products?.filter((p) => p.categoryId === category.id) ?? [];
 
