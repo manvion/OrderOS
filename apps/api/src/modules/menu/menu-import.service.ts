@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
 /**
@@ -10,7 +9,8 @@ import { z } from 'zod';
  * 60-item menu is an hour of data entry, and it lands exactly where a restaurant
  * owner's patience is thinnest: before they've made a single sale on the platform.
  * Every abandoned onboarding is a restaurant that wanted the product and gave up.
- * So instead: photograph the physical menu they already have, and Claude reads it.
+ * So instead: photograph the physical menu they already have, and a vision model
+ * reads it.
  *
  * The extraction is a DRAFT, never a write. Vision models misread grease-stained
  * laminate and hand-chalked specials, and a wrong price on a live menu is money
@@ -51,58 +51,6 @@ const extractedMenuSchema = z.object({
   warnings: z.array(z.string()),
 });
 
-/**
- * The same schema, as the raw JSON Schema the API's structured-output enforcement
- * takes. Written by hand rather than derived: the SDK's `zodOutputFormat` helper
- * requires zod v4 and this codebase is on v3 — a major-version bump across three
- * packages is not a price worth paying for one derivation. `additionalProperties:
- * false` + exhaustive `required` on every object are what the API demands of a
- * strict schema. Keep the two in lockstep.
- */
-const EXTRACTED_MENU_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    categories: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          items: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                name: { type: 'string' },
-                description: {
-                  type: 'string',
-                  description: 'The printed description, or empty string if none. Never invented.',
-                },
-                price: {
-                  type: 'string',
-                  description:
-                    'The printed price as a plain decimal string, e.g. "12.99". Empty string if illegible.',
-                },
-              },
-              required: ['name', 'description', 'price'],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ['name', 'items'],
-        additionalProperties: false,
-      },
-    },
-    warnings: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Anything illegible or uncertain, one human-readable sentence each.',
-    },
-  },
-  required: ['categories', 'warnings'],
-  additionalProperties: false,
-} as const;
-
 /** fetch() errors don't carry HTTP status; this one does, for the ladder's 4xx check. */
 class HttpStatusError extends Error {
   constructor(
@@ -129,20 +77,16 @@ export interface MenuImportDraft {
 @Injectable()
 export class MenuImportService {
   private readonly logger = new Logger(MenuImportService.name);
-  private readonly client: Anthropic | null;
   private readonly openRouterKey: string | undefined;
   private readonly openRouterModels: string[];
 
   constructor(config: ConfigService) {
-    const apiKey = config.get<string>('ANTHROPIC_API_KEY');
-    this.client = apiKey ? new Anthropic({ apiKey }) : null;
-
     /**
-     * OpenRouter carries the FREE lane. Free models read menus well enough that a
-     * human review catches the rest -- and the review step was already mandatory.
-     * The default ladder below was taken from OpenRouter's live catalog (its free
-     * vision-capable models on the day this shipped); the catalog churns, so the
-     * list is an env override away from current.
+     * Free vision-capable models read menus well enough that a human review
+     * catches the rest -- and the review step was already mandatory. The
+     * default ladder below was taken from OpenRouter's live catalog on the
+     * day this shipped; the catalog churns, so the list is an env override
+     * away from current.
      */
     this.openRouterKey = config.get<string>('OPENROUTER_API_KEY');
     this.openRouterModels = (
@@ -154,10 +98,10 @@ export class MenuImportService {
       .filter(Boolean);
   }
 
-  // Either provider makes the feature available; with neither key the dashboard
-  // hides the button. Menu entry still works by hand; this is an accelerant.
+  // With no key configured the dashboard hides the button. Menu entry still
+  // works by hand; this is an accelerant, not a dependency.
   get available(): boolean {
-    return this.client !== null || Boolean(this.openRouterKey);
+    return Boolean(this.openRouterKey);
   }
 
   /**
@@ -171,10 +115,9 @@ export class MenuImportService {
     file: { buffer: Buffer; mimetype: string },
     currency: string,
   ): Promise<MenuImportDraft> {
-    if (!this.client) {
+    if (!this.available) {
       throw new ServiceUnavailableException(
-        'Menu import is not configured on this server (ANTHROPIC_API_KEY is not set). ' +
-          'You can still add menu items manually.',
+        'Menu import is not configured on this server. You can still add menu items manually.',
       );
     }
 
@@ -229,15 +172,13 @@ export class MenuImportService {
   }
 
   /**
-   * The provider ladder: FREE first, paid only as the backstop.
-   *
-   * Every OpenRouter free model is tried in order, then Anthropic (Opus, Sonnet)
-   * if a key is configured. Two kinds of failure ladder down: infrastructure
-   * (429/5xx/network) and BAD OUTPUT -- a free model that returns prose instead
-   * of the schema is just another unavailable model, because the human review
-   * step downstream means a weaker-but-valid read is always more useful than an
-   * error toast. Only a definitive client error (4xx on our request shape)
-   * surfaces immediately: every model would reject it identically.
+   * The model ladder: every OpenRouter free model is tried in order. Two kinds
+   * of failure ladder down: infrastructure (429/5xx/network) and BAD OUTPUT --
+   * a free model that returns prose instead of the schema is just another
+   * unavailable model, because the human review step downstream means a
+   * weaker-but-valid read is always more useful than an error toast. Only a
+   * definitive client error (4xx on our request shape) surfaces immediately:
+   * every model would reject it identically.
    */
   private async runExtraction(
     currency: string,
@@ -261,26 +202,13 @@ export class MenuImportService {
       '{"categories":[{"name":string,"items":[{"name":string,"description":string,"price":string}]}],"warnings":[string]} ' +
       '-- no markdown fences, no commentary.';
 
-    const attempts: Array<{ provider: 'openrouter' | 'anthropic'; model: string }> = [
-      ...(this.openRouterKey
-        ? this.openRouterModels.map((model) => ({ provider: 'openrouter' as const, model }))
-        : []),
-      ...(this.client
-        ? [
-            { provider: 'anthropic' as const, model: 'claude-opus-4-8' },
-            { provider: 'anthropic' as const, model: 'claude-sonnet-5' },
-          ]
-        : []),
-    ];
+    const attempts = this.openRouterModels;
 
     let lastError: unknown;
 
-    for (const attempt of attempts) {
+    for (const model of attempts) {
       try {
-        const text =
-          attempt.provider === 'openrouter'
-            ? await this.callOpenRouter(attempt.model, system, input)
-            : await this.callAnthropic(attempt.model, system, input);
+        const text = await this.callOpenRouter(model, system, input);
 
         // Free models fence and preface despite instructions. Take the outermost
         // JSON object; let zod be the judge of whether it's the right one.
@@ -294,12 +222,7 @@ export class MenuImportService {
         // image) would repeat on every model, so surface it. Everything else in
         // 4xx is provider trouble in disguise -- 404 is a free model gone from
         // the churning catalog, 402/403 are account state -- and ladders down.
-        const status =
-          err instanceof Anthropic.APIError
-            ? err.status
-            : err instanceof HttpStatusError
-              ? err.status
-              : undefined;
+        const status = err instanceof HttpStatusError ? err.status : undefined;
         if (status === 400 || status === 413 || status === 422) {
           throw new BadRequestException(
             "Couldn't read a menu from that. Try a clearer photo, or a page where the menu is text.",
@@ -308,7 +231,7 @@ export class MenuImportService {
 
         lastError = err;
         this.logger.warn(
-          `${attempt.provider}/${attempt.model} failed menu extraction ` +
+          `${model} failed menu extraction ` +
             `(${(err as Error).message}) -- trying the next model`,
         );
       }
@@ -367,57 +290,15 @@ export class MenuImportService {
     return text;
   }
 
-  private async callAnthropic(
-    model: string,
-    system: string,
-    input: { prompt: string; image?: { mediaType: string; base64: string } },
-  ): Promise<string> {
-    const content: Anthropic.ContentBlockParam[] = [];
-    if (input.image) {
-      content.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: input.image.mediaType as 'image/jpeg' | 'image/png' | 'image/webp',
-          data: input.image.base64,
-        },
-      });
-    }
-    content.push({ type: 'text', text: input.prompt });
-
-    const response = await this.client!.messages.create({
-      model,
-      max_tokens: 16000,
-      thinking: { type: 'adaptive' },
-      system,
-      messages: [{ role: 'user', content }],
-      // Anthropic gets the real schema enforcement; free models get prompt+zod.
-      output_config: {
-        format: {
-          type: 'json_schema' as const,
-          schema: EXTRACTED_MENU_JSON_SCHEMA as unknown as Record<string, unknown>,
-        },
-      },
-    });
-
-    if (response.stop_reason === 'refusal') throw new Error('model declined the image');
-    const text = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text',
-    )?.text;
-    if (!text) throw new Error('empty response');
-    return text;
-  }
-
   /**
    * Read a menu from a WEB PAGE -- the restaurant's old website, a Google Sites
    * page, wherever their menu already lives as text. Same review-first draft as
    * the photo path; only the ingestion differs.
    */
   async extractFromUrl(rawUrl: string, currency: string): Promise<MenuImportDraft> {
-    if (!this.client) {
+    if (!this.available) {
       throw new ServiceUnavailableException(
-        'Menu import is not configured on this server (ANTHROPIC_API_KEY is not set). ' +
-          'You can still add menu items manually.',
+        'Menu import is not configured on this server. You can still add menu items manually.',
       );
     }
 

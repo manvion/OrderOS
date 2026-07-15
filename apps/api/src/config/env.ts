@@ -145,17 +145,11 @@ const envSchema = z.object({
   MAPBOX_TOKEN: z.string().optional(),
 
   /**
-   * Claude, for reading menus out of photographs (menu import). Optional: unset,
-   * the dashboard hides the "Import from photo" button and menus are typed by hand,
-   * exactly as before the feature existed.
-   */
-  ANTHROPIC_API_KEY: z.string().optional(),
-
-  /**
-   * OpenRouter, the FREE lane for menu import. With a key set, extraction tries
-   * OpenRouter's free vision models first and only falls back to Anthropic (if
-   * that key is also set). OPENROUTER_MODELS overrides the built-in free-model
-   * ladder -- the free catalog churns, so expect to update it occasionally.
+   * OpenRouter, for reading menus out of photographs and web pages (menu
+   * import) with free vision models. Optional: unset, the dashboard hides the
+   * import buttons and menus are typed by hand, exactly as before the feature
+   * existed. OPENROUTER_MODELS overrides the built-in free-model ladder -- the
+   * free catalog churns, so expect to update it occasionally.
    */
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_MODELS: z.string().optional(),
