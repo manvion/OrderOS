@@ -73,7 +73,15 @@ export function BrandingEditor() {
 
   const saveTemplate = useMutation({
     mutationFn: (
-      websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT',
+      websiteTemplate:
+        | 'CLASSIC'
+        | 'BOLD'
+        | 'MINIMAL'
+        | 'RUSTIC'
+        | 'BUILDER'
+        | 'BENTO'
+        | 'ELEGANT'
+        | 'PUNCHY',
     ) => api.updateCurrent({ websiteTemplate }),
     onSuccess: () => {
       void queryClient.invalidateQueries();
@@ -261,7 +269,7 @@ export function BrandingEditor() {
         <div className="space-y-2">
           <Label>Website template</Label>
           <p className="text-xs text-muted-foreground">
-            Seven different layouts, not a colour change — switch anytime and see it live instantly.
+            Eight different layouts, not a colour change — switch anytime and see it live instantly.
           </p>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <TemplateOption
@@ -327,6 +335,15 @@ export function BrandingEditor() {
               disabled={readOnly || saveTemplate.isPending}
               accent={primary}
             />
+            <TemplateOption
+              swatch="punchy"
+              title="Punchy"
+              description="Dark charcoal, one bright accent, a phone-framed photo. Confident comfort food."
+              active={restaurant.websiteTemplate === 'PUNCHY'}
+              onSelect={() => saveTemplate.mutate('PUNCHY')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
           </div>
         </div>
 
@@ -383,7 +400,7 @@ function TemplateOption({
   disabled,
   accent,
 }: {
-  swatch: 'photo' | 'bold' | 'minimal' | 'rustic' | 'builder' | 'bento' | 'elegant';
+  swatch: 'photo' | 'bold' | 'minimal' | 'rustic' | 'builder' | 'bento' | 'elegant' | 'punchy';
   title: string;
   description: string;
   active: boolean;
@@ -444,6 +461,13 @@ function TemplateOption({
           <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md p-2" style={{ background: '#f7f2e7' }}>
             <div className="h-1.5 w-2/5 rounded-sm bg-[#2a2118]" />
             <div className="h-3 w-3/5 rounded-sm" style={{ background: '#1f3d2b' }} />
+          </div>
+        )}
+        {swatch === 'punchy' && (
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-md p-2" style={{ background: '#161513' }}>
+            <div className="h-1.5 w-2/5 rounded-full" style={{ background: accent }} />
+            <div className="h-2 w-3/5 rounded-sm bg-white/90" />
+            <div className="h-4 w-1/4 rounded-md" style={{ background: '#0c0b0a' }} />
           </div>
         )}
       </div>

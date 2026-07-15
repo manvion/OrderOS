@@ -77,6 +77,8 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
       return <BentoHome restaurant={restaurant} href={href} />;
     case 'ELEGANT':
       return <ElegantHome restaurant={restaurant} href={href} />;
+    case 'PUNCHY':
+      return <PunchyHome restaurant={restaurant} href={href} />;
     case 'CLASSIC':
     default:
       return <ClassicHome restaurant={restaurant} href={href} />;
@@ -849,6 +851,194 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
           </Button>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * PUNCHY. Dark charcoal + one bright accent colour, centered chunky
+ * headline, a phone-framed product photo, pill-shaped stat badges and CTAs
+ * everywhere. Confident comfort-food energy -- built for a place that wants
+ * to feel like a favourite, not a fine-dining reservation.
+ */
+function PunchyHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
+
+  return (
+    <div className="animate-rise bg-[#161513]">
+      <section className="relative isolate overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background: `radial-gradient(ellipse 900px 500px at 50% 0%, ${restaurant.brandPrimaryColor}33, transparent 70%)`,
+          }}
+        />
+
+        <div className="relative mx-auto max-w-2xl px-5 pt-16 text-center sm:px-8 sm:pt-24">
+          <div
+            className="rise-1 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide"
+            style={{ background: `${restaurant.brandPrimaryColor}22`, color: restaurant.brandPrimaryColor }}
+          >
+            {restaurant.city} · {options.map((o) => o.label).join(' & ') || 'Order direct'}
+          </div>
+
+          <h1 className="rise-2 mt-6 font-display text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-6xl">
+            {restaurant.name}
+          </h1>
+
+          {restaurant.description && (
+            <p className="rise-3 mx-auto mt-5 max-w-lg text-white/60">{restaurant.description}</p>
+          )}
+
+          <div className="rise-4 mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              asChild
+              size="lg"
+              className="rounded-full px-8 font-bold shadow-floating"
+              style={{ background: restaurant.brandPrimaryColor, color: '#111' }}
+            >
+              <Link href={href('/menu')}>
+                {restaurant.isOpen ? 'Start an order' : 'View the menu'}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="rounded-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10">
+              <Link href={href('/menu')}>View full menu</Link>
+            </Button>
+          </div>
+
+          <div className="rise-4 mt-8 flex flex-wrap items-center justify-center gap-2.5">
+            <PunchyPill accent={restaurant.brandPrimaryColor} label={restaurant.isOpen ? 'Open now' : 'Closed'}>
+              {restaurant.isOpen ? `ready in ~${restaurant.prepTimeMinutes}m` : 'schedule ahead'}
+            </PunchyPill>
+            <PunchyPill accent={restaurant.brandPrimaryColor} label="Fresh">
+              made to order
+            </PunchyPill>
+            <PunchyPill accent={restaurant.brandPrimaryColor} label="Direct">
+              no marketplace cut
+            </PunchyPill>
+          </div>
+        </div>
+
+        {/* The phone-framed product shot -- the reference's signature move. A
+            plain rectangle bezel reads as "device" without needing a real
+            phone-mockup asset. */}
+        <div className="relative mx-auto mt-10 w-full max-w-[280px] px-5 pb-16 sm:px-8">
+          {restaurant.coverImageUrl && (
+            <span
+              className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-[#111]"
+              style={{ background: restaurant.brandPrimaryColor }}
+            >
+              Hot, fresh &amp; ready
+            </span>
+          )}
+          <div className="rounded-[2rem] border-[10px] border-[#0c0b0a] bg-[#0c0b0a] shadow-dramatic">
+            <div className="relative aspect-[9/16] overflow-hidden rounded-[1.4rem]">
+              {restaurant.coverImageUrl ? (
+                <Image
+                  src={restaurant.coverImageUrl}
+                  alt=""
+                  fill
+                  sizes="280px"
+                  className="object-cover"
+                />
+              ) : (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: `linear-gradient(160deg, ${restaurant.brandPrimaryColor}, ${restaurant.brandAccentColor})`,
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 px-5 py-16 sm:px-8">
+        <div className="mx-auto max-w-3xl">
+          <p
+            className="text-xs font-bold uppercase tracking-widest"
+            style={{ color: restaurant.brandPrimaryColor }}
+          >
+            Why order here
+          </p>
+          <h2 className="mt-2 font-display text-2xl font-bold text-white sm:text-3xl">
+            Same food, same kitchen — none of it goes to a marketplace.
+          </h2>
+
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <PunchyFeature title="Freshly prepared">
+              Every order made when you place it, not reheated from a warmer.
+            </PunchyFeature>
+            <PunchyFeature title="No commission">
+              No 30% cut to an app — more of what you pay reaches the kitchen.
+            </PunchyFeature>
+            <PunchyFeature title={options.map((o) => o.label).join(' or ') || 'Order direct'}>
+              About {restaurant.prepTimeMinutes} minutes
+              {restaurant.deliveryEnabled && <>, delivery adds ~15</>}.
+            </PunchyFeature>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 pb-16 sm:px-8">
+        <div
+          className="mx-auto max-w-3xl rounded-[2rem] p-8 sm:p-12"
+          style={{ background: restaurant.brandPrimaryColor }}
+        >
+          <p className="text-xs font-bold uppercase tracking-widest text-[#111]/60">Ready to eat?</p>
+          <h2 className="mt-2 font-display text-3xl font-black leading-tight text-[#111] sm:text-4xl">
+            Order while it&apos;s fresh and hot.
+          </h2>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button asChild size="lg" className="rounded-full bg-[#111] px-8 text-white hover:bg-[#111]/85">
+              <Link href={href('/menu')}>
+                Browse menu
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <a
+              href={`tel:${restaurant.phone}`}
+              className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-[#111]/20 px-8 py-2.5 text-sm font-semibold text-[#111]"
+            >
+              <Phone className="h-4 w-4" />
+              Call {restaurant.name}
+            </a>
+          </div>
+          <p className="mt-4 text-xs text-[#111]/60">
+            {restaurant.city} · {restaurant.street}
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PunchyPill({
+  accent,
+  label,
+  children,
+}: {
+  accent: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/5 px-4 py-2.5 text-left ring-1 ring-white/10">
+      <p className="text-xs font-bold" style={{ color: accent }}>
+        {label}
+      </p>
+      <p className="text-xs text-white/60">{children}</p>
+    </div>
+  );
+}
+
+function PunchyFeature({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-white/5 p-5 ring-1 ring-white/10">
+      <p className="text-sm font-bold text-white">{title}</p>
+      <p className="mt-1.5 text-sm text-white/55">{children}</p>
     </div>
   );
 }

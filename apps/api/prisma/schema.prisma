@@ -72,6 +72,10 @@ enum WebsiteTemplate {
   /// Cream-and-forest-green palette, serif display type, a dark band behind
   /// the hero photo. Editorial and upscale -- the fine-dining choice.
   ELEGANT
+  /// Dark charcoal + one bright accent colour, centered chunky headline, a
+  /// phone-framed product photo, pill-shaped stat badges and CTAs
+  /// everywhere. Confident comfort-food energy.
+  PUNCHY
 }
 
 /// See Restaurant.logoDisplayMode.
