@@ -65,6 +65,7 @@ export function WalkInOrderDialog({
   const [tableNumber, setTableNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD_TERMINAL'>('CASH');
 
   const grouped = useMemo(() => {
@@ -133,6 +134,7 @@ export function WalkInOrderDialog({
         fulfillment,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
         tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
         paymentMethod,
       }),
@@ -286,6 +288,13 @@ export function WalkInOrderDialog({
                     placeholder="Phone (optional — needed for phone orders)"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
+                  />
+                  <Input
+                    className="mt-2"
+                    type="email"
+                    placeholder="Email (optional — sends a receipt)"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
                   />
 
                   <div className="mt-3 space-y-1.5">

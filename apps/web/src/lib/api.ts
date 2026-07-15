@@ -353,6 +353,7 @@ export function createDashboardApi(
       fulfillment: 'PICKUP' | 'DINE_IN';
       customerName?: string;
       customerPhone?: string;
+      customerEmail?: string;
       tableNumber?: string;
       paymentMethod: 'CASH' | 'CARD_TERMINAL';
       notes?: string;

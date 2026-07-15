@@ -40,6 +40,7 @@ export interface WalkInOrderInput {
   fulfillment: 'PICKUP' | 'DINE_IN';
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
   tableNumber?: string;
   paymentMethod: 'CASH' | 'CARD_TERMINAL';
   notes?: string;
@@ -363,12 +364,17 @@ export class OrdersService {
 
     const customerName = input.customerName?.trim() || 'Walk-in customer';
     const customerPhone = input.customerPhone?.trim() ?? '';
+    const customerEmail = input.customerEmail?.trim() ?? '';
 
     // Only a REAL phone rolls up to a CRM record -- upsertCustomer keys on it,
     // and a blank phone would collide every phone-less walk-in into "the same
     // customer" the moment a second one came in.
     const customer = customerPhone
-      ? await this.upsertCustomer(restaurantId, { name: customerName, phone: customerPhone, email: '' })
+      ? await this.upsertCustomer(restaurantId, {
+          name: customerName,
+          phone: customerPhone,
+          email: customerEmail,
+        })
       : null;
 
     const orderNumber = await this.nextOrderNumber(restaurantId);
@@ -397,7 +403,7 @@ export class OrdersService {
 
           customerName,
           customerPhone,
-          customerEmail: '',
+          customerEmail,
 
           notes: input.notes,
           tableNumber: input.tableNumber,
@@ -661,7 +667,10 @@ export class OrdersService {
       },
       update: {
         name: customer.name,
-        email: customer.email,
+        // Only ever SET, never cleared -- a walk-in re-order where staff didn't
+        // retype the email must not blank out an address already on file from
+        // an earlier order (online or a previous walk-in that did have one).
+        ...(customer.email ? { email: customer.email } : {}),
         ...(clerkUserId ? { clerkUserId } : {}),
       },
     });

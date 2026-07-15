@@ -47,6 +47,7 @@ const walkInOrderSchema = z.object({
   fulfillment: z.enum(['PICKUP', 'DINE_IN']),
   customerName: z.string().max(120).optional(),
   customerPhone: z.string().max(20).optional(),
+  customerEmail: z.string().email().max(160).optional(),
   tableNumber: z.string().max(20).optional(),
   paymentMethod: z.enum(['CASH', 'CARD_TERMINAL']),
   notes: z.string().max(500).optional(),
