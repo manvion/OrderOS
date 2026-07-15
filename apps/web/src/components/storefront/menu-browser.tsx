@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, Plus, UtensilsCrossed } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import type { MenuCategory, MenuProduct, StorefrontRestaurant } from '@/lib/api';
 import { ProductDialog } from './product-dialog';
@@ -166,7 +166,14 @@ export function MenuBrowser({
                         />
                       </div>
                     ) : (
-                      <div className="h-28 w-28 rounded-xl bg-muted" />
+                      // No photo? Don't show a dead grey box -- the same rule the
+                      // storefront hero and the branding settings preview follow.
+                      // A tint of the restaurant's own colour reads as deliberate.
+                      <div
+                        className="flex h-28 w-28 items-center justify-center rounded-xl bg-brand-subtle"
+                      >
+                        <UtensilsCrossed className="h-7 w-7 text-brand/50" />
+                      </div>
                     )}
 
                     {/* The affordance. A menu row that is silently clickable is a
