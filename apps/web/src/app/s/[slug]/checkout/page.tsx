@@ -160,9 +160,17 @@ export default function CheckoutPage() {
 
   // An empty cart on checkout means they got here by URL or completed an order in
   // another tab. Nothing to buy — go back to the menu.
+  //
+  // NOT while `submitting`: on success, handleSubmit clears the cart THEN sets
+  // window.location.href to Stripe. Clearing is synchronous; leaving the page
+  // for an external URL is not. That gap was long enough for this exact effect
+  // to fire on the now-empty cart and win the race with router.replace, kicking
+  // a customer who had just paid back to the menu instead of on to Stripe. The
+  // cart being empty while a payment redirect is in flight is expected, not a
+  // reason to leave.
   useEffect(() => {
-    if (lines.length === 0) router.replace(href('/menu'));
-  }, [lines.length, router, href]);
+    if (lines.length === 0 && !submitting) router.replace(href('/menu'));
+  }, [lines.length, submitting, router, href]);
 
   /**
    * Fill the form in for a returning customer.
@@ -267,7 +275,9 @@ export default function CheckoutPage() {
     }
   };
 
-  if (lines.length === 0) return null;
+  // Same exception as the redirect effect above: an empty cart while a
+  // successful payment redirect is in flight isn't "nothing to see here".
+  if (lines.length === 0 && !submitting) return null;
 
   return (
     <form onSubmit={handleSubmit} className="container max-w-2xl space-y-6 py-8">
