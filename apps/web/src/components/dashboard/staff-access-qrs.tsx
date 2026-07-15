@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { ChefHat, LayoutDashboard, Printer } from 'lucide-react';
+import { useDashboard } from '@/components/dashboard/dashboard-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -36,6 +37,7 @@ const TARGETS = [
 ] as const;
 
 export function StaffAccessQrs() {
+  const { restaurant } = useDashboard();
   const [images, setImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -58,19 +60,41 @@ export function StaffAccessQrs() {
     };
   }, []);
 
+  /**
+   * A branded page, not a bare printout -- and critically, no raw URL. The
+   * old version printed `${origin}${path}` in plain text under the code,
+   * which is exactly the platform's own hostname and old brand name sitting
+   * in ink on a wall in the kitchen. Nothing here needs to say where it goes;
+   * "staff sign-in required" tells a stranger everything they need to know
+   * (don't bother scanning it) without telling them anything useful.
+   */
   const print = (label: string, path: string) => {
     const img = images[path];
     if (!img) return;
 
     const w = window.open('', '_blank');
     if (!w) return;
+    const primary = restaurant?.brandPrimaryColor ?? '#ea580c';
+    const accent = restaurant?.brandAccentColor ?? '#0f172a';
+    const name = restaurant?.name ?? '';
+    const mark = restaurant?.logoUrl
+      ? `<img src="${restaurant.logoUrl}" alt="" style="width:56px;height:56px;border-radius:16px;object-fit:cover" />`
+      : `<div style="width:56px;height:56px;border-radius:16px;background:${primary};color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;font-family:Georgia,serif">${(name.charAt(0) || '?').toUpperCase()}</div>`;
+
     w.document.write(
       `<html><head><title>${label}</title></head>` +
-        `<body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:system-ui">` +
-        `<img src="${img}" style="width:70vmin;height:70vmin" />` +
-        `<h1 style="margin:16px 0 4px;font-size:28px">${label}</h1>` +
-        `<p style="margin:0;color:#666">${window.location.origin}${path}</p>` +
-        `</body></html>`,
+        `<body style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#f5f5f4">` +
+        `<div style="width:420px;border-radius:36px;overflow:hidden;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.08)">` +
+        `<div style="height:14px;background:linear-gradient(90deg,${primary},${accent})"></div>` +
+        `<div style="padding:32px;text-align:center">` +
+        `${mark}` +
+        `<p style="margin:12px 0 24px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${primary}">${name}</p>` +
+        `<div style="display:inline-block;padding:16px;border:2px solid ${primary};border-radius:24px">` +
+        `<img src="${img}" style="width:280px;height:280px;display:block" />` +
+        `</div>` +
+        `<h1 style="margin:24px 0 4px;font-size:24px;font-weight:700;color:#1c1917">${label}</h1>` +
+        `<p style="margin:0;font-size:13px;color:#78716c">Staff sign-in required to open</p>` +
+        `</div></div></body></html>`,
     );
     w.document.close();
     w.focus();

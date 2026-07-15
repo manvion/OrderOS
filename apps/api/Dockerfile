@@ -5,7 +5,13 @@
 
 FROM node:22-alpine AS base
 # Prisma's query engine needs OpenSSL, which alpine doesn't ship by default.
-RUN apk add --no-cache openssl
+# fontconfig + a real TTF are for sharp's SVG->PNG rasterization (branded QR
+# downloads) -- alpine ships NO fonts at all, so any <text> in that SVG
+# renders as empty tofu boxes without them. Named font stacks in that SVG
+# ("-apple-system", "Georgia", ...) don't exist here either; they fall
+# through to the generic sans-serif/serif alias, which fontconfig then
+# resolves to DejaVu.
+RUN apk add --no-cache openssl fontconfig ttf-dejavu
 WORKDIR /app
 
 # --- Dependencies ------------------------------------------------------------

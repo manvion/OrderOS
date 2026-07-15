@@ -311,7 +311,7 @@ export class QrService {
       ? `<clipPath id="logoClip"><rect x="${W / 2 - 28}" y="44" width="56" height="56" rx="16" /></clipPath>
          <image href="${logoDataUri}" x="${W / 2 - 28}" y="44" width="56" height="56" clip-path="url(#logoClip)" preserveAspectRatio="xMidYMid slice" />`
       : `<rect x="${W / 2 - 28}" y="44" width="56" height="56" rx="16" fill="${restaurant.brandPrimaryColor}" />
-         <text x="${W / 2}" y="80" font-family="Georgia, serif" font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">${escapeHtml(restaurant.name.charAt(0))}</text>`;
+         <text x="${W / 2}" y="80" font-family="serif" font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">${escapeHtml(restaurant.name.charAt(0))}</text>`;
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
@@ -324,12 +324,12 @@ export class QrService {
   <rect width="${W}" height="${H}" rx="36" fill="#ffffff" />
   <rect width="${W}" height="14" rx="7" fill="url(#bar)" />
   ${mark}
-  <text x="${W / 2}" y="136" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" letter-spacing="2" fill="${restaurant.brandPrimaryColor}" text-anchor="middle">${escapeHtml(restaurant.name.toUpperCase())}</text>
-  <text x="${W / 2}" y="182" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="600" fill="#1c1917" text-anchor="middle">Scan to order</text>
+  <text x="${W / 2}" y="136" font-family="sans-serif" font-size="15" font-weight="700" letter-spacing="2" fill="${restaurant.brandPrimaryColor}" text-anchor="middle">${escapeHtml(restaurant.name.toUpperCase())}</text>
+  <text x="${W / 2}" y="182" font-family="serif" font-size="34" font-weight="600" fill="#1c1917" text-anchor="middle">Scan to order</text>
   <rect x="${qrX - 16}" y="${qrY - 16}" width="${qrSize + 32}" height="${qrSize + 32}" rx="24" fill="#ffffff" stroke="${restaurant.brandPrimaryColor}" stroke-width="2" />
   <image href="${qrDataUri}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />
-  <text x="${W / 2}" y="${qrY + qrSize + 58}" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="26" font-weight="700" fill="#1c1917" text-anchor="middle">${heading}</text>
-  <text x="${W / 2}" y="${qrY + qrSize + 90}" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="14" fill="#78716c" text-anchor="middle">Point your phone camera at the code</text>
+  <text x="${W / 2}" y="${qrY + qrSize + 58}" font-family="sans-serif" font-size="26" font-weight="700" fill="#1c1917" text-anchor="middle">${heading}</text>
+  <text x="${W / 2}" y="${qrY + qrSize + 90}" font-family="sans-serif" font-size="14" fill="#78716c" text-anchor="middle">Point your phone camera at the code</text>
 </svg>`;
   }
 
