@@ -87,6 +87,17 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
 
 type TemplateProps = { restaurant: StorefrontRestaurant; href: (path: string) => string };
 
+/**
+ * Pick between a template's light and dark literal, based on the owner's
+ * theme choice (Settings -> Branding), never the customer's system preference.
+ * Only for templates that hardcode their own palette (Rustic, Bento, Elegant) --
+ * everything else reads the shared bg-background/text-foreground tokens, which
+ * flip automatically via the `.storefront-dark` class in globals.css.
+ */
+function tone<T>(mode: StorefrontRestaurant['themeMode'], light: T, dark: T): T {
+  return mode === 'DARK' ? dark : light;
+}
+
 function fulfillmentOptions(restaurant: StorefrontRestaurant) {
   return [
     restaurant.pickupEnabled && { icon: ShoppingBag, label: 'Pickup' },
@@ -398,25 +409,48 @@ function MinimalHome({ restaurant, href }: TemplateProps) {
  */
 function RusticHome({ restaurant, href }: TemplateProps) {
   const options = fulfillmentOptions(restaurant);
+  const mode = restaurant.themeMode;
+  const page = tone(mode, '#f6ecd9', '#1a140d');
+  const cardBg = tone(mode, '#241a10', '#f3e6cc');
+  const cardText = tone(mode, '#ffffff', '#241a10');
+  const cardTextMuted = tone(mode, 'rgba(255,255,255,0.7)', 'rgba(36,26,16,0.7)');
+  const cardChipBg = tone(mode, 'rgba(255,255,255,0.1)', 'rgba(36,26,16,0.1)');
+  const bodyText = tone(mode, '#f3e6cc', '#241a10');
+  const bodyTextMuted = tone(mode, 'rgba(243,230,204,0.65)', 'rgba(36,26,16,0.65)');
+  const dashBorder = tone(mode, 'rgba(243,230,204,0.25)', 'rgba(36,26,16,0.2)');
+  const dashCardBg = tone(mode, 'rgba(0,0,0,0.2)', 'rgba(255,255,255,0.6)');
+  const labelColor = tone(mode, '#c9a876', '#8a6f4d');
 
   return (
-    <div className="animate-rise bg-[#f6ecd9]">
+    <div className="animate-rise" style={{ background: page }}>
       <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8 sm:pt-14">
-        <div className="grid gap-6 overflow-hidden rounded-[2rem] bg-[#241a10] lg:grid-cols-2">
+        <div
+          className="grid gap-6 overflow-hidden rounded-[2rem] lg:grid-cols-2"
+          style={{ background: cardBg }}
+        >
           <div className="p-8 sm:p-12">
-            <div className="rise-1 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/90 ring-1 ring-white/15">
+            <div
+              className="rise-1 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium"
+              style={{ background: cardChipBg, color: cardText }}
+            >
               <span
-                className={`pulse-dot h-1.5 w-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-400 text-emerald-400' : 'bg-white/50'}`}
+                className={`pulse-dot h-1.5 w-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-400 text-emerald-400' : ''}`}
+                style={!restaurant.isOpen ? { background: cardTextMuted } : undefined}
               />
               {restaurant.isOpen ? 'Open now' : 'Closed'}
             </div>
 
-            <h1 className="rise-2 mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl">
+            <h1
+              className="rise-2 mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl"
+              style={{ color: cardText }}
+            >
               {restaurant.name}
             </h1>
 
             {restaurant.description && (
-              <p className="rise-3 mt-4 max-w-md text-white/70">{restaurant.description}</p>
+              <p className="rise-3 mt-4 max-w-md" style={{ color: cardTextMuted }}>
+                {restaurant.description}
+              </p>
             )}
 
             <div className="rise-4 mt-8 flex flex-wrap items-center gap-3">
@@ -433,14 +467,15 @@ function RusticHome({ restaurant, href }: TemplateProps) {
               </Button>
               <a
                 href={`tel:${restaurant.phone}`}
-                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2.5 text-sm font-medium text-white ring-1 ring-white/15"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium"
+                style={{ background: cardChipBg, color: cardText }}
               >
                 <Phone className="h-3.5 w-3.5" />
                 {restaurant.phone}
               </a>
             </div>
 
-            <div className="mt-8 flex items-center gap-5 text-sm text-white/70">
+            <div className="mt-8 flex items-center gap-5 text-sm" style={{ color: cardTextMuted }}>
               <span className="inline-flex items-center gap-1.5">
                 <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                 Fresh, made to order
@@ -475,27 +510,50 @@ function RusticHome({ restaurant, href }: TemplateProps) {
 
       <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
         <div className="grid gap-5 sm:grid-cols-3">
-          <RusticCard icon={MapPin} label="Find us">
+          <RusticCard icon={MapPin} label="Find us" text={bodyText} label2={labelColor} border={dashBorder} bg={dashCardBg}>
             {restaurant.street}, {restaurant.city}
           </RusticCard>
-          <RusticCard icon={Phone} label="Call us">
+          <RusticCard icon={Phone} label="Call us" text={bodyText} label2={labelColor} border={dashBorder} bg={dashCardBg}>
             <a href={`tel:${restaurant.phone}`} className="hover:underline">
               {restaurant.phone}
             </a>
           </RusticCard>
-          <RusticCard icon={Clock} label="How long">
+          <RusticCard icon={Clock} label="How long" text={bodyText} label2={labelColor} border={dashBorder} bg={dashCardBg}>
             About {restaurant.prepTimeMinutes} min
             {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
           </RusticCard>
         </div>
       </section>
 
-      <section className="px-5 pb-16 sm:px-8">
-        <div className="mx-auto max-w-4xl rounded-[2rem] border-2 border-dashed border-[#241a10]/25 bg-white/50 px-8 py-12 text-center">
-          <p className="mx-auto max-w-lg font-display text-2xl font-semibold text-[#241a10]">
+      {/* Real photos, when there are any -- a template built around "hand-made"
+          rings hollow without evidence, and an empty gallery renders nothing. */}
+      {restaurant.galleryImages.length > 0 && (
+        <section className="mx-auto max-w-6xl px-5 pb-4 sm:px-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {restaurant.galleryImages.slice(0, 4).map((image) => (
+              <div key={image.id} className="img-zoom relative aspect-square rounded-2xl">
+                <Image
+                  src={image.url}
+                  alt={image.caption ?? ''}
+                  fill
+                  sizes="(max-width: 640px) 50vw, 25vw"
+                  className="rounded-2xl object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="px-5 py-16 sm:px-8">
+        <div
+          className="mx-auto max-w-4xl rounded-[2rem] border-2 border-dashed px-8 py-12 text-center"
+          style={{ borderColor: dashBorder, background: dashCardBg }}
+        >
+          <p className="mx-auto max-w-lg font-display text-2xl font-semibold" style={{ color: bodyText }}>
             Ordering here sends your money to the kitchen, not a marketplace.
           </p>
-          <p className="mx-auto mt-2 max-w-md text-sm text-[#241a10]/70">
+          <p className="mx-auto mt-2 max-w-md text-sm" style={{ color: bodyTextMuted }}>
             No 30% commission — same food, same people, more stays with them.
           </p>
           <Button
@@ -510,7 +568,9 @@ function RusticHome({ restaurant, href }: TemplateProps) {
             </Link>
           </Button>
           {options.length > 0 && (
-            <p className="mt-4 text-xs text-[#241a10]/60">{options.map((o) => o.label).join(' · ')}</p>
+            <p className="mt-4 text-xs" style={{ color: bodyTextMuted }}>
+              {options.map((o) => o.label).join(' · ')}
+            </p>
           )}
         </div>
       </section>
@@ -521,19 +581,29 @@ function RusticHome({ restaurant, href }: TemplateProps) {
 function RusticCard({
   icon: Icon,
   label,
+  text,
+  label2,
+  border,
+  bg,
   children,
 }: {
   icon: typeof MapPin;
   label: string;
+  text: string;
+  label2: string;
+  border: string;
+  bg: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-[#241a10]/20 bg-white/60 p-5">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#8a6f4d]">
+    <div className="rounded-2xl border-2 border-dashed p-5" style={{ borderColor: border, background: bg }}>
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: label2 }}>
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className="mt-2 text-sm font-medium text-[#241a10]">{children}</p>
+      <p className="mt-2 text-sm font-medium" style={{ color: text }}>
+        {children}
+      </p>
     </div>
   );
 }
@@ -547,7 +617,7 @@ function BuilderHome({ restaurant, href }: TemplateProps) {
   const options = fulfillmentOptions(restaurant);
 
   return (
-    <div className="animate-rise bg-white">
+    <div className="animate-rise bg-background">
       <section className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
         <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <div>
@@ -591,39 +661,54 @@ function BuilderHome({ restaurant, href }: TemplateProps) {
 
           {/* The floating status card -- the configurator-panel energy of the
               reference, repurposed: instead of toppings, it shows the facts
-              that actually matter before ordering. */}
-          <div className="rise-3 rounded-3xl border bg-card p-6 shadow-floating">
-            <div className="flex items-center justify-between">
-              <p className="font-display text-lg font-semibold">Right now</p>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold ${
-                  restaurant.isOpen ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {restaurant.isOpen ? 'Open' : 'Closed'}
-              </span>
-            </div>
-            <div className="mt-5 space-y-3 text-sm">
-              <div className="flex items-center justify-between border-b pb-3">
-                <span className="text-muted-foreground">Ready in</span>
-                <span className="font-semibold tabular-nums">~{restaurant.prepTimeMinutes} min</span>
+              that actually matter before ordering. A cover photo, when there
+              is one, sits right above it -- this template doesn't NEED a
+              photo, but it shouldn't hide one either. */}
+          <div className="rise-3 space-y-4">
+            {restaurant.coverImageUrl && (
+              <div className="relative aspect-[16/10] overflow-hidden rounded-3xl shadow-floating">
+                <Image
+                  src={restaurant.coverImageUrl}
+                  alt=""
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 40vw"
+                  className="object-cover"
+                />
               </div>
-              <div className="flex items-center justify-between border-b pb-3">
-                <span className="text-muted-foreground">Location</span>
-                <span className="font-medium">{restaurant.city}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Call</span>
-                <a href={`tel:${restaurant.phone}`} className="font-medium hover:underline">
-                  {restaurant.phone}
-                </a>
-              </div>
-            </div>
-            {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
-              <p className="mt-4 text-xs text-muted-foreground">
-                Closed now, but you can schedule an order for later.
-              </p>
             )}
+            <div className="rounded-3xl border bg-card p-6 shadow-floating">
+              <div className="flex items-center justify-between">
+                <p className="font-display text-lg font-semibold">Right now</p>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    restaurant.isOpen ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {restaurant.isOpen ? 'Open' : 'Closed'}
+                </span>
+              </div>
+              <div className="mt-5 space-y-3 text-sm">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-muted-foreground">Ready in</span>
+                  <span className="font-semibold tabular-nums">~{restaurant.prepTimeMinutes} min</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="font-medium">{restaurant.city}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Call</span>
+                  <a href={`tel:${restaurant.phone}`} className="font-medium hover:underline">
+                    {restaurant.phone}
+                  </a>
+                </div>
+              </div>
+              {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Closed now, but you can schedule an order for later.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -641,15 +726,31 @@ function BuilderHome({ restaurant, href }: TemplateProps) {
  */
 function BentoHome({ restaurant, href }: TemplateProps) {
   const options = fulfillmentOptions(restaurant);
+  const mode = restaurant.themeMode;
+  const page = tone(mode, '#faf6ec', '#141210');
 
   return (
-    <div className="animate-rise bg-[#faf6ec]">
+    <div className="animate-rise" style={{ background: page }}>
       <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8 sm:pt-14">
         <div className="grid gap-5 lg:grid-cols-3">
           <div
             className="relative overflow-hidden rounded-[2rem] p-8 sm:p-10 lg:col-span-2"
             style={{ background: restaurant.brandPrimaryColor }}
           >
+            {/* A real photo, when there's one, reads better than a flat colour
+                block -- a dark wash keeps the white type legible over it. */}
+            {restaurant.coverImageUrl && (
+              <>
+                <Image
+                  src={restaurant.coverImageUrl}
+                  alt=""
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 66vw"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
+              </>
+            )}
             <div
               className="pointer-events-none absolute inset-0 opacity-30"
               style={{
@@ -746,18 +847,28 @@ function BentoCard({
  */
 function ElegantHome({ restaurant, href }: TemplateProps) {
   const FOREST = '#1f3d2b';
+  const mode = restaurant.themeMode;
+  const page = tone(mode, '#f7f2e7', '#151310');
+  const headline = tone(mode, '#2a2118', '#f2ead9');
+  const headlineMuted = tone(mode, 'rgba(42,33,24,0.7)', 'rgba(242,234,217,0.65)');
+  const band = tone(mode, '#161310', FOREST);
 
   return (
-    <div className="animate-rise bg-[#f7f2e7]">
+    <div className="animate-rise" style={{ background: page }}>
       <section className="mx-auto max-w-4xl px-5 pt-16 text-center sm:px-8 sm:pt-24">
         <p className="rise-1 text-sm font-semibold uppercase tracking-[0.2em]" style={{ color: FOREST }}>
           {restaurant.isOpen ? 'Open now' : 'Currently closed'}
         </p>
-        <h1 className="rise-2 mt-4 font-display text-4xl font-medium italic leading-tight tracking-tight text-[#2a2118] sm:text-6xl">
+        <h1
+          className="rise-2 mt-4 font-display text-4xl font-medium italic leading-tight tracking-tight sm:text-6xl"
+          style={{ color: headline }}
+        >
           {restaurant.name}
         </h1>
         {restaurant.description && (
-          <p className="rise-3 mx-auto mt-5 max-w-lg text-[#2a2118]/70">{restaurant.description}</p>
+          <p className="rise-3 mx-auto mt-5 max-w-lg" style={{ color: headlineMuted }}>
+            {restaurant.description}
+          </p>
         )}
         <div className="rise-4 mt-8">
           <Button
@@ -780,7 +891,7 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
             approximated without needing real illustration assets. */}
         <div
           className="absolute inset-x-0 top-1/2 h-2/3 -translate-y-1/2"
-          style={{ background: '#161310' }}
+          style={{ background: band }}
           aria-hidden
         />
         <div className="relative aspect-[16/9] overflow-hidden rounded-[2rem] shadow-dramatic">
@@ -803,13 +914,33 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
         </div>
       </section>
 
+      {/* A gallery, when there is one -- an upscale menu with real photography
+          and no evidence of it is a missed pitch. */}
+      {restaurant.galleryImages.length > 0 && (
+        <section className="mx-auto max-w-5xl px-5 pt-14 sm:px-8">
+          <div className="grid grid-cols-3 gap-4">
+            {restaurant.galleryImages.slice(0, 3).map((image) => (
+              <div key={image.id} className="img-zoom relative aspect-[4/5] rounded-2xl">
+                <Image
+                  src={image.url}
+                  alt={image.caption ?? ''}
+                  fill
+                  sizes="(max-width: 640px) 33vw, 300px"
+                  className="rounded-2xl object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="mx-auto max-w-4xl px-5 py-16 sm:px-8">
         <dl className="grid gap-8 text-center sm:grid-cols-3">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-widest" style={{ color: FOREST }}>
               Find us
             </dt>
-            <dd className="mt-2 font-display text-lg text-[#2a2118]">
+            <dd className="mt-2 font-display text-lg" style={{ color: headline }}>
               {restaurant.street}, {restaurant.city}
             </dd>
           </div>
@@ -817,7 +948,7 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
             <dt className="text-xs font-semibold uppercase tracking-widest" style={{ color: FOREST }}>
               Call us
             </dt>
-            <dd className="mt-2 font-display text-lg text-[#2a2118]">
+            <dd className="mt-2 font-display text-lg" style={{ color: headline }}>
               <a href={`tel:${restaurant.phone}`} className="hover:underline">
                 {restaurant.phone}
               </a>
@@ -827,7 +958,7 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
             <dt className="text-xs font-semibold uppercase tracking-widest" style={{ color: FOREST }}>
               How long
             </dt>
-            <dd className="mt-2 font-display text-lg text-[#2a2118]">
+            <dd className="mt-2 font-display text-lg" style={{ color: headline }}>
               ~{restaurant.prepTimeMinutes} min
               {restaurant.deliveryEnabled && <> · +15 delivery</>}
             </dd>
@@ -865,7 +996,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
   const options = fulfillmentOptions(restaurant);
 
   return (
-    <div className="animate-rise bg-[#161513]">
+    <div className="animate-rise bg-background">
       <section className="relative isolate overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0 opacity-60"
@@ -874,7 +1005,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
           }}
         />
 
-        <div className="relative mx-auto max-w-2xl px-5 pt-16 text-center sm:px-8 sm:pt-24">
+        <div className="relative mx-auto max-w-2xl px-5 pt-16 text-center sm:px-8 sm:pt-20">
           <div
             className="rise-1 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide"
             style={{ background: `${restaurant.brandPrimaryColor}22`, color: restaurant.brandPrimaryColor }}
@@ -882,12 +1013,12 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
             {restaurant.city} · {options.map((o) => o.label).join(' & ') || 'Order direct'}
           </div>
 
-          <h1 className="rise-2 mt-6 font-display text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-6xl">
+          <h1 className="rise-2 mt-6 font-display text-4xl font-black leading-[1.05] tracking-tight text-foreground sm:text-6xl">
             {restaurant.name}
           </h1>
 
           {restaurant.description && (
-            <p className="rise-3 mx-auto mt-5 max-w-lg text-white/60">{restaurant.description}</p>
+            <p className="rise-3 mx-auto mt-5 max-w-lg text-muted-foreground">{restaurant.description}</p>
           )}
 
           <div className="rise-4 mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -902,7 +1033,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="rounded-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10">
+            <Button asChild size="lg" variant="outline" className="rounded-full px-8">
               <Link href={href('/menu')}>View full menu</Link>
             </Button>
           </div>
@@ -922,8 +1053,10 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
 
         {/* The phone-framed product shot -- the reference's signature move. A
             plain rectangle bezel reads as "device" without needing a real
-            phone-mockup asset. */}
-        <div className="relative mx-auto mt-10 w-full max-w-[280px] px-5 pb-16 sm:px-8">
+            phone-mockup asset. 4:5 (not a literal 9:16 phone ratio) crops a
+            normal landscape food photo far more gracefully -- a true phone
+            ratio sliced most real photos in half. */}
+        <div className="relative mx-auto mt-10 w-full max-w-[300px] px-5 pb-16 sm:px-8">
           {restaurant.coverImageUrl && (
             <span
               className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-[#111]"
@@ -933,13 +1066,13 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
             </span>
           )}
           <div className="rounded-[2rem] border-[10px] border-[#0c0b0a] bg-[#0c0b0a] shadow-dramatic">
-            <div className="relative aspect-[9/16] overflow-hidden rounded-[1.4rem]">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[1.4rem]">
               {restaurant.coverImageUrl ? (
                 <Image
                   src={restaurant.coverImageUrl}
                   alt=""
                   fill
-                  sizes="280px"
+                  sizes="300px"
                   className="object-cover"
                 />
               ) : (
@@ -955,7 +1088,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
         </div>
       </section>
 
-      <section className="border-t border-white/10 px-5 py-16 sm:px-8">
+      <section className="border-t px-5 py-16 sm:px-8">
         <div className="mx-auto max-w-3xl">
           <p
             className="text-xs font-bold uppercase tracking-widest"
@@ -963,7 +1096,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
           >
             Why order here
           </p>
-          <h2 className="mt-2 font-display text-2xl font-bold text-white sm:text-3xl">
+          <h2 className="mt-2 font-display text-2xl font-bold text-foreground sm:text-3xl">
             Same food, same kitchen — none of it goes to a marketplace.
           </h2>
 
@@ -1025,20 +1158,20 @@ function PunchyPill({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl bg-white/5 px-4 py-2.5 text-left ring-1 ring-white/10">
+    <div className="rounded-2xl border bg-card px-4 py-2.5 text-left shadow-soft">
       <p className="text-xs font-bold" style={{ color: accent }}>
         {label}
       </p>
-      <p className="text-xs text-white/60">{children}</p>
+      <p className="text-xs text-muted-foreground">{children}</p>
     </div>
   );
 }
 
 function PunchyFeature({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-white/5 p-5 ring-1 ring-white/10">
-      <p className="text-sm font-bold text-white">{title}</p>
-      <p className="mt-1.5 text-sm text-white/55">{children}</p>
+    <div className="rounded-2xl border bg-card p-5 shadow-soft">
+      <p className="text-sm font-bold text-foreground">{title}</p>
+      <p className="mt-1.5 text-sm text-muted-foreground">{children}</p>
     </div>
   );
 }

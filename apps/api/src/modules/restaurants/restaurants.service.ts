@@ -239,6 +239,7 @@ export class RestaurantsService {
         brandPrimaryColor: true,
         brandAccentColor: true,
         websiteTemplate: true,
+        themeMode: true,
         logoDisplayMode: true,
 
         // The About page, in their words. Plain text — the storefront renders it as

@@ -194,6 +194,7 @@ export const updateRestaurantSchema = z.object({
   websiteTemplate: z
     .enum(['CLASSIC', 'BOLD', 'MINIMAL', 'RUSTIC', 'BUILDER', 'BENTO', 'ELEGANT', 'PUNCHY'])
     .optional(),
+  themeMode: z.enum(['LIGHT', 'DARK']).optional(),
   logoDisplayMode: z.enum(['LOGO_AND_NAME', 'LOGO_ONLY', 'NAME_ONLY']).optional(),
 
   /**

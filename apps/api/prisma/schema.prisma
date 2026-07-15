@@ -85,6 +85,17 @@ enum LogoDisplayMode {
   NAME_ONLY
 }
 
+/// See Restaurant.themeMode.
+enum ThemeMode {
+  /// The template's bright, airy palette. Default for every template.
+  LIGHT
+  /// The template's inverted, moody palette -- same layout, same personality,
+  /// flipped tone. Not a per-template redesign: backgrounds, cards and text
+  /// swap through shared tokens (see .storefront-dark in globals.css) so
+  /// every template, including future ones, gets it for free.
+  DARK
+}
+
 /// How a restaurant is reached by customers.
 ///
 /// WEBSITE  — the full storefront at <slug>.dinedirect.manvion.ca (or their own domain):
@@ -224,6 +235,9 @@ model Restaurant {
   /// apps/web/src/app/s/[slug]/page.tsx, which branches its entire JSX tree on
   /// this rather than reusing one template with theme variables.
   websiteTemplate   WebsiteTemplate @default(CLASSIC)
+  /// Picked alongside the template, not by the customer on the live site --
+  /// see the ThemeMode enum's comment.
+  themeMode         ThemeMode @default(LIGHT)
   /// A logo that already has the restaurant's name baked into the artwork reads
   /// as a typo the moment the text name repeats right next to it. LOGO_ONLY and
   /// NAME_ONLY exist so the header shows exactly one, not always both.

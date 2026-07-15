@@ -90,6 +90,15 @@ export function BrandingEditor() {
     onError: () => toast.error('Could not switch templates'),
   });
 
+  const saveThemeMode = useMutation({
+    mutationFn: (themeMode: 'LIGHT' | 'DARK') => api.updateCurrent({ themeMode }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Theme updated');
+    },
+    onError: () => toast.error('Could not switch theme'),
+  });
+
   const saveLogoMode = useMutation({
     mutationFn: (logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY') =>
       api.updateCurrent({ logoDisplayMode }),
@@ -267,10 +276,35 @@ export function BrandingEditor() {
 
         {/* ---------- Website template ---------- */}
         <div className="space-y-2">
-          <Label>Website template</Label>
-          <p className="text-xs text-muted-foreground">
-            Eight different layouts, not a colour change — switch anytime and see it live instantly.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Label>Website template</Label>
+              <p className="text-xs text-muted-foreground">
+                Eight different layouts, not a colour change — switch anytime and see it live instantly.
+              </p>
+            </div>
+
+            {/* The owner's setting, not the customer's -- there is no toggle on
+                the live site. Same layout and personality either way; only the
+                palette flips. */}
+            <div className="inline-flex shrink-0 rounded-lg border bg-muted/40 p-1">
+              {(['LIGHT', 'DARK'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => saveThemeMode.mutate(m)}
+                  disabled={readOnly || saveThemeMode.isPending}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    restaurant.themeMode === m
+                      ? 'bg-background text-foreground shadow-soft'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {m === 'LIGHT' ? 'Light' : 'Dark'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <TemplateOption
               swatch="photo"

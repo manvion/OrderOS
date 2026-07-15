@@ -114,13 +114,15 @@ export default async function StorefrontLayout({
   const isQrOnly = restaurant.orderingMode === 'QR_ONLY';
 
   /**
-   * PUNCHY's hero is dark from the very top of the page, unlike every other
-   * template (all light-page). A plain white header sitting on top of that
-   * reads as a seam, not a design -- so this is the one template whose header
-   * and footer flip to match, the way its reference site's navbar melts into
-   * its dark hero instead of sitting apart from it.
+   * The light/dark toggle the owner picks in Settings -> Branding, alongside
+   * the template -- never a customer-facing switch. `.storefront-dark` (see
+   * globals.css) flips the shared bg-background/text-foreground/bg-card/
+   * border tokens that the header, footer, and every semantic-token template
+   * (Classic, Minimal, Builder, Punchy) already read, so this one class is
+   * the whole mechanism for those. Templates with their own hardcoded palette
+   * (Rustic, Bento, Elegant) read restaurant.themeMode directly instead.
    */
-  const isDarkTemplate = restaurant.websiteTemplate === 'PUNCHY';
+  const themeClass = restaurant.themeMode === 'DARK' ? 'storefront-dark' : '';
 
   return (
     <TenantProvider restaurant={restaurant} basePath={basePath}>
@@ -131,7 +133,7 @@ export default async function StorefrontLayout({
             '--brand-foreground': '#ffffff',
           } as React.CSSProperties
         }
-        className="flex min-h-screen flex-col bg-background"
+        className={`flex min-h-screen flex-col bg-background ${themeClass}`}
       >
         {/* Staff preview of an unpublished page. Says so plainly, because the most
             expensive misunderstanding available here is an owner believing they are
@@ -142,11 +144,7 @@ export default async function StorefrontLayout({
             Publish in your dashboard.
           </div>
         )}
-        <header
-          className={`sticky top-0 z-40 border-b backdrop-blur ${
-            isDarkTemplate ? 'border-white/10 bg-[#161513]/95' : 'border-border bg-background/95'
-          }`}
-        >
+        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
           <div className="container flex h-16 items-center justify-between gap-4">
             <Link href={href(isQrOnly ? '/menu' : '/')} className="flex min-w-0 items-center gap-3">
               {/* NAME_ONLY needs no logo at all. LOGO_ONLY is only honored when a logo
@@ -159,7 +157,7 @@ export default async function StorefrontLayout({
                     alt={restaurant.name}
                     width={40}
                     height={40}
-                    className={`h-10 w-10 rounded-xl object-cover shadow-soft ${isDarkTemplate ? 'border border-white/15' : 'border'}`}
+                    className="h-10 w-10 rounded-xl border object-cover shadow-soft"
                   />
                 ) : (
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-base font-bold text-brand-foreground shadow-soft">
@@ -168,9 +166,7 @@ export default async function StorefrontLayout({
                 ))}
               {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
                 <span className="min-w-0 truncate leading-tight">
-                  <span
-                    className={`block font-display text-xl font-semibold tracking-tight ${isDarkTemplate ? 'text-white' : ''}`}
-                  >
+                  <span className="block font-display text-xl font-semibold tracking-tight">
                     {restaurant.name}
                   </span>
                   <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-brand sm:block">
@@ -183,22 +179,14 @@ export default async function StorefrontLayout({
             <nav className="flex items-center gap-1">
               <Link
                 href={href('/menu')}
-                className={`hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:block ${
-                  isDarkTemplate
-                    ? 'text-white/60 hover:bg-white/10 hover:text-white'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
+                className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
               >
                 Menu
               </Link>
               {!isQrOnly && (
                 <Link
                   href={href('/about')}
-                  className={`hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:block ${
-                    isDarkTemplate
-                      ? 'text-white/60 hover:bg-white/10 hover:text-white'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                  }`}
+                  className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
                 >
                   About
                 </Link>
@@ -207,16 +195,12 @@ export default async function StorefrontLayout({
                   Without it, the only route is phoning the kitchen that's cooking it. */}
               <Link
                 href={href('/orders')}
-                className={`hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:block ${
-                  isDarkTemplate
-                    ? 'text-white/60 hover:bg-white/10 hover:text-white'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
+                className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
               >
                 My orders
               </Link>
               {/* Optional, always. Guests never touch this and lose nothing. */}
-              <AccountButton dark={isDarkTemplate} />
+              <AccountButton />
               <CartButton />
             </nav>
           </div>
@@ -224,11 +208,9 @@ export default async function StorefrontLayout({
 
         <main className="flex-1">{children}</main>
 
-        <footer
-          className={`border-t py-8 ${isDarkTemplate ? 'border-white/10 bg-[#161513]' : ''}`}
-        >
-          <div className={`container space-y-1 text-sm ${isDarkTemplate ? 'text-white/50' : 'text-muted-foreground'}`}>
-            <p className={`font-medium ${isDarkTemplate ? 'text-white' : 'text-foreground'}`}>{restaurant.name}</p>
+        <footer className="border-t py-8">
+          <div className="container space-y-1 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{restaurant.name}</p>
             <p>
               {restaurant.street}, {restaurant.city}, {restaurant.state}
             </p>

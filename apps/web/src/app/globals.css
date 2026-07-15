@@ -64,6 +64,40 @@
     --shadow-xl: 0 8px 16px rgb(24 10 10 / 0.06), 0 24px 64px rgb(24 10 10 / 0.16);
   }
 
+  /**
+   * The storefront's dark theme -- an owner setting picked alongside the
+   * website template (Settings -> Branding), never a customer-facing toggle.
+   * Same warm-neutral philosophy as :root, inverted: every token any storefront
+   * component already reads (bg-background, text-foreground, bg-card,
+   * text-muted-foreground, border) flips through this class alone. Templates
+   * that hardcode their own palette (Rustic, Bento, Elegant, Punchy) still read
+   * their own light/dark pairs directly -- this covers Classic, Minimal,
+   * Builder and every shared piece (header, footer, cart, checkout, menu).
+   */
+  .storefront-dark {
+    --background: 20 14% 7%;
+    --foreground: 40 20% 96%;
+
+    --card: 20 12% 11%;
+    --card-foreground: 40 20% 96%;
+
+    --primary: 40 20% 96%;
+    --primary-foreground: 20 14% 7%;
+
+    --secondary: 20 10% 15%;
+    --secondary-foreground: 40 20% 96%;
+
+    --muted: 20 10% 15%;
+    --muted-foreground: 30 8% 65%;
+
+    --accent: 20 10% 17%;
+    --accent-foreground: 40 20% 96%;
+
+    --border: 20 10% 20%;
+    --input: 20 10% 20%;
+    --ring: 40 20% 90%;
+  }
+
   * {
     @apply border-border;
   }
