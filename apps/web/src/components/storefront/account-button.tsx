@@ -19,12 +19,12 @@ import { CLERK_ENABLED, useCustomerAuth } from './customer-auth';
  * guests on a deployment with no auth at all, and a sign-in button that cannot
  * sign anyone in is worse than no button.
  */
-export function AccountButton() {
+export function AccountButton({ dark = false }: { dark?: boolean }) {
   if (!CLERK_ENABLED) return null;
-  return <AccountButtonInner />;
+  return <AccountButtonInner dark={dark} />;
 }
 
-function AccountButtonInner() {
+function AccountButtonInner({ dark }: { dark: boolean }) {
   const restaurant = useTenant();
   const { getToken, isSignedIn } = useCustomerAuth();
 
@@ -43,7 +43,13 @@ function AccountButtonInner() {
     <>
       <SignedOut>
         <SignInButton mode="modal">
-          <button className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <button
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              dark
+                ? 'text-white/60 hover:bg-white/10 hover:text-white'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Sign in</span>
           </button>
@@ -55,7 +61,7 @@ function AccountButtonInner() {
           {/* Recognise a regular. It costs nothing, and it is the clearest signal
               that this is the restaurant's own place rather than a marketplace. */}
           {profile && profile.customer.totalOrders > 0 && (
-            <span className="hidden text-xs text-muted-foreground sm:inline">
+            <span className={`hidden text-xs sm:inline ${dark ? 'text-white/50' : 'text-muted-foreground'}`}>
               {profile.customer.totalOrders} order
               {profile.customer.totalOrders === 1 ? '' : 's'} with us
             </span>
