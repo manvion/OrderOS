@@ -131,11 +131,12 @@ export class OrdersService {
     // The declared value a courier insures the food for -- needed BEFORE the
     // delivery fee is known, since the fee itself comes from this same quote.
     // Goods only: tax and tip have nothing to do with what a courier is carrying.
-    const goodsValueCents = lineItems.reduce(
-      (sum, item) =>
-        sum + (item.unitPriceCents + item.modifiers.reduce((s, m) => s + m.priceCents, 0)) * item.quantity,
-      0,
-    );
+    const pricedItemsForPromo = lineItems.map((item) => ({
+      productId: item.productId,
+      lineTotalCents:
+        (item.unitPriceCents + item.modifiers.reduce((s, m) => s + m.priceCents, 0)) * item.quantity,
+    }));
+    const goodsValueCents = pricedItemsForPromo.reduce((sum, item) => sum + item.lineTotalCents, 0);
 
     /**
      * Price the courier NOW, before pricing the order -- the customer is charged
@@ -179,10 +180,10 @@ export class OrdersService {
       courierQuote,
       this.upsertCustomer(restaurantId, input.customer, clerkUserId),
       this.nextOrderNumber(restaurantId),
-      // Resolved against goodsValueCents (subtotal before tax/fees/tip), same
-      // figure a coupon should ever discount against. A bad or expired code
-      // throws here and fails the order, same as it did in the cart preview.
-      this.promotions.resolveDiscount(restaurantId, goodsValueCents, input.promoCode, restaurant.currency),
+      // Resolved per-item so a promotion scoped to specific products discounts
+      // exactly those, not the whole cart. A bad or expired code throws here
+      // and fails the order, same as it did in the cart preview.
+      this.promotions.resolveDiscount(restaurantId, pricedItemsForPromo, input.promoCode, restaurant.currency),
     ]);
 
     const pricing = priceOrder({

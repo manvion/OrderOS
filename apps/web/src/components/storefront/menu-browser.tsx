@@ -177,6 +177,11 @@ export function MenuBrowser({
                   </div>
 
                   <div className="relative shrink-0">
+                    {product.promoLabel && (
+                      <span className="absolute -left-1.5 -top-1.5 z-10 rounded-md bg-red-600 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white shadow-soft">
+                        {product.promoLabel}
+                      </span>
+                    )}
                     {product.imageUrl ? (
                       <div className="img-zoom h-28 w-28 rounded-xl shadow-soft sm:h-32 sm:w-32">
                         <Image

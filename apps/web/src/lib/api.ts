@@ -126,10 +126,14 @@ export const storefrontApi = {
     }),
 
   /** Live "how much does this code save me" preview for the cart page. */
-  previewPromotion: (slug: string, subtotalCents: number, code?: string) =>
+  previewPromotion: (
+    slug: string,
+    items: Array<{ productId: string; lineTotalCents: number }>,
+    code?: string,
+  ) =>
     storefrontApi.request<{ discountCents: number }>('/storefront/promotions/preview', slug, {
       method: 'POST',
-      body: JSON.stringify({ subtotalCents, code }),
+      body: JSON.stringify({ items, code }),
     }),
 
   track: (slug: string, token: string) =>
@@ -319,6 +323,13 @@ export function createDashboardApi(
       form.append('file', file);
       return call<MenuImportDraft>('/menu/import/photo', { method: 'POST', body: form });
     },
+
+    /** One AI-written sentence from just the item's name + category. */
+    generateProductDescription: (name: string, categoryName?: string) =>
+      call<{ description: string }>('/menu/ai-description', {
+        method: 'POST',
+        body: JSON.stringify({ name, categoryName }),
+      }),
 
     // Orders
     listActiveOrders: () => call<Order[]>('/orders/active'),
@@ -664,6 +675,8 @@ export interface MenuProduct {
   priceCents: number;
   imageUrl: string | null;
   modifierGroups: MenuModifierGroup[];
+  /** e.g. "10% OFF". Null when no active promotion covers this item. */
+  promoLabel: string | null;
 }
 
 export interface MenuCategory {
@@ -1018,6 +1031,8 @@ export interface Promotion {
   type: 'PERCENT' | 'FIXED';
   value: number;
   code: string | null;
+  /** Empty = whole order. Non-empty = only these product ids are discounted + tagged. */
+  productIds: string[];
   minSubtotalCents: number;
   startsAt: string | null;
   endsAt: string | null;

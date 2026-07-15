@@ -121,12 +121,24 @@ export function ProductDialog({
         {product.imageUrl && (
           <div className="relative h-52 w-full overflow-hidden rounded-t-xl">
             <Image src={product.imageUrl} alt={product.name} fill className="object-cover" />
+            {product.promoLabel && (
+              <span className="absolute left-3 top-3 rounded-md bg-red-600 px-2 py-1 text-xs font-bold tracking-wide text-white shadow-soft">
+                {product.promoLabel}
+              </span>
+            )}
           </div>
         )}
 
         <div className="space-y-6 p-6">
           <DialogHeader>
-            <DialogTitle>{product.name}</DialogTitle>
+            <div className="flex items-center gap-2">
+              <DialogTitle>{product.name}</DialogTitle>
+              {!product.imageUrl && product.promoLabel && (
+                <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white">
+                  {product.promoLabel}
+                </span>
+              )}
+            </div>
             {product.description && (
               <DialogDescription>{product.description}</DialogDescription>
             )}

@@ -338,6 +338,13 @@ model Promotion {
 
   code String?
 
+  /// Empty = applies to the whole order (the original behaviour). Non-empty =
+  /// only these specific products are discounted -- and only these products
+  /// carry the "on promo" tag on the storefront menu. A restaurant running
+  /// "10% off this burger" needs the tag on the burger, not an invisible
+  /// discount nobody sees until checkout.
+  productIds String[] @default([])
+
   minSubtotalCents Int       @default(0)
   startsAt         DateTime?
   endsAt           DateTime?

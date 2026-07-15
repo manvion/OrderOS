@@ -32,11 +32,12 @@ export default function CartPage() {
     if (!code || !totals) return;
     setApplyingPromo(true);
     try {
-      const { discountCents } = await storefrontApi.previewPromotion(
-        restaurant.slug,
-        totals.subtotalCents,
-        code,
-      );
+      const items = lines.map((l) => ({
+        productId: l.productId,
+        lineTotalCents:
+          (l.unitPriceCents + l.modifiers.reduce((s, m) => s + m.priceCents, 0)) * l.quantity,
+      }));
+      const { discountCents } = await storefrontApi.previewPromotion(restaurant.slug, items, code);
       setPromo(code, discountCents);
       setPromoInput('');
       toast.success(`Code applied — you saved ${formatMoney(discountCents, restaurant.currency)}`);

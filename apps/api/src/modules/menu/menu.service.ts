@@ -3,8 +3,53 @@ import type { CategoryInput, ProductInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { StorageService } from '../storage/storage.service';
+import { PromotionsService, type ActivePromotionForMenu } from '../promotions/promotions.service';
 
 const MENU_CACHE_TTL_SECONDS = 120;
+
+export interface MenuProductRow {
+  id: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  imageUrl: string | null;
+  modifierGroups: unknown[];
+}
+
+export interface MenuCategoryRow {
+  id: string;
+  name: string;
+  description: string | null;
+  products: MenuProductRow[];
+}
+
+/**
+ * Attach each product's best-savings badge, computed fresh every request (see
+ * getPublicMenu). A promotion with an empty productIds tags every product; one
+ * scoped to specific products tags only those. If more than one promotion
+ * covers a product, the one that would save the most wins the badge.
+ */
+function withPromoBadges(menu: MenuCategoryRow[], promotions: ActivePromotionForMenu[]) {
+  if (promotions.length === 0) return menu;
+
+  const labelFor = (product: MenuProductRow): string | null => {
+    let best: { savingsCents: number; label: string } | null = null;
+    for (const promo of promotions) {
+      if (promo.productIds.length > 0 && !promo.productIds.includes(product.id)) continue;
+      const savingsCents =
+        promo.type === 'PERCENT'
+          ? Math.floor((product.priceCents * promo.value) / 10_000)
+          : Math.min(promo.value, product.priceCents);
+      if (!best || savingsCents > best.savingsCents) best = { savingsCents, label: promo.label };
+    }
+    return best?.label ?? null;
+  };
+
+  return menu.map((category) => ({
+    ...category,
+    products: category.products.map((product) => ({ ...product, promoLabel: labelFor(product) })),
+  }));
+}
 
 @Injectable()
 export class MenuService {
@@ -12,6 +57,7 @@ export class MenuService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly storage: StorageService,
+    private readonly promotions: PromotionsService,
   ) {}
 
   /** The currency menu prices are in — the photo importer reads numbers against it. */
@@ -287,9 +333,16 @@ export class MenuService {
    */
   async getPublicMenu(restaurantId: string) {
     const cacheKey = `menu:${restaurantId}`;
-    const cached = await this.redis.get<unknown>(cacheKey);
-    if (cached) return cached;
+    const cached = await this.redis.get<MenuCategoryRow[]>(cacheKey);
+    const menu = cached ?? (await this.fetchAndCacheMenu(restaurantId, cacheKey));
 
+    // Never cached alongside the menu -- a promotion toggled on/off must show
+    // up on the next request, not wait out a 2-minute menu TTL.
+    const promotions = await this.promotions.getActivePromotionsForMenu(restaurantId);
+    return withPromoBadges(menu, promotions);
+  }
+
+  private async fetchAndCacheMenu(restaurantId: string, cacheKey: string): Promise<MenuCategoryRow[]> {
     const categories = await this.prisma.category.findMany({
       where: { restaurantId, isActive: true },
       orderBy: { sortOrder: 'asc' },

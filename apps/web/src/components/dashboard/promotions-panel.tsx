@@ -24,12 +24,21 @@ export function PromotionsPanel() {
   const [amount, setAmount] = useState('');
   const [code, setCode] = useState('');
   const [minSubtotal, setMinSubtotal] = useState('');
+  const [scope, setScope] = useState<'ORDER' | 'ITEMS'>('ORDER');
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   const { data: promotions, isLoading } = useQuery({
     queryKey: ['promotions', restaurant?.id],
     queryFn: () => api.listPromotions(),
     enabled: Boolean(restaurant),
   });
+
+  const { data: products } = useQuery({
+    queryKey: ['products', restaurant?.id],
+    queryFn: () => api.listProducts(),
+    enabled: Boolean(restaurant),
+  });
+  const productName = (id: string) => products?.find((p) => p.id === id)?.name ?? id;
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['promotions'] });
 
@@ -42,6 +51,7 @@ export function PromotionsPanel() {
         // Same "* 100" either way -- just two different units of "hundredths".
         value: Math.round(Number(amount) * 100),
         code: code.trim() || undefined,
+        productIds: scope === 'ITEMS' ? selectedProductIds : [],
         minSubtotalCents: minSubtotal ? Math.round(Number(minSubtotal) * 100) : 0,
       }),
     onSuccess: () => {
@@ -50,6 +60,8 @@ export function PromotionsPanel() {
       setAmount('');
       setCode('');
       setMinSubtotal('');
+      setScope('ORDER');
+      setSelectedProductIds([]);
       toast.success('Promotion created');
     },
     onError: (err) =>
@@ -75,7 +87,10 @@ export function PromotionsPanel() {
 
   if (!restaurant) return null;
 
-  const canCreate = name.trim().length > 0 && Number(amount) > 0;
+  const canCreate =
+    name.trim().length > 0 &&
+    Number(amount) > 0 &&
+    (scope === 'ORDER' || selectedProductIds.length > 0);
 
   return (
     <div className="space-y-6">
@@ -152,6 +167,53 @@ export function PromotionsPanel() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Applies to</Label>
+              <div className="inline-flex rounded-lg border bg-muted/40 p-1">
+                {(['ORDER', 'ITEMS'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setScope(s)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                      scope === s
+                        ? 'bg-background text-foreground shadow-soft'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {s === 'ORDER' ? 'Whole order' : 'Specific items'}
+                  </button>
+                ))}
+              </div>
+
+              {scope === 'ITEMS' && (
+                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2">
+                  {products?.length ? (
+                    products.map((p) => (
+                      <label
+                        key={p.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.includes(p.id)}
+                          onChange={(e) =>
+                            setSelectedProductIds((ids) =>
+                              e.target.checked ? [...ids, p.id] : ids.filter((id) => id !== p.id),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-input accent-brand"
+                        />
+                        {p.name}
+                      </label>
+                    ))
+                  ) : (
+                    <p className="p-2 text-sm text-muted-foreground">No menu items yet.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending}>
               <Plus className="h-4 w-4" />
               {create.isPending ? 'Creating…' : 'Create promotion'}
@@ -217,6 +279,12 @@ export function PromotionsPanel() {
                     {promo.redemptions} used
                   </span>
                 </div>
+
+                {promo.productIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Tags: {promo.productIds.map(productName).join(', ')}
+                  </p>
+                )}
 
                 {!readOnly && (
                   <label className="flex items-center justify-between border-t pt-3 text-sm">

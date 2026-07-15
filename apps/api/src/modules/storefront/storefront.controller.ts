@@ -47,7 +47,12 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
 
 const promoPreviewSchema = z.object({
-  subtotalCents: z.number().int().min(0),
+  items: z.array(
+    z.object({
+      productId: z.string(),
+      lineTotalCents: z.number().int().min(0),
+    }),
+  ),
   code: z.string().max(40).optional(),
 });
 
@@ -131,7 +136,7 @@ export class StorefrontController {
     });
     const discount = await this.promotions.resolveDiscount(
       restaurantId,
-      body.subtotalCents,
+      body.items,
       body.code,
       restaurant.currency,
     );

@@ -360,6 +360,8 @@ export const promotionSchema = z
     value: z.number().int().min(1),
     /** Blank/omitted applies automatically to every qualifying order. */
     code: z.string().max(40).optional(),
+    /** Empty = whole order. Non-empty = only these products are discounted and tagged. */
+    productIds: z.array(z.string()).default([]),
     minSubtotalCents: z.number().int().min(0).default(0),
     startsAt: z.string().datetime().optional(),
     endsAt: z.string().datetime().optional(),
