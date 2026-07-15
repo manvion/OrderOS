@@ -73,31 +73,45 @@ export function MenuBrowser({
         </div>
       )}
 
-      <div className="mx-auto max-w-3xl px-5 pt-10 sm:px-8">
-        <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">Menu</h1>
-        {!restaurant.isOpen && (
-          <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {restaurant.name} is closed right now.
-            {restaurant.scheduledOrdersEnabled
-              ? ' You can still schedule an order for later.'
-              : ' Browse the menu — ordering opens when they do.'}
-          </p>
-        )}
+      {/* A flat white page reads as a template. A wash of the restaurant's own
+          colour behind the title says whose menu this is before a single word
+          is read. */}
+      <div className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-24 h-64 opacity-[0.14] blur-3xl"
+          style={{
+            background: `radial-gradient(60% 100% at 30% 0%, var(--brand), transparent 70%)`,
+          }}
+        />
+        <div className="relative mx-auto max-w-3xl px-5 pt-10 sm:px-8">
+          <h1 className="rise-1 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+            Menu
+          </h1>
+          {!restaurant.isOpen && (
+            <p className="rise-2 mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {restaurant.name} is closed right now.
+              {restaurant.scheduledOrdersEnabled
+                ? ' You can still schedule an order for later.'
+                : ' Browse the menu — ordering opens when they do.'}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Sticky category rail. On a phone the menu is long, and having to scroll
           back to the top to change category is the single most annoying thing a
           mobile menu can do. */}
-      <nav className="sticky top-16 z-30 mt-6 border-b bg-background/85 backdrop-blur-md">
-        <div className="no-scrollbar mx-auto flex max-w-3xl gap-1.5 overflow-x-auto px-5 py-3 sm:px-8">
+      <nav className="rise-2 sticky top-16 z-30 mt-6 border-b bg-background/85 backdrop-blur-md">
+        <div className="no-scrollbar mx-auto flex max-w-3xl gap-2 overflow-x-auto px-5 py-3 sm:px-8">
           {menu.map((category) => (
             <button
               key={category.id}
               onClick={() => scrollToCategory(category.id)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all ${
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
                 activeCategory === category.id
-                  ? 'bg-brand text-brand-foreground shadow-soft'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  ? 'scale-105 bg-brand text-brand-foreground shadow-lifted'
+                  : 'text-muted-foreground hover:-translate-y-px hover:bg-accent hover:text-foreground'
               }`}
             >
               {category.name}
@@ -116,17 +130,26 @@ export function MenuBrowser({
             }}
             className="scroll-mt-36"
           >
-            <h2 className="font-display text-2xl font-semibold tracking-tight">{category.name}</h2>
+            <div className="flex items-baseline gap-3">
+              <span className="h-6 w-1.5 rounded-full bg-brand" aria-hidden />
+              <h2 className="font-display text-2xl font-semibold tracking-tight">
+                {category.name}
+              </h2>
+              <span className="text-sm text-muted-foreground">
+                {category.products.length} item{category.products.length === 1 ? '' : 's'}
+              </span>
+            </div>
             {category.description && (
-              <p className="mt-1 text-muted-foreground">{category.description}</p>
+              <p className="mt-1.5 pl-4 text-muted-foreground">{category.description}</p>
             )}
 
             <div className="mt-5 space-y-3">
-              {category.products.map((product) => (
+              {category.products.map((product, i) => (
                 <button
                   key={product.id}
                   onClick={() => setSelected(product)}
-                  className="card-interactive group flex w-full gap-5 p-5 text-left"
+                  style={{ animationDelay: `${Math.min(i, 5) * 45}ms` }}
+                  className="card-interactive animate-rise group flex w-full gap-5 p-5 text-left"
                 >
                   <div className="min-w-0 flex-1">
                     <h3 className="font-semibold leading-snug">{product.name}</h3>
@@ -137,8 +160,8 @@ export function MenuBrowser({
                       </p>
                     )}
 
-                    <div className="mt-3 flex items-center gap-2.5">
-                      <span className="font-semibold tabular-nums">
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="rounded-full bg-brand-subtle px-2.5 py-1 text-sm font-semibold tabular-nums text-brand">
                         {formatMoney(product.priceCents, restaurant.currency)}
                       </span>
 
@@ -146,7 +169,7 @@ export function MenuBrowser({
                           after opening the dialog feels like a bait and switch. */}
                       {product.modifierGroups.length > 0 && (
                         <span className="text-xs text-muted-foreground">
-                          · {product.modifierGroups.length} option
+                          {product.modifierGroups.length} option
                           {product.modifierGroups.length === 1 ? '' : 's'}
                         </span>
                       )}
@@ -155,30 +178,28 @@ export function MenuBrowser({
 
                   <div className="relative shrink-0">
                     {product.imageUrl ? (
-                      <div className="img-zoom h-28 w-28 rounded-xl">
+                      <div className="img-zoom h-28 w-28 rounded-xl shadow-soft sm:h-32 sm:w-32">
                         <Image
                           src={product.imageUrl}
                           alt={product.name}
-                          width={112}
-                          height={112}
-                          className="h-28 w-28 rounded-xl object-cover"
-                          style={{ width: 112, height: 112 }}
+                          width={128}
+                          height={128}
+                          className="h-28 w-28 rounded-xl object-cover sm:h-32 sm:w-32"
+                          style={{ width: '100%', height: '100%' }}
                         />
                       </div>
                     ) : (
                       // No photo? Don't show a dead grey box -- the same rule the
                       // storefront hero and the branding settings preview follow.
                       // A tint of the restaurant's own colour reads as deliberate.
-                      <div
-                        className="flex h-28 w-28 items-center justify-center rounded-xl bg-brand-subtle"
-                      >
+                      <div className="flex h-28 w-28 items-center justify-center rounded-xl bg-brand-subtle sm:h-32 sm:w-32">
                         <UtensilsCrossed className="h-7 w-7 text-brand/50" />
                       </div>
                     )}
 
                     {/* The affordance. A menu row that is silently clickable is a
                         menu row people read and scroll past. */}
-                    <span className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lifted transition-transform group-hover:scale-110">
+                    <span className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lifted transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110">
                       <Plus className="h-4 w-4" />
                     </span>
                   </div>
