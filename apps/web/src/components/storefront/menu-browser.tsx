@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ArrowRight, Plus, UtensilsCrossed } from 'lucide-react';
+import { ArrowRight, Plus, Tag, UtensilsCrossed } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import type { MenuCategory, MenuProduct, StorefrontRestaurant } from '@/lib/api';
 import { ProductDialog } from './product-dialog';
 import { useCart } from '@/lib/cart-store';
 import { useTenantHref } from './tenant-provider';
+
+/** A synthetic category id for the deals rail pill / scroll target -- never a real category. */
+const DEALS_ID = '__deals__';
 
 export function MenuBrowser({
   restaurant,
@@ -20,6 +23,11 @@ export function MenuBrowser({
   const [selected, setSelected] = useState<MenuProduct | null>(null);
   const [activeCategory, setActiveCategory] = useState(menu[0]?.id ?? '');
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  // Every promo-tagged item, pulled into its own rail + section -- a discount
+  // buried inside "Soups" is a discount nobody notices. It still stays in its
+  // own category below too; this is "also seen here", not "moved here".
+  const dealProducts = menu.flatMap((c) => c.products.filter((p) => p.promoLabel));
 
   const lines = useCart((s) => s.lines);
   const itemCount = useCart((s) => s.itemCount());
@@ -104,6 +112,19 @@ export function MenuBrowser({
           mobile menu can do. */}
       <nav className="rise-2 sticky top-16 z-30 mt-6 border-b bg-background/85 backdrop-blur-md">
         <div className="no-scrollbar mx-auto flex max-w-3xl gap-2 overflow-x-auto px-5 py-3 sm:px-8">
+          {dealProducts.length > 0 && (
+            <button
+              onClick={() => scrollToCategory(DEALS_ID)}
+              className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                activeCategory === DEALS_ID
+                  ? 'scale-105 bg-red-600 text-white shadow-lifted'
+                  : 'bg-red-600/10 text-red-600 hover:-translate-y-px'
+              }`}
+            >
+              <Tag className="h-3.5 w-3.5" />
+              Deals
+            </button>
+          )}
           {menu.map((category) => (
             <button
               key={category.id}
@@ -121,6 +142,36 @@ export function MenuBrowser({
       </nav>
 
       <div className="mx-auto max-w-3xl space-y-14 px-5 py-10 sm:px-8">
+        {dealProducts.length > 0 && (
+          <section
+            id={DEALS_ID}
+            ref={(el) => {
+              sectionRefs.current[DEALS_ID] = el;
+            }}
+            className="scroll-mt-36"
+          >
+            <div className="flex items-baseline gap-3">
+              <span className="h-6 w-1.5 rounded-full bg-red-600" aria-hidden />
+              <h2 className="font-display text-2xl font-semibold tracking-tight">Deals</h2>
+              <span className="text-sm text-muted-foreground">
+                {dealProducts.length} item{dealProducts.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {dealProducts.map((product, i) => (
+                <ProductRow
+                  key={product.id}
+                  product={product}
+                  currency={restaurant.currency}
+                  index={i}
+                  onSelect={() => setSelected(product)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {menu.map((category) => (
           <section
             key={category.id}
@@ -145,70 +196,13 @@ export function MenuBrowser({
 
             <div className="mt-5 space-y-3">
               {category.products.map((product, i) => (
-                <button
+                <ProductRow
                   key={product.id}
-                  onClick={() => setSelected(product)}
-                  style={{ animationDelay: `${Math.min(i, 5) * 45}ms` }}
-                  className="card-interactive animate-rise group flex w-full gap-5 p-5 text-left"
-                >
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold leading-snug">{product.name}</h3>
-
-                    {product.description && (
-                      <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                        {product.description}
-                      </p>
-                    )}
-
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="rounded-full bg-brand-subtle px-2.5 py-1 text-sm font-semibold tabular-nums text-brand">
-                        {formatMoney(product.priceCents, restaurant.currency)}
-                      </span>
-
-                      {/* Say so BEFORE they tap. Discovering a required choice only
-                          after opening the dialog feels like a bait and switch. */}
-                      {product.modifierGroups.length > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {product.modifierGroups.length} option
-                          {product.modifierGroups.length === 1 ? '' : 's'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="relative shrink-0">
-                    {product.promoLabel && (
-                      <span className="absolute -left-1.5 -top-1.5 z-10 rounded-md bg-red-600 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white shadow-soft">
-                        {product.promoLabel}
-                      </span>
-                    )}
-                    {product.imageUrl ? (
-                      <div className="img-zoom h-28 w-28 rounded-xl shadow-soft sm:h-32 sm:w-32">
-                        <Image
-                          src={product.imageUrl}
-                          alt={product.name}
-                          width={128}
-                          height={128}
-                          className="h-28 w-28 rounded-xl object-cover sm:h-32 sm:w-32"
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                      </div>
-                    ) : (
-                      // No photo? Don't show a dead grey box -- the same rule the
-                      // storefront hero and the branding settings preview follow.
-                      // A tint of the restaurant's own colour reads as deliberate.
-                      <div className="flex h-28 w-28 items-center justify-center rounded-xl bg-brand-subtle sm:h-32 sm:w-32">
-                        <UtensilsCrossed className="h-7 w-7 text-brand/50" />
-                      </div>
-                    )}
-
-                    {/* The affordance. A menu row that is silently clickable is a
-                        menu row people read and scroll past. */}
-                    <span className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lifted transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110">
-                      <Plus className="h-4 w-4" />
-                    </span>
-                  </div>
-                </button>
+                  product={product}
+                  currency={restaurant.currency}
+                  index={i}
+                  onSelect={() => setSelected(product)}
+                />
               ))}
             </div>
           </section>
@@ -248,5 +242,85 @@ export function MenuBrowser({
         />
       )}
     </div>
+  );
+}
+
+/** One menu row. Shared by the Deals section and every regular category, so a
+ *  promo-tagged item looks identical whichever list it's found in. */
+function ProductRow({
+  product,
+  currency,
+  index,
+  onSelect,
+}: {
+  product: MenuProduct;
+  currency: string;
+  index: number;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      style={{ animationDelay: `${Math.min(index, 5) * 45}ms` }}
+      className="card-interactive animate-rise group flex w-full gap-5 p-5 text-left"
+    >
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold leading-snug">{product.name}</h3>
+
+        {product.description && (
+          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+            {product.description}
+          </p>
+        )}
+
+        <div className="mt-3 flex items-center gap-2">
+          <span className="rounded-full bg-brand-subtle px-2.5 py-1 text-sm font-semibold tabular-nums text-brand">
+            {formatMoney(product.priceCents, currency)}
+          </span>
+
+          {/* Say so BEFORE they tap. Discovering a required choice only
+              after opening the dialog feels like a bait and switch. */}
+          {product.modifierGroups.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {product.modifierGroups.length} option
+              {product.modifierGroups.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="relative shrink-0">
+        {product.promoLabel && (
+          <span className="absolute -left-1.5 -top-1.5 z-10 rounded-md bg-red-600 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white shadow-soft">
+            {product.promoLabel}
+          </span>
+        )}
+        {product.imageUrl ? (
+          <div className="img-zoom h-28 w-28 rounded-xl shadow-soft sm:h-32 sm:w-32">
+            <Image
+              src={product.imageUrl}
+              alt={product.name}
+              width={128}
+              height={128}
+              className="h-28 w-28 rounded-xl object-cover sm:h-32 sm:w-32"
+              style={{ width: '100%', height: '100%' }}
+            />
+          </div>
+        ) : (
+          // No photo? Don't show a dead grey box -- the same rule the
+          // storefront hero and the branding settings preview follow.
+          // A tint of the restaurant's own colour reads as deliberate.
+          <div className="flex h-28 w-28 items-center justify-center rounded-xl bg-brand-subtle sm:h-32 sm:w-32">
+            <UtensilsCrossed className="h-7 w-7 text-brand/50" />
+          </div>
+        )}
+
+        {/* The affordance. A menu row that is silently clickable is a
+            menu row people read and scroll past. */}
+        <span className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lifted transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110">
+          <Plus className="h-4 w-4" />
+        </span>
+      </div>
+    </button>
   );
 }
