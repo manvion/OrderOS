@@ -163,16 +163,15 @@ export default function OrdersPage() {
                       title="Order details, refunds and message history"
                     >
                       {/*
-                        The code this customer is reading off the public status
-                        board (or that a courier reads off the bag) -- shown as
-                        prominently here as it is there, paired with their name,
-                        so staff aren't stuck translating "777N" back into
-                        #0716-002 by memory. The order number stays as a
-                        secondary reference for reconciliation.
+                        The last 3 digits of the order number -- the same thing
+                        this customer is reading off the public status board,
+                        shown as prominently here as it is there, paired with
+                        their name. The full order number stays alongside it
+                        for reconciliation.
                       */}
                       <div className="flex items-center gap-2">
                         <span className="rounded-md border-2 border-dashed px-2 py-0.5 font-mono text-base font-black tracking-widest">
-                          {order.handoffCode ?? order.orderNumber.slice(-4)}
+                          {order.orderNumber.slice(-3)}
                         </span>
                         <span className="text-sm font-semibold text-muted-foreground hover:underline">
                           #{order.orderNumber}

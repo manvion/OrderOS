@@ -326,12 +326,14 @@ function OrderCard({
     <div className={`shadow-soft rounded-xl border-l-4 bg-background p-4 ${tone}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {/* The biggest thing on the card. It is what goes on the bag. */}
+          {/* The biggest thing on the card. It is what goes on the bag -- the last
+              3 digits of the order number, the same thing texted to the customer
+              and shown on the public status board. */}
           <p className="font-mono text-3xl font-black leading-none tracking-tight">
-            {order.handoffCode ?? order.orderNumber.slice(-4)}
+            {order.orderNumber.slice(-3)}
           </p>
           {/* The full order number too, small -- so this card can be cross-referenced
-              against Order history or a receipt, both of which key on it, not the code. */}
+              against Order history or a receipt. */}
           <p className="mt-0.5 text-xs font-medium text-muted-foreground">
             #{order.orderNumber}
           </p>

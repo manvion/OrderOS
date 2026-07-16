@@ -6,21 +6,23 @@ import { ChefHat, PartyPopper } from 'lucide-react';
 import { storefrontApi, type StatusBoardEntry } from '@/lib/api';
 import { useTenant } from '@/components/storefront/tenant-provider';
 
-/** "Ready in 12 min" / "Any moment now" -- null while there's nothing to count down to yet. */
+/** "Ready in 12:45" / "Any moment now" -- null while there's nothing to count down to yet. */
 function formatCountdown(estimatedReadyAt: string | null, now: number): string | null {
   if (!estimatedReadyAt) return null;
   const diffMs = new Date(estimatedReadyAt).getTime() - now;
   if (diffMs <= 0) return 'Any moment now';
-  const minutes = Math.ceil(diffMs / 60_000);
-  return `Ready in ${minutes} min`;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `Ready in ${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 /**
  * The public "now serving" board -- meant for a TV by the counter, or a link a
  * pickup/dine-in customer can pull up on their own phone to watch their order
- * without asking staff. No sign-in, no customer names: the handoff code is
- * the one identifier that's both safe on a screen a room full of strangers can
- * see and meaningful to the one customer it belongs to.
+ * without asking staff. No sign-in: identified by the last 3 digits of the
+ * order number (the same number texted to them the whole way through) paired
+ * with their first name.
  *
  * Delivery orders never appear -- nobody standing in the restaurant is
  * waiting on one.
@@ -36,11 +38,11 @@ export default function OrderStatusBoardPage() {
     refetchInterval: 6_000,
   });
 
-  // Ticks the countdown between refetches -- otherwise "Ready in 12 min" would
-  // only update once every 6 seconds instead of counting down smoothly.
+  // Ticks the countdown every second, independent of the 6s refetch -- a
+  // countdown that shows seconds but only updates every 6 of them isn't one.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 15_000);
+    const id = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(id);
   }, []);
 
@@ -112,7 +114,7 @@ function BoardColumn({
             const countdown = now ? formatCountdown(o.estimatedReadyAt, now) : null;
             return (
               <div
-                key={`${o.handoffCode}-${i}`}
+                key={`${o.shortId}-${i}`}
                 className={`animate-rise rounded-2xl border border-background/10 bg-background/10 py-4 text-center ${
                   highlight ? 'shadow-floating' : ''
                 }`}
@@ -123,10 +125,17 @@ function BoardColumn({
                     <p className="font-mono text-2xl font-black tracking-widest">{o.tableNumber}</p>
                   </>
                 ) : (
-                  <p className="font-mono text-2xl font-black tracking-widest">{o.handoffCode}</p>
+                  <p className="font-mono text-2xl font-black tracking-widest">{o.shortId}</p>
+                )}
+                {o.customerFirstName && (
+                  <p className="mt-1 truncate px-2 text-sm font-medium text-background/80">
+                    {o.customerFirstName}
+                  </p>
                 )}
                 {countdown && (
-                  <p className="mt-1.5 text-xs font-semibold text-background/60">{countdown}</p>
+                  <p className="mt-1.5 font-mono text-xs font-semibold text-background/60">
+                    {countdown}
+                  </p>
                 )}
               </div>
             );

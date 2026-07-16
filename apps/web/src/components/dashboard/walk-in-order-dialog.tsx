@@ -140,7 +140,7 @@ export function WalkInOrderDialog({
       }),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      toast.success(`Order #${order.orderNumber} sent to the kitchen — code ${order.handoffCode}`);
+      toast.success(`Order #${order.orderNumber} sent to the kitchen — code ${order.orderNumber.slice(-3)}`);
       setLines([]);
       setCustomerName('');
       setCustomerPhone('');

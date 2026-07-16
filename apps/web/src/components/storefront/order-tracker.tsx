@@ -117,7 +117,8 @@ export function OrderTracker({
 
       {/*
         THE CODE. Given to the kitchen and to the customer, so both are looking at
-        the same four characters.
+        the same digits -- the last 3 of the order number, the same number that's
+        headlined this page and every text this customer has already gotten.
 
         Pickup: they read it out at the counter, and "order for John" stops being a
         problem when there are two Johns. Dine-in: it's on the ticket with the table
@@ -127,7 +128,7 @@ export function OrderTracker({
 
         Hidden once the food is delivered or collected: at that point it is clutter.
       */}
-      {order.handoffCode && !isCancelled && !isUnpaid && !isDone && (
+      {!isCancelled && !isUnpaid && !isDone && (
         <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border-2 border-dashed p-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -138,7 +139,7 @@ export function OrderTracker({
                   : 'Your driver will confirm this code'}
             </p>
             <p className="mt-1.5 font-mono text-4xl font-black tracking-widest">
-              {order.handoffCode}
+              {order.orderNumber.slice(-3)}
             </p>
           </div>
 

@@ -58,7 +58,6 @@ export default function OrderHistoryPage() {
     ? allOrders.filter(
         (o) =>
           o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-          (o.handoffCode ?? '').toLowerCase().includes(search.toLowerCase()) ||
           o.customerName.toLowerCase().includes(search.toLowerCase()) ||
           o.customerPhone.includes(search),
       )
@@ -132,10 +131,9 @@ export default function OrderHistoryPage() {
               <table className="w-full text-sm">
                 <thead className="border-b bg-muted/50 text-left">
                   <tr>
-                    {/* The code the customer read off the status board or a
-                        courier read off the bag -- shown here too, so a
-                        "what happened to 777N" question can be answered by
-                        searching this table, not just the live board. */}
+                    {/* The last 3 digits of the order number -- what this
+                        customer was told to read off at the counter, and what
+                        the public status board showed while they waited. */}
                     <th className="p-4 font-medium">Code</th>
                     <th className="p-4 font-medium">Order</th>
                     <th className="p-4 font-medium">Customer</th>
@@ -154,7 +152,7 @@ export default function OrderHistoryPage() {
                     >
                       <td className="p-4">
                         <span className="rounded-md border-2 border-dashed px-2 py-0.5 font-mono text-xs font-black tracking-widest">
-                          {order.handoffCode ?? order.orderNumber.slice(-4)}
+                          {order.orderNumber.slice(-3)}
                         </span>
                       </td>
                       <td className="p-4 font-semibold">#{order.orderNumber}</td>

@@ -792,21 +792,21 @@ export interface CreateOrderResponse {
 }
 
 export interface StatusBoardEntry {
-  handoffCode: string | null;
+  /** Last 3 digits of the order number -- see OrdersService.listStatusBoard. */
+  shortId: string;
   status: string;
   fulfillment: string;
   tableNumber: string | null;
   createdAt: string;
   acceptedAt: string | null;
   estimatedReadyAt: string | null;
+  customerFirstName: string | null;
 }
 
 export interface TrackedOrder {
   /** The unguessable key to this order's tracking page. */
   trackingToken: string;
   orderNumber: string;
-  /** The code the customer reads out at the counter, or the courier matches to the bag. */
-  handoffCode: string | null;
   tableNumber: string | null;
   status: string;
   fulfillment: string;
@@ -994,8 +994,6 @@ export interface Order {
   deliveryStreet: string | null;
   deliveryCity: string | null;
   tableNumber: string | null;
-  /** The code that gets the right food to the right person. Every order has one. */
-  handoffCode: string | null;
   notes: string | null;
   scheduledFor: string | null;
   createdAt: string;

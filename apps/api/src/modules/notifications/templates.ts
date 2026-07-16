@@ -26,12 +26,6 @@ export interface OrderContext {
   trackingUrl: string;
   prepTimeMinutes: number;
   tableNumber?: string | null;
-  /**
-   * The code that gets the right food to the right person. Null on orders placed
-   * before handoff codes existed — every message that uses it must still read
-   * correctly without it.
-   */
-  handoffCode?: string | null;
   /** Uber's own live map, once a courier is assigned. */
   courierTrackingUrl?: string | null;
   courierName?: string | null;
@@ -71,11 +65,11 @@ export function customerSms(status: OrderStatus, ctx: OrderContext): string | nu
         // This text IS the walk to the counter — it's the moment the customer stands
         // up and leaves. So it carries the code, rather than making them dig the
         // tracking link back out of an earlier message while a queue forms behind
-        // them. Falls back to the old wording for pre-handoff-code orders, whose
-        // code would be on the screen but not on the bag.
-        return ctx.handoffCode
-          ? `${ctx.restaurantName}: order #${ctx.orderNumber} is READY. Give code ${ctx.handoffCode} at the counter — see you soon!`
-          : `${ctx.restaurantName}: order #${ctx.orderNumber} is READY for pickup. See you soon!`;
+        // them. The last 3 digits of the order number, not a separate random code --
+        // the same number is on every message this customer has already gotten
+        // (placed, confirmed, ready), and it's what the counter board shows too.
+        const shortId = ctx.orderNumber.slice(-3);
+        return `${ctx.restaurantName}: order #${ctx.orderNumber} is READY. Give code ${shortId} at the counter — see you soon!`;
       }
       if (ctx.fulfillment === 'DINE_IN') {
         return `${ctx.restaurantName}: order #${ctx.orderNumber} is on its way to your table.`;

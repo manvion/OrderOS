@@ -323,7 +323,6 @@ export class NotificationsService {
       trackingUrl: this.trackingUrl(order, restaurant),
       prepTimeMinutes: restaurant.prepTimeMinutes,
       tableNumber: order.tableNumber,
-      handoffCode: order.handoffCode,
       courierTrackingUrl: delivery?.trackingUrl ?? null,
       courierName: delivery?.courierName ?? null,
       etaMinutes,

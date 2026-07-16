@@ -36,33 +36,26 @@ describe('customer SMS', () => {
     expect(customerSms('PREPARING', ctx())).toBeNull();
   });
 
-  it('says "ready for pickup" for pickup, not for delivery', () => {
+  it('says "is READY" for pickup, not the delivery wording', () => {
     const pickup = customerSms('READY', ctx({ fulfillment: 'PICKUP' }));
-    expect(pickup).toContain('READY for pickup');
+    expect(pickup).toContain('is READY');
 
     // "Your order is ready" to a delivery customer is a lie — it's ready for the
     // DRIVER, not for them, and they'd stand at the door for 20 minutes.
     const delivery = customerSms('READY', ctx({ fulfillment: 'DELIVERY' }));
-    expect(delivery).not.toContain('READY for pickup');
+    expect(delivery).not.toContain('is READY');
     expect(delivery).toContain('driver');
   });
 
-  it('puts the handoff code in the pickup READY text — it IS the walk to the counter', () => {
+  it('puts the last 3 digits of the order number in the pickup READY text — it IS the walk to the counter', () => {
     // This message is the moment the customer stands up and leaves. If the code is
     // not in it, they arrive at a queue and start digging through old texts for the
     // tracking link, which is exactly the fumbling at the counter we set out to fix.
-    const message = customerSms('READY', ctx({ fulfillment: 'PICKUP', handoffCode: 'K7M2' }));
-    expect(message).toContain('K7M2');
+    // It's the order number's own tail, not a separate code -- the same number is on
+    // every message this customer already got, and it's what the counter board shows.
+    const message = customerSms('READY', ctx({ fulfillment: 'PICKUP', orderNumber: '0712-001' }));
+    expect(message).toContain('code 001');
     expect(message).toContain('counter');
-  });
-
-  it('still reads correctly for an order placed before handoff codes existed', () => {
-    // Nullable column: these orders have no code. The text must not say "give code
-    // null at the counter", and must not print a code that is not on the bag.
-    const message = customerSms('READY', ctx({ fulfillment: 'PICKUP', handoffCode: null }));
-    expect(message).toContain('READY for pickup');
-    expect(message).not.toContain('code');
-    expect(message).not.toContain('null');
   });
 
   it('names the courier and links Uber\'s live map when one is assigned', () => {
