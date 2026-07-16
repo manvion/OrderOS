@@ -88,58 +88,77 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
     const w = window.open('', '_blank');
     if (!w || !restaurant) return;
 
-    const primary = restaurant.brandPrimaryColor;
-    const accent = restaurant.brandAccentColor;
+    // Monochrome + tiny: this prints on an 80mm self-adhesive label roll, black on
+    // white (thermal heads don't do colour), and the page height is `auto` so the
+    // roll is cut to THIS order's length — a one-item order uses a fraction of the
+    // paper a twelve-item one does, with no blank tail on either.
+    const esc = (s: string) =>
+      s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
+
     const mark = restaurant.logoUrl
-      ? `<img src="${restaurant.logoUrl}" alt="" style="width:48px;height:48px;border-radius:12px;object-fit:cover" />`
-      : `<div style="width:48px;height:48px;border-radius:12px;background:${primary};color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;font-family:Georgia,serif">${restaurant.name.charAt(0).toUpperCase()}</div>`;
+      ? `<img src="${restaurant.logoUrl}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover" />`
+      : `<div style="width:34px;height:34px;border-radius:6px;border:1.5px solid #000;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:Georgia,serif">${esc(restaurant.name.charAt(0).toUpperCase())}</div>`;
 
     const itemRows = order.items
       .map(
         (item) => `
         <tr>
-          <td style="padding:6px 0;vertical-align:top">
-            <div style="font-weight:600">${item.quantity} × ${item.name}</div>
-            ${item.modifiers.length ? `<div style="font-size:12px;color:#78716c">${item.modifiers.map((m) => m.name).join(', ')}</div>` : ''}
-            ${item.notes ? `<div style="font-size:12px;color:#b45309">"${item.notes}"</div>` : ''}
+          <td style="padding:3px 0;vertical-align:top">
+            <div style="font-weight:700;line-height:1.25">${item.quantity} × ${esc(item.name)}</div>
+            ${item.modifiers.length ? `<div style="font-size:11px;line-height:1.25">${esc(item.modifiers.map((m) => m.name).join(', '))}</div>` : ''}
+            ${item.notes ? `<div style="font-size:11px;line-height:1.25;font-style:italic">"${esc(item.notes)}"</div>` : ''}
           </td>
-          <td style="padding:6px 0;text-align:right;vertical-align:top;white-space:nowrap">${formatMoney(item.totalCents, order.currency)}</td>
+          <td style="padding:3px 0 3px 8px;text-align:right;vertical-align:top;white-space:nowrap;font-weight:600">${formatMoney(item.totalCents, order.currency)}</td>
         </tr>`,
       )
       .join('');
 
-    w.document.write(`<html><head><title>Order #${order.orderNumber}</title></head>
-      <body style="display:flex;justify-content:center;margin:0;padding:24px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#f5f5f4">
-        <div style="width:380px;border-radius:28px;overflow:hidden;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.08)">
-          <div style="height:10px;background:linear-gradient(90deg,${primary},${accent})"></div>
-          <div style="padding:24px">
-            <div style="display:flex;align-items:center;gap:10px">
-              ${mark}
-              <div>
-                <div style="font-weight:700">${restaurant.name}</div>
-                <div style="font-size:12px;color:#78716c">${restaurant.street}, ${restaurant.city}</div>
-              </div>
+    w.document.write(`<html><head><title>Order #${esc(order.orderNumber)}</title>
+      <style>
+        @page { size: 80mm auto; margin: 0; }
+        html, body { margin: 0; padding: 0; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { width: 80mm; color: #000; background: #fff;
+          font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .label { padding: 4mm 4mm 5mm; }
+        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; }
+      </style></head>
+      <body>
+        <div class="label">
+          <div style="display:flex;align-items:center;gap:8px">
+            ${mark}
+            <div style="min-width:0">
+              <div style="font-weight:800;font-size:15px;line-height:1.15">${esc(restaurant.name)}</div>
+              <div style="font-size:10px">${esc(restaurant.street)}, ${esc(restaurant.city)}</div>
             </div>
-            <hr style="margin:16px 0;border:none;border-top:1px dashed #d6d3d1" />
-            <div style="display:flex;justify-content:space-between;align-items:baseline">
-              <div style="font-size:20px;font-weight:700">#${order.orderNumber}</div>
-              <div style="font-size:12px;color:#78716c">${order.fulfillment.replace('_', ' ').toLowerCase()}${order.tableNumber ? ` · table ${order.tableNumber}` : ''}</div>
-            </div>
-            <div style="margin-top:2px;font-size:13px;color:#78716c">${order.customerName}</div>
-            <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">${itemRows}</table>
-            <hr style="margin:12px 0;border:none;border-top:1px solid #e7e5e4" />
-            <div style="display:flex;justify-content:space-between;font-weight:700">
-              <span>Total</span><span>${formatMoney(order.totalCents, order.currency)}</span>
-            </div>
-            ${order.notes ? `<div style="margin-top:12px;padding:8px 10px;background:#fffbeb;border-radius:8px;font-size:13px;color:#92400e">${order.notes}</div>` : ''}
-            <p style="margin:20px 0 0;text-align:center;font-size:13px;color:${primary};font-weight:600">Thank you for your order!</p>
-            <p style="margin:4px 0 0;text-align:center;font-size:11px;color:#a8a29e">${restaurant.phone}</p>
+          </div>
+          <hr />
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <div style="font-size:19px;font-weight:800">#${esc(order.orderNumber)}</div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.03em">${esc(order.fulfillment.replace('_', ' ').toLowerCase())}${order.tableNumber ? ` · T${esc(order.tableNumber)}` : ''}</div>
+          </div>
+          <div style="font-size:12px">${esc(order.customerName)}</div>
+          <table style="margin-top:7px;font-size:13px">${itemRows}</table>
+          <hr />
+          <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px">
+            <span>Total</span><span>${formatMoney(order.totalCents, order.currency)}</span>
+          </div>
+          ${order.notes ? `<div style="margin-top:7px;padding:5px 7px;border:1px solid #000;border-radius:4px;font-size:12px">${esc(order.notes)}</div>` : ''}
+          <div style="margin-top:10px;text-align:center;font-size:13px;font-weight:800">Thank you — enjoy every bite!</div>
+          <div style="margin-top:2px;text-align:center;font-size:10px;line-height:1.35">
+            We’re so glad you ordered straight from ${esc(restaurant.name)}. It means the world to a local kitchen — see you again soon.
           </div>
         </div>
       </body></html>`);
     w.document.close();
     w.focus();
-    w.print();
+    // Give the logo image a moment to load so it isn't missing on the first print.
+    if (restaurant.logoUrl) {
+      w.setTimeout(() => w.print(), 250);
+    } else {
+      w.print();
+    }
   };
 
   return (
