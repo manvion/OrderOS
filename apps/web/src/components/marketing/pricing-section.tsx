@@ -8,7 +8,6 @@ import {
   formatMoney,
   getPlan,
   planPricingTable,
-  supportedPlanCurrencies,
   type BillingInterval,
   type PlanTier,
 } from '@dinedirect/shared';
@@ -20,8 +19,10 @@ import { Button } from '@/components/ui/button';
  * Prices are computed HERE, from the same shared table the API bills from
  * (packages/shared/src/plans.ts), so the number on this page is the number a
  * restaurant is charged — no separate marketing copy of the prices to drift. The
- * currency is guessed from the visitor's locale and then theirs to change, because
- * "your website, your margin" lands very differently at $39 than at ₹1,499.
+ * currency is chosen automatically: the server resolves it from the visitor's
+ * geo-IP country, and this falls back to the browser locale only when it couldn't.
+ * There is no manual switcher — a prospect sees their own market's price, and a
+ * signed-in restaurant is always billed in its own country's currency anyway.
  */
 
 /**
@@ -54,13 +55,12 @@ const CURRENCY_LABEL: Record<string, string> = {
 const HIGHLIGHT_TIER: PlanTier = 'GROWTH';
 
 export function PricingSection({ initialCurrency }: { initialCurrency?: string }) {
-  // Prefer the currency the SERVER resolved from the visitor's geo-IP; fall back to
-  // a browser-locale guess only when it didn't (e.g. self-hosted without geo headers).
-  const [currency, setCurrency] = useState<string>(() => initialCurrency || guessCurrency());
+  // Currency is automatic: the SERVER's geo-IP resolution first, else a browser-locale
+  // guess. No manual switcher — it's read, never set.
+  const [currency] = useState<string>(() => initialCurrency || guessCurrency());
   const [interval, setInterval] = useState<BillingInterval>('MONTHLY');
 
   const tiers = useMemo(() => planPricingTable(currency), [currency]);
-  const currencies = supportedPlanCurrencies();
 
   return (
     <section id="pricing" className="border-y bg-background py-20 lg:py-28">
@@ -103,20 +103,11 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
             </button>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Currency
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="rounded-lg border bg-background px-3 py-1.5 text-sm font-medium text-foreground"
-            >
-              {currencies.map((c) => (
-                <option key={c} value={c}>
-                  {CURRENCY_LABEL[c] ?? c}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Currency is auto-detected from the visitor's location — shown, not chosen. */}
+          <span className="text-sm text-muted-foreground">
+            Prices in{' '}
+            <span className="font-medium text-foreground">{CURRENCY_LABEL[currency] ?? currency}</span>
+          </span>
         </div>
 
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
