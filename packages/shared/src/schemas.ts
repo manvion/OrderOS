@@ -206,6 +206,10 @@ export const updateRestaurantSchema = z.object({
   notifyEmail: z.string().email().nullable().optional(),
   notifySmsEnabled: z.boolean().optional(),
   notifyEmailEnabled: z.boolean().optional(),
+
+  loyaltyEnabled: z.boolean().optional(),
+  /** Points credited per whole dollar of subtotal (pre-tax, pre-tip) on a paid order. */
+  loyaltyPointsPerDollar: z.number().int().min(1).max(100).optional(),
 });
 export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
 

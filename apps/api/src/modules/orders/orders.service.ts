@@ -19,6 +19,7 @@ import {
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
+import { applyLoyaltyDelta, pointsForSubtotal } from '../../common/loyalty/loyalty.util';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourierRouter } from '../delivery/courier.router';
@@ -215,6 +216,13 @@ export class OrdersService {
       });
     }
 
+    // Frozen now so a later change to the earn rate can't reprice a promise
+    // already implied by this checkout. NOT credited to the customer yet --
+    // that happens only once Stripe confirms payment (see PaymentsService).
+    const loyaltyPointsEarned = restaurant.loyaltyEnabled
+      ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
+      : 0;
+
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -241,6 +249,7 @@ export class OrdersService {
           // Frozen at checkout. A tax audit reads THIS, not today's settings — and a
           // rate change must never rewrite a receipt that has already been issued.
           taxLines: pricing.taxLines as unknown as Prisma.InputJsonValue,
+          loyaltyPointsEarned,
 
           customerName: input.customer.name,
           customerPhone: input.customer.phone,
@@ -363,6 +372,10 @@ export class OrdersService {
       });
     }
 
+    const loyaltyPointsEarned = restaurant.loyaltyEnabled
+      ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
+      : 0;
+
     const customerName = input.customerName?.trim() || 'Walk-in customer';
     const customerPhone = input.customerPhone?.trim() ?? '';
     const customerEmail = input.customerEmail?.trim() ?? '';
@@ -401,6 +414,7 @@ export class OrdersService {
           currency: restaurant.currency,
           taxRateBps: restaurant.taxRateBps,
           taxLines: pricing.taxLines as unknown as Prisma.InputJsonValue,
+          loyaltyPointsEarned,
 
           customerName,
           customerPhone,
@@ -457,6 +471,7 @@ export class OrdersService {
       // Paid the instant staff typed it in -- decrement now, not on some later
       // confirmation that will never come for a walk-in.
       await applyInventoryDelta(tx, lineItems, -1);
+      await applyLoyaltyDelta(tx, customer?.id, loyaltyPointsEarned, 1);
 
       return created;
     });
@@ -953,11 +968,12 @@ export class OrdersService {
         }
       }
 
-      // Stock only ever left the shelf once this order was PAID -- cancelling
-      // an order that never got that far never touched inventory, so there is
-      // nothing here to give back.
+      // Stock and loyalty points only ever left the shelf/were credited once
+      // this order was PAID -- cancelling an order that never got that far
+      // never touched either, so there is nothing here to give back.
       if (to === 'CANCELLED' && order.payment?.status === 'PAID') {
         await applyInventoryDelta(tx, order.items, 1);
+        await applyLoyaltyDelta(tx, order.customerId, order.loyaltyPointsEarned, -1);
       }
 
       return result;

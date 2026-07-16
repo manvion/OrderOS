@@ -9,6 +9,7 @@ import Stripe from 'stripe';
 import type { RefundInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
+import { applyLoyaltyDelta } from '../../common/loyalty/loyalty.util';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -615,6 +616,9 @@ export class PaymentsService {
     // The order is now real money -- decrement now, not at PENDING creation,
     // so an abandoned checkout never holds stock hostage from a paying customer.
     await applyInventoryDelta(this.prisma, order.items, -1);
+    // Same reasoning applies to loyalty points -- an abandoned checkout never
+    // should have earned any.
+    await applyLoyaltyDelta(this.prisma, order.customerId, order.loyaltyPointsEarned, 1);
 
     await this.audit.log({
       restaurantId: order.restaurantId,
@@ -903,9 +907,11 @@ export class PaymentsService {
           },
         });
 
-        // Stock was decremented when this order was paid -- a full refund means
-        // none of it is going out the door, so give it back.
+        // Stock and loyalty points were only debited/credited when this order
+        // was paid -- a full refund means none of it is going out the door,
+        // so give both back.
         await applyInventoryDelta(tx, order.items, 1);
+        await applyLoyaltyDelta(tx, order.customerId, order.loyaltyPointsEarned, -1);
       }
     });
 

@@ -703,6 +703,8 @@ export interface StorefrontRestaurant {
   taxRateBps: number;
   prepTimeMinutes: number;
   businessHours: unknown;
+  loyaltyEnabled: boolean;
+  loyaltyPointsPerDollar: number;
 }
 
 export interface MenuModifier {
@@ -895,6 +897,8 @@ export interface Restaurant {
   taxRateBps: number;
   prepTimeMinutes: number;
   businessHours: unknown;
+  loyaltyEnabled: boolean;
+  loyaltyPointsPerDollar: number;
 }
 
 export type RestaurantWithRole = Restaurant & { role: 'OWNER' | 'MANAGER' | 'STAFF' };
@@ -1048,6 +1052,7 @@ export interface CustomerProfile {
     email: string | null;
     totalOrders: number;
     marketingOptIn: boolean;
+    loyaltyPoints: number;
   };
   addresses: SavedAddress[];
   orders: Array<{
@@ -1113,6 +1118,7 @@ export interface Customer {
   totalOrders: number;
   totalSpentCents: number;
   lastOrderAt: string | null;
+  loyaltyPoints: number;
 }
 
 export interface AnalyticsOverview {

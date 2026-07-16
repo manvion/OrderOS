@@ -107,6 +107,7 @@ export class CustomerAccountService {
         email: customer.email,
         totalOrders: customer.totalOrders,
         marketingOptIn: customer.marketingOptIn,
+        loyaltyPoints: customer.loyaltyPoints,
       },
       addresses: customer.addresses,
       orders,

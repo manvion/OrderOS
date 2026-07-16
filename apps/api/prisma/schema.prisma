@@ -324,6 +324,12 @@ model Restaurant {
   notifySmsEnabled   Boolean @default(true)
   notifyEmailEnabled Boolean @default(true)
 
+  /// Off by default -- an existing restaurant shouldn't wake up to a program
+  /// it never turned on. Rate is points credited per whole dollar of
+  /// subtotal (pre-tax, pre-tip) on a paid order.
+  loyaltyEnabled         Boolean @default(false)
+  loyaltyPointsPerDollar Int     @default(1)
+
   users      User[]
   customers  Customer[]
   categories Category[]
@@ -652,6 +658,11 @@ model Customer {
   totalSpentCents Int      @default(0)
   lastOrderAt     DateTime?
 
+  /// Only meaningful while Restaurant.loyaltyEnabled is on. Credited when a
+  /// paid order lands, clawed back if that order is later cancelled/refunded
+  /// in full -- see applyInventoryDelta's sibling, applyLoyaltyDelta.
+  loyaltyPoints Int @default(0)
+
   /// Marketing consent for SMS. Transactional order SMS does not require this.
   marketingOptIn Boolean @default(false)
 
@@ -853,6 +864,11 @@ model Order {
   /// Frozen at checkout — a rate change must never rewrite a historical receipt,
   /// and a tax audit reads THIS, not today's settings.
   taxLines   Json?
+
+  /// Frozen at order time even though it's only credited to the customer once
+  /// PAID -- a later change to loyaltyPointsPerDollar must not reprice what
+  /// this order already promised.
+  loyaltyPointsEarned Int @default(0)
 
   // Contact — captured on the order itself, not only on Customer, because a
   // customer may edit their profile later and the order must stay as-placed.

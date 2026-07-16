@@ -264,6 +264,8 @@ export class RestaurantsService {
         serviceFeeCents: true,
         taxRateBps: true,
         prepTimeMinutes: true,
+        loyaltyEnabled: true,
+        loyaltyPointsPerDollar: true,
         // Deliberately NOT selected: stripeAccountId, platformFeeBps, email,
         // onboardingStep. None of that is the customer's business.
       },

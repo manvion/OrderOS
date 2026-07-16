@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useCustomerAuth, CLERK_ENABLED } from '@/components/storefront/customer-auth';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Loader2, Search } from 'lucide-react';
+import { ArrowRight, Loader2, Search, Sparkles } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
@@ -80,6 +80,17 @@ export default function OrdersPage() {
       {/* Signed in: just show them their orders. */}
       {isSignedIn && (
         <>
+        {restaurant.loyaltyEnabled && profile && (
+          <Card className="border-brand/30 bg-brand/5">
+            <CardContent className="flex items-center gap-3 py-4">
+              <Sparkles className="h-5 w-5 shrink-0 text-brand" />
+              <div>
+                <p className="text-sm text-muted-foreground">Your points balance</p>
+                <p className="text-xl font-bold tabular-nums">{profile.customer.loyaltyPoints}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {isLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : !profile?.orders.length ? (
