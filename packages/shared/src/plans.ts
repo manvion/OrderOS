@@ -94,9 +94,10 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
     tagline: 'A full QR ordering system, free.',
     capabilities: [],
     limits: { maxMenuItems: 40, maxStaff: 2 },
-    // The free tier is real, so it earns its keep on the order instead: the
-    // highest commission of the three, still a fraction of a marketplace's cut.
-    commissionBps: 300,
+    // The free tier is real and has no monthly fee, so the order commission is its
+    // ONLY revenue — pitched a little under Owner.com's 5% Flex rate and a small
+    // fraction of a marketplace's 15–30% cut.
+    commissionBps: 500,
     highlights: [
       'QR ordering for every table & counter',
       'Dine-in and pickup',
@@ -120,7 +121,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'FULL_ANALYTICS',
     ],
     limits: { maxMenuItems: null, maxStaff: 10 },
-    commissionBps: 100,
+    commissionBps: 200,
     highlights: [
       'Everything in Starter, plus:',
       'Branded ordering website',
@@ -129,7 +130,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'Embeddable ordering widget',
       'Full analytics & order history',
       'Unlimited menu items · 10 staff seats',
-      'Commission drops to 1%',
+      'Commission drops to 2%',
     ],
   },
   PRO: {
@@ -150,7 +151,10 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'REMOVE_BRANDING',
     ],
     limits: { maxMenuItems: null, maxStaff: null },
-    commissionBps: 50,
+    // The premium tier is a TRUE flat plan: 0% commission, like ChowNow / Owner.com
+    // Flat / Popmenu at $449–499 — but priced under them. A restaurant keeps 100% of
+    // every order, so the sticker is the whole cost with no volume penalty.
+    commissionBps: 0,
     highlights: [
       'Everything in Growth, plus:',
       'Custom domain',
@@ -159,7 +163,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'Multi-jurisdiction tax reports',
       'Remove DineDirect branding',
       'Unlimited staff seats',
-      'Lowest commission: 0.5%',
+      '0% commission — keep every dollar',
     ],
   },
 };
@@ -218,22 +222,22 @@ const MONTHLY_PRICE_MINOR: Record<string, Record<PlanTier, number>> = {
   // Benchmarked against real 2026 pricing for direct-ordering software:
   //   Square Online $149 · Popmenu $179–499 · ChowNow $229–449 · Owner.com
   //   $249 (5% comm.) / $499 (0% comm.).
-  // The 0%-commission premium players cluster at $449–499. We sit a clear step
-  // UNDER them ($149 / $299) AND take only a token 1% / 0.5% on top — while being
-  // the only one of the set with a genuinely free tier. Positioned as "everything
-  // the $499 tools do, for less, plus free to start."
-  USD: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
-  CAD: { STARTER: 0, GROWTH: 19900, PRO: 39900 },
-  GBP: { STARTER: 0, GROWTH: 11900, PRO: 23900 },
-  EUR: { STARTER: 0, GROWTH: 13900, PRO: 27900 },
-  AUD: { STARTER: 0, GROWTH: 21900, PRO: 42900 },
-  NZD: { STARTER: 0, GROWTH: 22900, PRO: 44900 },
-  SGD: { STARTER: 0, GROWTH: 18900, PRO: 37900 },
-  AED: { STARTER: 0, GROWTH: 54900, PRO: 109900 },
+  // The 0%-commission premium players cluster at $449–499. Growth ($199) sits well
+  // under them; Pro ($399) matches their offer — a true 0%-commission flat plan —
+  // for $50 less, so it's strictly cheaper at any order volume. And we're the only
+  // one of the set with a genuinely free tier (funded by its 5% order commission).
+  USD: { STARTER: 0, GROWTH: 19900, PRO: 39900 },
+  CAD: { STARTER: 0, GROWTH: 26900, PRO: 52900 },
+  GBP: { STARTER: 0, GROWTH: 15900, PRO: 31900 },
+  EUR: { STARTER: 0, GROWTH: 17900, PRO: 35900 },
+  AUD: { STARTER: 0, GROWTH: 28900, PRO: 57900 },
+  NZD: { STARTER: 0, GROWTH: 29900, PRO: 59900 },
+  SGD: { STARTER: 0, GROWTH: 24900, PRO: 49900 },
+  AED: { STARTER: 0, GROWTH: 74900, PRO: 149900 },
   // India is a genuinely lower-priced market for restaurant software (Petpooja,
   // UrbanPiper), so it is localised DOWN, not FX-converted up. Stripe still bills
   // INR in paise, so keep minor units.
-  INR: { STARTER: 0, GROWTH: 399900, PRO: 799900 },
+  INR: { STARTER: 0, GROWTH: 499900, PRO: 999900 },
 };
 
 export const PLAN_PRICING_CURRENCY_FALLBACK = 'USD';

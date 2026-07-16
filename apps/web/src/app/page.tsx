@@ -156,7 +156,7 @@ export default async function LandingPage() {
           <div className="container relative grid gap-12 py-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-28">
             <div>
               <span className="rise-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
-                Flat plans · fees as low as 0.5% per order
+                Flat plans · 0% commission on Pro
               </span>
 
               <h1 className="rise-2 mt-5 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
@@ -258,7 +258,7 @@ export default async function LandingPage() {
                 value="15–30%"
                 label="Typical commission delivery marketplaces charge per order"
               />
-              <Stat value="0.5–3%" label="Our per-order fee — a fraction of theirs, dropping with your plan" />
+              <Stat value="0–5%" label="Our per-order fee — a fraction of theirs, and 0% on Pro" />
               <Stat value="1" label="Menu to manage, instead of three apps with three logins" />
             </div>
           </div>

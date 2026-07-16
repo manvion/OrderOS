@@ -71,8 +71,8 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
             Start free. Grow into it.
           </h2>
           <p className="mt-4 text-muted-foreground">
-            One flat plan for the software, and the lowest per-order fee in the business — dropping
-            to 0.5% on Pro. Prices in {CURRENCY_LABEL[currency] ?? currency}, billed{' '}
+            One flat plan for the software, and the lowest per-order fee in the business — all the
+            way down to 0% on Pro. Prices in {CURRENCY_LABEL[currency] ?? currency}, billed{' '}
             {interval === 'ANNUAL' ? 'yearly' : 'monthly'}.
           </p>
         </div>
