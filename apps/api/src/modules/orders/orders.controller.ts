@@ -35,6 +35,8 @@ const transitionSchema = z.object({
 
 const cancelSchema = z.object({ reason: z.string().min(1).max(500) });
 
+const etaSchema = z.object({ minutesFromNow: z.number().int().min(0).max(180) });
+
 const walkInItemSchema = z.object({
   productId: z.string().cuid(),
   quantity: z.number().int().min(1).max(99),
@@ -169,6 +171,21 @@ export class OrdersController {
         warning: `The order is marked ready, but we could not reach Uber: ${message}. We'll keep retrying — arrange your own driver if it's urgent.`,
       };
     }
+  }
+
+  /**
+   * Kitchen staff overriding the countdown the public status board shows for
+   * this order -- the default guessed wrong, or the kitchen's running behind.
+   */
+  @Patch(':id/eta')
+  @Audit('order.eta_changed', 'Order')
+  setEta(
+    @TenantId() restaurantId: string,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(etaSchema)) body: { minutesFromNow: number },
+  ) {
+    return this.orders.setEstimatedReadyMinutes(restaurantId, id, body.minutesFromNow, user.id);
   }
 
   @Post(':id/cancel')

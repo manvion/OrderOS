@@ -157,14 +157,28 @@ export default function OrdersPage() {
               <Card key={order.id} className={isLate ? 'border-destructive' : undefined}>
                 <CardContent className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <button
-                        onClick={() => setViewing(order)}
-                        className="text-lg font-bold hover:underline"
-                        title="Order details, refunds and message history"
-                      >
-                        #{order.orderNumber}
-                      </button>
+                    <button
+                      onClick={() => setViewing(order)}
+                      className="text-left"
+                      title="Order details, refunds and message history"
+                    >
+                      {/*
+                        The code this customer is reading off the public status
+                        board (or that a courier reads off the bag) -- shown as
+                        prominently here as it is there, paired with their name,
+                        so staff aren't stuck translating "777N" back into
+                        #0716-002 by memory. The order number stays as a
+                        secondary reference for reconciliation.
+                      */}
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md border-2 border-dashed px-2 py-0.5 font-mono text-base font-black tracking-widest">
+                          {order.handoffCode ?? order.orderNumber.slice(-4)}
+                        </span>
+                        <span className="text-sm font-semibold text-muted-foreground hover:underline">
+                          #{order.orderNumber}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-medium">{order.customerName}</p>
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         {waitMinutes}m ago
@@ -178,7 +192,7 @@ export default function OrdersPage() {
                           </span>
                         )}
                       </p>
-                    </div>
+                    </button>
                     <Badge variant={STATUS_STYLE[order.status] ?? 'secondary'}>
                       {order.status.replace(/_/g, ' ').toLowerCase()}
                     </Badge>

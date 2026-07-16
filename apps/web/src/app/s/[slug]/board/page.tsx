@@ -1,9 +1,19 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChefHat, PartyPopper } from 'lucide-react';
 import { storefrontApi, type StatusBoardEntry } from '@/lib/api';
 import { useTenant } from '@/components/storefront/tenant-provider';
+
+/** "Ready in 12 min" / "Any moment now" -- null while there's nothing to count down to yet. */
+function formatCountdown(estimatedReadyAt: string | null, now: number): string | null {
+  if (!estimatedReadyAt) return null;
+  const diffMs = new Date(estimatedReadyAt).getTime() - now;
+  if (diffMs <= 0) return 'Any moment now';
+  const minutes = Math.ceil(diffMs / 60_000);
+  return `Ready in ${minutes} min`;
+}
 
 /**
  * The public "now serving" board -- meant for a TV by the counter, or a link a
@@ -26,6 +36,14 @@ export default function OrderStatusBoardPage() {
     refetchInterval: 6_000,
   });
 
+  // Ticks the countdown between refetches -- otherwise "Ready in 12 min" would
+  // only update once every 6 seconds instead of counting down smoothly.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
   const preparing = (orders ?? []).filter((o) => o.status !== 'READY');
   const ready = (orders ?? []).filter((o) => o.status === 'READY');
 
@@ -43,6 +61,7 @@ export default function OrderStatusBoardPage() {
           entries={preparing}
           emptyText="Nothing in the kitchen right now"
           accentClass="text-amber-400"
+          now={now}
         />
         <BoardColumn
           icon={PartyPopper}
@@ -64,6 +83,7 @@ function BoardColumn({
   emptyText,
   accentClass,
   highlight,
+  now,
 }: {
   icon: typeof ChefHat;
   label: string;
@@ -71,6 +91,7 @@ function BoardColumn({
   emptyText: string;
   accentClass: string;
   highlight?: boolean;
+  now?: number;
 }) {
   return (
     <div
@@ -87,23 +108,29 @@ function BoardColumn({
         <p className="mt-6 text-sm text-background/40">{emptyText}</p>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {entries.map((o, i) => (
-            <div
-              key={`${o.handoffCode}-${i}`}
-              className={`animate-rise rounded-2xl border border-background/10 bg-background/10 py-4 text-center ${
-                highlight ? 'shadow-floating' : ''
-              }`}
-            >
-              {o.fulfillment === 'DINE_IN' && o.tableNumber ? (
-                <>
-                  <p className="text-[10px] uppercase tracking-widest text-background/50">Table</p>
-                  <p className="font-mono text-2xl font-black tracking-widest">{o.tableNumber}</p>
-                </>
-              ) : (
-                <p className="font-mono text-2xl font-black tracking-widest">{o.handoffCode}</p>
-              )}
-            </div>
-          ))}
+          {entries.map((o, i) => {
+            const countdown = now ? formatCountdown(o.estimatedReadyAt, now) : null;
+            return (
+              <div
+                key={`${o.handoffCode}-${i}`}
+                className={`animate-rise rounded-2xl border border-background/10 bg-background/10 py-4 text-center ${
+                  highlight ? 'shadow-floating' : ''
+                }`}
+              >
+                {o.fulfillment === 'DINE_IN' && o.tableNumber ? (
+                  <>
+                    <p className="text-[10px] uppercase tracking-widest text-background/50">Table</p>
+                    <p className="font-mono text-2xl font-black tracking-widest">{o.tableNumber}</p>
+                  </>
+                ) : (
+                  <p className="font-mono text-2xl font-black tracking-widest">{o.handoffCode}</p>
+                )}
+                {countdown && (
+                  <p className="mt-1.5 text-xs font-semibold text-background/60">{countdown}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

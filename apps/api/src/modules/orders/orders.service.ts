@@ -779,6 +779,7 @@ export class OrdersService {
         tableNumber: true,
         createdAt: true,
         acceptedAt: true,
+        estimatedReadyAt: true,
       },
       orderBy: { createdAt: 'asc' },
       take: 100,
@@ -791,6 +792,7 @@ export class OrdersService {
       tableNumber: o.tableNumber,
       createdAt: o.createdAt,
       acceptedAt: o.acceptedAt,
+      estimatedReadyAt: o.estimatedReadyAt,
     }));
   }
 
@@ -934,7 +936,16 @@ export class OrdersService {
 
     const now = new Date();
     const timestamps: Partial<Record<OrderStatus, Prisma.OrderUpdateInput>> = {
-      ACCEPTED: { acceptedAt: now },
+      // Scaled by how many items are actually in the order -- a 1-item pickup
+      // and a 12-item catering order were getting the same flat estimate.
+      // Kitchen staff can move it from the Kitchen board once they know better.
+      ACCEPTED: {
+        acceptedAt: now,
+        estimatedReadyAt: new Date(
+          now.getTime() +
+            this.estimateReadyMinutes(order.items, order.restaurant.prepTimeMinutes) * 60_000,
+        ),
+      },
       READY: { readyAt: now },
       COMPLETED: { completedAt: now },
       DELIVERED: { completedAt: now },
@@ -1005,6 +1016,65 @@ export class OrdersService {
       source: 'restaurant',
       note: reason,
     });
+  }
+
+  /**
+   * The default countdown target: the restaurant's usual prep time, plus a
+   * couple of minutes per item beyond the first. Not exact -- it can't be,
+   * every kitchen and every dish is different -- which is exactly why
+   * `setEstimatedReadyMinutes` below lets staff override it in one tap
+   * rather than the board showing a number nobody trusts.
+   */
+  private estimateReadyMinutes(items: Array<{ quantity: number }>, basePrepMinutes: number): number {
+    const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+    const extraMinutes = Math.max(0, itemCount - 1) * 2;
+    return basePrepMinutes + extraMinutes;
+  }
+
+  /**
+   * Kitchen staff overriding the countdown shown on the public status board --
+   * "actually, 25 minutes" when the default guessed wrong, or the fryer's down
+   * and everything's running late. Only meaningful while the kitchen is still
+   * working the order; a READY/COMPLETED/CANCELLED order has nothing left to
+   * count down to.
+   */
+  async setEstimatedReadyMinutes(
+    restaurantId: string,
+    orderId: string,
+    minutesFromNow: number,
+    userId?: string,
+  ) {
+    if (!Number.isFinite(minutesFromNow) || minutesFromNow < 0 || minutesFromNow > 180) {
+      throw new BadRequestException('Minutes must be between 0 and 180');
+    }
+
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (!['ACCEPTED', 'PREPARING'].includes(order.status)) {
+      throw new ConflictException(
+        `Cannot set an ETA on an order that is ${order.status.toLowerCase()}`,
+      );
+    }
+
+    const estimatedReadyAt = new Date(Date.now() + minutesFromNow * 60_000);
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { estimatedReadyAt },
+      include: this.orderInclude(),
+    });
+
+    await this.audit.log({
+      restaurantId,
+      userId,
+      action: 'order.eta_changed',
+      entityType: 'Order',
+      entityId: orderId,
+      metadata: { minutesFromNow, orderNumber: order.orderNumber },
+    });
+
+    return updated;
   }
 
   private orderInclude() {

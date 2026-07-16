@@ -912,6 +912,13 @@ model Order {
   readyAt     DateTime?
   completedAt DateTime?
   cancelledAt DateTime?
+
+  /// Set the moment the kitchen accepts, defaulted from the restaurant's
+  /// prep time scaled by how many items are actually in the order -- not
+  /// the same guess for a 1-item order and a 12-item one. Kitchen staff can
+  /// override it from the Kitchen board when they know better than the
+  /// default. Powers the countdown on the public status board.
+  estimatedReadyAt DateTime?
   cancelReason String?
 
   /// Public tracking token — the /track/:token URL is unguessable, so a customer

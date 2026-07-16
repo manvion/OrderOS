@@ -177,6 +177,14 @@ export function KitchenBoard() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['orders', 'active'] }),
   });
 
+  const setEta = useMutation({
+    mutationFn: ({ id, minutesFromNow }: { id: string; minutesFromNow: number }) =>
+      api.setOrderEta(id, minutesFromNow),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders', 'active'] }),
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the ETA'),
+  });
+
   const byColumn = useMemo(() => {
     const map = new Map<string, Order[]>();
     for (const col of COLUMNS) {
@@ -262,6 +270,7 @@ export function KitchenBoard() {
                     tone={col.tone}
                     action={actionFor(order.status, order.fulfillment)}
                     onAdvance={(to) => advance.mutate({ id: order.id, to })}
+                    onSetEta={(minutesFromNow) => setEta.mutate({ id: order.id, minutesFromNow })}
                   />
                 ))}
 
@@ -277,21 +286,32 @@ export function KitchenBoard() {
   );
 }
 
+const ETA_PRESETS = [10, 15, 20, 30, 45];
+
 function OrderCard({
   order,
   tone,
   action,
   onAdvance,
+  onSetEta,
 }: {
   order: Order;
   tone: string;
   action?: { label: string; to: string };
   onAdvance: (to: string) => void;
+  onSetEta: (minutesFromNow: number) => void;
 }) {
   const f = FULFILLMENT[order.fulfillment as keyof typeof FULFILLMENT] ?? FULFILLMENT.PICKUP;
   const Icon = f.icon;
 
   const waited = useElapsed(order.createdAt);
+
+  // Only ACCEPTED/PREPARING orders have anything left to count down to --
+  // PENDING hasn't been accepted yet, READY has already arrived.
+  const canSetEta = order.status === 'ACCEPTED' || order.status === 'PREPARING';
+  const etaMinutes = order.estimatedReadyAt
+    ? Math.ceil((new Date(order.estimatedReadyAt).getTime() - Date.now()) / 60_000)
+    : null;
 
   /**
    * How long has this been sitting there?
@@ -310,7 +330,12 @@ function OrderCard({
           <p className="font-mono text-3xl font-black leading-none tracking-tight">
             {order.handoffCode ?? order.orderNumber.slice(-4)}
           </p>
-          <p className="mt-1.5 truncate text-sm font-medium">{order.customerName}</p>
+          {/* The full order number too, small -- so this card can be cross-referenced
+              against Order history or a receipt, both of which key on it, not the code. */}
+          <p className="mt-0.5 text-xs font-medium text-muted-foreground">
+            #{order.orderNumber}
+          </p>
+          <p className="mt-1 truncate text-sm font-medium">{order.customerName}</p>
         </div>
 
         <div className="shrink-0 text-right">
@@ -346,6 +371,37 @@ function OrderCard({
           </li>
         ))}
       </ul>
+
+      {/*
+        The countdown customers see on the public status board -- defaulted
+        from prep time and item count, editable here in one tap when the
+        default is wrong or the kitchen's running behind. Absolute presets,
+        not "+5 min": easier to tap "20m" under pressure than do the mental
+        math on a delta.
+      */}
+      {canSetEta && (
+        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3">
+          <span className="text-xs font-semibold text-muted-foreground">
+            {etaMinutes === null
+              ? 'No ETA set'
+              : etaMinutes <= 0
+                ? 'Any moment now'
+                : `Ready in ${etaMinutes} min`}
+          </span>
+          <div className="flex gap-1">
+            {ETA_PRESETS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onSetEta(m)}
+                className="rounded-md border px-2 py-1 text-xs font-bold hover:bg-muted"
+              >
+                {m}m
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Allergies live here. A note the kitchen misses is the one that hurts someone. */}
       {order.notes && (

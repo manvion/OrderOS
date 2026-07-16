@@ -361,6 +361,12 @@ export function createDashboardApi(
       }),
     cancelOrder: (id: string, reason: string) =>
       call<Order>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    /** Override the countdown the public status board shows for this order. */
+    setOrderEta: (id: string, minutesFromNow: number) =>
+      call<Order>(`/orders/${id}/eta`, {
+        method: 'PATCH',
+        body: JSON.stringify({ minutesFromNow }),
+      }),
     /** A walk-in or phone order, paid at the counter -- cash or a card terminal. */
     createWalkInOrder: (body: {
       items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
@@ -792,6 +798,7 @@ export interface StatusBoardEntry {
   tableNumber: string | null;
   createdAt: string;
   acceptedAt: string | null;
+  estimatedReadyAt: string | null;
 }
 
 export interface TrackedOrder {
@@ -992,6 +999,8 @@ export interface Order {
   notes: string | null;
   scheduledFor: string | null;
   createdAt: string;
+  /** Countdown target shown on the public status board. Null until accepted. */
+  estimatedReadyAt: string | null;
   items: Array<{
     id: string;
     name: string;
