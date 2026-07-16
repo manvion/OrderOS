@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 import {
+  currencyForCountry,
   formatMoney,
   getPlan,
   planPricingTable,
@@ -23,31 +24,16 @@ import { Button } from '@/components/ui/button';
  * "your website, your margin" lands very differently at $39 than at ₹1,499.
  */
 
-/** Best-effort region -> currency, falling back to USD. Only offers currencies we price. */
-const REGION_CURRENCY: Record<string, string> = {
-  US: 'USD',
-  CA: 'CAD',
-  GB: 'GBP',
-  AU: 'AUD',
-  NZ: 'NZD',
-  IN: 'INR',
-  SG: 'SGD',
-  AE: 'AED',
-  IE: 'EUR',
-  DE: 'EUR',
-  FR: 'EUR',
-  ES: 'EUR',
-  IT: 'EUR',
-  NL: 'EUR',
-};
-
+/**
+ * Best-effort currency from the visitor's own browser locale — the fallback when
+ * the server didn't hand us a geo-IP country. `currencyForCountry` (shared) does the
+ * country -> currency mapping so this and the server agree.
+ */
 function guessCurrency(): string {
   if (typeof navigator === 'undefined') return 'USD';
   try {
     const region = new Intl.Locale(navigator.language).maximize().region ?? '';
-    const supported = supportedPlanCurrencies();
-    const guess = REGION_CURRENCY[region] ?? 'USD';
-    return supported.includes(guess) ? guess : 'USD';
+    return currencyForCountry(region);
   } catch {
     return 'USD';
   }
@@ -67,8 +53,10 @@ const CURRENCY_LABEL: Record<string, string> = {
 
 const HIGHLIGHT_TIER: PlanTier = 'GROWTH';
 
-export function PricingSection() {
-  const [currency, setCurrency] = useState<string>(() => guessCurrency());
+export function PricingSection({ initialCurrency }: { initialCurrency?: string }) {
+  // Prefer the currency the SERVER resolved from the visitor's geo-IP; fall back to
+  // a browser-locale guess only when it didn't (e.g. self-hosted without geo headers).
+  const [currency, setCurrency] = useState<string>(() => initialCurrency || guessCurrency());
   const [interval, setInterval] = useState<BillingInterval>('MONTHLY');
 
   const tiers = useMemo(() => planPricingTable(currency), [currency]);

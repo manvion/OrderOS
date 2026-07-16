@@ -101,6 +101,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'QR ordering for every table & counter',
       'Dine-in and pickup',
       'Kitchen board',
+      'Card, Apple & Google Pay checkout',
       'Up to 40 menu items',
       '2 staff seats',
       "Today's sales at a glance",
@@ -214,19 +215,67 @@ export function lowestTierWith(capability: PlanCapability): PlanTier {
  * blank or free-by-accident price.
  */
 const MONTHLY_PRICE_MINOR: Record<string, Record<PlanTier, number>> = {
-  USD: { STARTER: 0, GROWTH: 3900, PRO: 8900 },
-  CAD: { STARTER: 0, GROWTH: 4900, PRO: 11900 },
-  GBP: { STARTER: 0, GROWTH: 2900, PRO: 6900 },
-  EUR: { STARTER: 0, GROWTH: 3500, PRO: 7900 },
-  AUD: { STARTER: 0, GROWTH: 5900, PRO: 12900 },
-  NZD: { STARTER: 0, GROWTH: 5900, PRO: 13900 },
-  SGD: { STARTER: 0, GROWTH: 4900, PRO: 10900 },
-  AED: { STARTER: 0, GROWTH: 14900, PRO: 33900 },
-  // Zero-decimal-ish note: INR still uses paise in Stripe, so keep minor units.
-  INR: { STARTER: 0, GROWTH: 149900, PRO: 349900 },
+  // Benchmarked against ChowNow (~$149), BentoBox/Popmenu ($149–400) and
+  // Owner.com (~$399): pitched a little UNDER market, with a genuinely free tier
+  // that a marketplace-weary independent can start on today.
+  USD: { STARTER: 0, GROWTH: 9900, PRO: 19900 },
+  CAD: { STARTER: 0, GROWTH: 12900, PRO: 26900 },
+  GBP: { STARTER: 0, GROWTH: 7900, PRO: 15900 },
+  EUR: { STARTER: 0, GROWTH: 8900, PRO: 17900 },
+  AUD: { STARTER: 0, GROWTH: 13900, PRO: 28900 },
+  NZD: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
+  SGD: { STARTER: 0, GROWTH: 12900, PRO: 26900 },
+  AED: { STARTER: 0, GROWTH: 34900, PRO: 74900 },
+  // India is a genuinely lower-priced market for restaurant software (Petpooja et
+  // al.), so it is localised DOWN, not FX-converted up. Stripe still bills INR in
+  // paise, so keep minor units.
+  INR: { STARTER: 0, GROWTH: 249900, PRO: 499900 },
 };
 
 export const PLAN_PRICING_CURRENCY_FALLBACK = 'USD';
+
+/**
+ * Country (ISO-3166 alpha-2) -> the currency we price that country's plans in.
+ *
+ * Covers the countries we support directly plus the wider Eurozone, so a visitor
+ * from Berlin or Paris sees euros rather than dollars. Anything unmapped falls back
+ * to USD, so the pricing table can never render blank or free by accident.
+ */
+const COUNTRY_CURRENCY: Record<string, string> = {
+  US: 'USD',
+  CA: 'CAD',
+  GB: 'GBP',
+  AU: 'AUD',
+  NZ: 'NZD',
+  IN: 'INR',
+  SG: 'SGD',
+  AE: 'AED',
+  IE: 'EUR',
+  DE: 'EUR',
+  FR: 'EUR',
+  ES: 'EUR',
+  IT: 'EUR',
+  NL: 'EUR',
+  PT: 'EUR',
+  BE: 'EUR',
+  AT: 'EUR',
+  FI: 'EUR',
+  GR: 'EUR',
+  LU: 'EUR',
+};
+
+/**
+ * Resolve a country code to the currency we should show it — used to pick the
+ * pricing currency from the visitor's geo-IP (server) or their locale (browser),
+ * and from a restaurant's own country in the dashboard.
+ */
+export function currencyForCountry(countryCode?: string | null): string {
+  if (!countryCode) return PLAN_PRICING_CURRENCY_FALLBACK;
+  const currency = COUNTRY_CURRENCY[countryCode.toUpperCase()];
+  return currency && MONTHLY_PRICE_MINOR[currency]
+    ? currency
+    : PLAN_PRICING_CURRENCY_FALLBACK;
+}
 
 export interface PlanPrice {
   tier: PlanTier;

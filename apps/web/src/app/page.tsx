@@ -1,17 +1,60 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { SignedIn, SignedOut } from '@clerk/nextjs';
+import { currencyForCountry } from '@dinedirect/shared';
 import {
   ArrowRight,
+  BarChart3,
   Bike,
+  Boxes,
+  CalendarDays,
   ChefHat,
+  Code2,
   CreditCard,
+  Gift,
+  Globe,
+  Landmark,
+  Percent,
   QrCode,
   Rocket,
+  Smartphone,
   Truck,
   UtensilsCrossed,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Reveal } from '@/components/shared/reveal';
 import { PricingSection } from '@/components/marketing/pricing-section';
+
+/**
+ * Every service the product offers, tagged with the tier it starts on — so the page
+ * both SHOWS the surface area and answers "what do I actually get for each plan"
+ * without a separate matrix. The tiers here mirror packages/shared/src/plans.ts.
+ */
+const SERVICES: Array<{
+  icon: typeof QrCode;
+  title: string;
+  body: string;
+  tier: 'Starter' | 'Growth' | 'Pro';
+}> = [
+  { icon: QrCode, title: 'QR ordering', body: 'Table, counter and kitchen codes. Guests order from their own phone — no app to download.', tier: 'Starter' },
+  { icon: ChefHat, title: 'Kitchen board', body: 'Live tickets by the pass, colour-coded by wait, with a one-tap "ready".', tier: 'Starter' },
+  { icon: CreditCard, title: 'Card, Apple & Google Pay', body: 'Secure, encrypted checkout on every plan. Money lands straight in your account.', tier: 'Starter' },
+  { icon: Globe, title: 'Your ordering website', body: 'A branded storefront at your own address, live the same afternoon you sign up.', tier: 'Growth' },
+  { icon: Truck, title: 'Automatic delivery', body: 'Mark it ready; a courier is dispatched and your customer watches a live map.', tier: 'Growth' },
+  { icon: Percent, title: 'Promotions & discounts', body: 'Codes, happy-hour deals and limited offers that price themselves at checkout.', tier: 'Growth' },
+  { icon: Gift, title: 'Loyalty program', body: 'Points on every order that quietly turn first-timers into regulars.', tier: 'Growth' },
+  { icon: Code2, title: 'Embeddable widget', body: 'Drop ordering into a website you already have with one line of script.', tier: 'Growth' },
+  { icon: BarChart3, title: 'Analytics & history', body: 'Revenue, top items and every past order, searchable — not just today at a glance.', tier: 'Growth' },
+  { icon: Boxes, title: 'Inventory', body: 'Track stock per item and auto-86 what runs out before it oversells.', tier: 'Pro' },
+  { icon: CalendarDays, title: 'Staff scheduling', body: 'Shifts, an activity log and roles, so the right people see the right screens.', tier: 'Pro' },
+  { icon: Landmark, title: 'Multi-jurisdiction tax', body: 'Correct, separately-named tax lines and reports your accountant will actually accept.', tier: 'Pro' },
+];
+
+const TIER_PILL: Record<'Starter' | 'Growth' | 'Pro', string> = {
+  Starter: 'bg-muted text-muted-foreground',
+  Growth: 'bg-brand/15 text-brand',
+  Pro: 'bg-foreground text-background',
+};
 
 const TICKER_ITEMS = [
   'The lowest per-order fee around',
@@ -21,7 +64,23 @@ const TICKER_ITEMS = [
   'Live the same day you sign up',
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  /**
+   * Price the marketing page in the visitor's OWN currency, resolved from geo-IP.
+   *
+   * Vercel (and most CDNs) stamp the request with the caller's country; we map that
+   * to a currency server-side so the first paint already shows the right money — no
+   * flash of dollars before a client-side guess corrects it. Falls back to a browser
+   * -locale guess inside PricingSection when the header is absent (local dev, or a
+   * host that doesn't set it).
+   */
+  const headerList = await headers();
+  const geoCountry =
+    headerList.get('x-vercel-ip-country') ??
+    headerList.get('x-country') ??
+    headerList.get('cf-ipcountry');
+  const initialCurrency = geoCountry ? currencyForCountry(geoCountry) : undefined;
+
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
       {/* Dark, permanently -- this header only ever lives on THIS page, and the
@@ -271,9 +330,49 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Services showcase -- the full surface area, each tile tagged with the
+            plan it starts on, revealing on scroll. This is the "what do I actually
+            get" section, and the tier pills double as a plain-language plan matrix. */}
+        <section className="container py-20 lg:py-28">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-widest text-brand">
+              Everything in one place
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+              One login runs the whole restaurant.
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Not three apps stitched together — ordering, kitchen, delivery, marketing and the
+              back office, in a single place. Each tile shows the plan it starts on.
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {SERVICES.map((s, i) => (
+              <Reveal key={s.title} delay={(i % 3) * 80} className="h-full">
+                <div className="card-interactive group h-full p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-subtle text-brand transition-transform duration-200 group-hover:scale-110">
+                      <s.icon className="h-5 w-5" />
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${TIER_PILL[s.tier]}`}
+                    >
+                      {s.tier}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold">{s.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground">{s.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
         {/* Pricing -- computed from the same table the API bills from, so the number
-            here is the number a restaurant is charged. */}
-        <PricingSection />
+            here is the number a restaurant is charged. Currency comes from the
+            visitor's geo-IP, resolved server-side above. */}
+        <PricingSection initialCurrency={initialCurrency} />
 
         {/* Final CTA -- solid brand colour, the one place on the page that should
             feel loud. Everything before this earned the right to ask. */}
