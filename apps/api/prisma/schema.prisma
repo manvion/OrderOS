@@ -150,6 +150,10 @@ enum QRCodeType {
   TABLE
   FLYER
   COUNTER
+  /// Not an ordering code -- points at the public "now serving" board (see
+  /// OrdersService.listStatusBoard) instead of the menu. For a TV by the
+  /// counter, or a poster someone waiting on a pickup/dine-in order can scan.
+  BOARD
 }
 
 /// Who actually carries the food. Decided PER ORDER, not once in settings — a

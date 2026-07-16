@@ -6,6 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Download,
+  ListOrdered,
   Plus,
   Printer,
   QrCode,
@@ -33,12 +34,15 @@ const TYPE_HELP: Record<string, string> = {
   COUNTER: 'Scan-to-order for the till, a counter card, or a sticker. Opens your menu directly.',
   TABLE: 'Scan-to-order for table tents. Also pre-fills the table number, so dine-in orders arrive labeled and runners know where the food goes.',
   FLYER: 'Scan-to-order for print, windows and posters. Rendered large with heavy error correction so it survives bad printing.',
+  BOARD:
+    "Not for ordering — opens the public order-status board instead, so a pickup or dine-in customer can check whether their order is ready without asking staff. Good on a TV by the counter, or a card near the pickup shelf.",
 };
 
 const TYPE_ICON: Record<string, typeof ShoppingBag> = {
   COUNTER: ShoppingBag,
   TABLE: UtensilsCrossed,
   FLYER: Printer,
+  BOARD: ListOrdered,
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -52,7 +56,7 @@ export default function QrPage() {
 
   // COUNTER first: the universal "scan to order" code every restaurant needs.
   // TABLE is the dine-in specialisation (and errors when dine-in is off).
-  const [type, setType] = useState<'TABLE' | 'COUNTER' | 'FLYER'>('COUNTER');
+  const [type, setType] = useState<'TABLE' | 'COUNTER' | 'FLYER' | 'BOARD'>('COUNTER');
   const [label, setLabel] = useState('');
   const [tableNumber, setTableNumber] = useState('');
   const [tableFrom, setTableFrom] = useState(1);
@@ -281,6 +285,7 @@ export default function QrPage() {
                   <option value="COUNTER">Order — counter / sticker</option>
                   <option value="TABLE">Order — dine-in table</option>
                   <option value="FLYER">Order — flyer / window</option>
+                  <option value="BOARD">Order status board</option>
                 </Select>
               </div>
 
@@ -290,7 +295,9 @@ export default function QrPage() {
                   id="qr-label"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
-                  placeholder={type === 'TABLE' ? 'Table 4' : 'Front window'}
+                  placeholder={
+                    type === 'TABLE' ? 'Table 4' : type === 'BOARD' ? 'Pickup counter' : 'Front window'
+                  }
                 />
               </div>
 
@@ -386,7 +393,15 @@ export default function QrPage() {
                     </div>
                   )}
 
-                  {stat && (
+                  {stat && code.type === 'BOARD' && (
+                    // A status board is checked, not ordered from -- "orders" and
+                    // "convert" would just always read zero and confuse the owner.
+                    <div className="rounded-xl border p-2 text-center text-xs">
+                      <p className="font-semibold tabular-nums">{stat.scans}</p>
+                      <p className="text-muted-foreground">checks</p>
+                    </div>
+                  )}
+                  {stat && code.type !== 'BOARD' && (
                     <div className="grid grid-cols-3 divide-x rounded-xl border text-center text-xs">
                       <div className="p-2">
                         <p className="font-semibold tabular-nums">{stat.scans}</p>

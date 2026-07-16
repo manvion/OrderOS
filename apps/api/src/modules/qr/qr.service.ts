@@ -17,6 +17,7 @@ const RENDER_PRESETS: Record<QRCodeType, { width: number; margin: number; ecc: '
   TABLE: { width: 600, margin: 2, ecc: 'M' },
   COUNTER: { width: 800, margin: 3, ecc: 'Q' },
   FLYER: { width: 1200, margin: 4, ecc: 'H' },
+  BOARD: { width: 800, margin: 3, ecc: 'Q' },
 };
 
 /** Restaurant names and labels are user input and land in printed HTML. */
@@ -198,6 +199,10 @@ export class QrService {
     if (input.type === 'TABLE' && input.tableNumber) {
       params.set('t', input.tableNumber);
     }
+    // Not an ordering code -- the public status board, not the menu.
+    if (input.type === 'BOARD') {
+      return `${base}/board?${params.toString()}`;
+    }
     return `${base}/menu?${params.toString()}`;
   }
 
@@ -300,6 +305,7 @@ export class QrService {
 
     const heading =
       qr.type === 'TABLE' ? `Table ${escapeHtml(qr.tableNumber ?? '')}` : escapeHtml(qr.label);
+    const scanCaption = qr.type === 'BOARD' ? 'Order status' : 'Scan to order';
 
     const W = 640;
     const qrSize = 460;
@@ -325,7 +331,7 @@ export class QrService {
   <rect width="${W}" height="14" rx="7" fill="url(#bar)" />
   ${mark}
   <text x="${W / 2}" y="136" font-family="sans-serif" font-size="15" font-weight="700" letter-spacing="2" fill="${restaurant.brandPrimaryColor}" text-anchor="middle">${escapeHtml(restaurant.name.toUpperCase())}</text>
-  <text x="${W / 2}" y="182" font-family="serif" font-size="34" font-weight="600" fill="#1c1917" text-anchor="middle">Scan to order</text>
+  <text x="${W / 2}" y="182" font-family="serif" font-size="34" font-weight="600" fill="#1c1917" text-anchor="middle">${escapeHtml(scanCaption)}</text>
   <rect x="${qrX - 16}" y="${qrY - 16}" width="${qrSize + 32}" height="${qrSize + 32}" rx="24" fill="#ffffff" stroke="${restaurant.brandPrimaryColor}" stroke-width="2" />
   <image href="${qrDataUri}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}" />
   <text x="${W / 2}" y="${qrY + qrSize + 58}" font-family="sans-serif" font-size="26" font-weight="700" fill="#1c1917" text-anchor="middle">${heading}</text>
@@ -418,6 +424,11 @@ export class QrService {
           code.type === 'TABLE'
             ? `Table ${escapeHtml(code.tableNumber ?? '')}`
             : escapeHtml(code.label);
+        const scanCaption = code.type === 'BOARD' ? 'Order status' : 'Scan to order';
+        const hint =
+          code.type === 'BOARD'
+            ? "Point your phone camera at the code to check your order's status."
+            : 'Point your phone camera at the code — no app needed.';
 
         const mark = restaurant.logoUrl
           ? `<img src="${escapeHtml(restaurant.logoUrl)}" alt="" class="logo" />`
@@ -430,10 +441,10 @@ export class QrService {
               ${mark}
               <p class="restaurant">${escapeHtml(restaurant.name)}</p>
             </div>
-            <p class="headline">Scan to order</p>
+            <p class="headline">${escapeHtml(scanCaption)}</p>
             <div class="qr-frame"><img src="${png}" alt="" class="qr" /></div>
             <p class="table">${heading}</p>
-            <p class="hint">Point your phone camera at the code — no app needed.</p>
+            <p class="hint">${escapeHtml(hint)}</p>
             <div class="foot">
               <span>${escapeHtml(restaurant.street)}, ${escapeHtml(restaurant.city)}</span>
               <span>·</span>

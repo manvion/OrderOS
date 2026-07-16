@@ -10,6 +10,8 @@ import {
   ExternalLink,
   Globe,
   ChefHat,
+  History,
+  Landmark,
   LayoutDashboard,
   Link2,
   QrCode,
@@ -39,12 +41,14 @@ const NAV = [
   // because during service it is the only one that matters.
   { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' as const },
   { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' as const },
+  { href: '/dashboard/order-history', label: 'Order history', icon: History, minRole: 'STAFF' as const },
   // Staff see only their own shifts here; a manager sees and edits everyone's.
   { href: '/dashboard/schedule', label: 'Schedule', icon: CalendarDays, minRole: 'STAFF' as const },
   { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' as const },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' as const },
   { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' as const },
   { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, minRole: 'MANAGER' as const },
+  { href: '/dashboard/tax-reports', label: 'Tax reports', icon: Landmark, minRole: 'MANAGER' as const },
   { href: '/dashboard/qr', label: 'QR codes', icon: QrCode, minRole: 'MANAGER' as const },
   { href: '/dashboard/website', label: 'My website', icon: Globe, minRole: 'MANAGER' as const },
   { href: '/dashboard/domain', label: 'Domain', icon: Link2, minRole: 'OWNER' as const },

@@ -355,7 +355,7 @@ export const createOrderSchema = z
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
 export const qrCodeSchema = z.object({
-  type: z.enum(['TABLE', 'FLYER', 'COUNTER']),
+  type: z.enum(['TABLE', 'FLYER', 'COUNTER', 'BOARD']),
   label: z.string().min(1).max(60),
   tableNumber: z.string().max(20).optional(),
 });

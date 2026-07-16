@@ -15,7 +15,6 @@ import {
 } from 'recharts';
 import { formatMoney } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
-import { TaxReportPanel } from '@/components/dashboard/tax-report-panel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/primitives';
@@ -199,8 +198,6 @@ export default function AnalyticsPage() {
           </Card>
         )}
       </div>
-
-      <TaxReportPanel />
     </div>
   );
 }

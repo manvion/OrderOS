@@ -337,10 +337,20 @@ export function createDashboardApi(
 
     // Orders
     listActiveOrders: () => call<Order[]>('/orders/active'),
-    listOrders: (params?: { status?: string; cursor?: string }) => {
+    /** Order history -- every PAID order ever placed, newest first. Cursor-paginated. */
+    listOrders: (params?: {
+      status?: string;
+      from?: string;
+      to?: string;
+      cursor?: string;
+      limit?: number;
+    }) => {
       const qs = new URLSearchParams();
       if (params?.status) qs.set('status', params.status);
+      if (params?.from) qs.set('from', params.from);
+      if (params?.to) qs.set('to', params.to);
       if (params?.cursor) qs.set('cursor', params.cursor);
+      if (params?.limit) qs.set('limit', String(params.limit));
       return call<{ orders: Order[]; nextCursor: string | null }>(`/orders?${qs}`);
     },
     getOrder: (id: string) => call<Order>(`/orders/${id}`),
@@ -1077,7 +1087,7 @@ export interface StripeStatus {
 
 export interface QRCode {
   id: string;
-  type: 'TABLE' | 'FLYER' | 'COUNTER';
+  type: 'TABLE' | 'FLYER' | 'COUNTER' | 'BOARD';
   label: string;
   tableNumber: string | null;
   targetUrl: string;
