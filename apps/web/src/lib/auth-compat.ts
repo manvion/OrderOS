@@ -21,6 +21,23 @@ export const CLERK_ENABLED = Boolean(
   process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_'),
 );
 
-export const useAuthToken: () => { getToken: () => Promise<string | null> } = CLERK_ENABLED
-  ? useAuth
-  : () => ({ getToken: async () => 'no-clerk' });
+export interface AuthTokenState {
+  getToken: () => Promise<string | null>;
+  /**
+   * Has Clerk finished loading in the browser? Until it has, `getToken()` returns
+   * null even for a signed-in admin — so a query that fires before this is true
+   * gets a spurious 401. Callers gate on it. Always true for the no-Clerk stub.
+   */
+  isLoaded: boolean;
+  isSignedIn: boolean;
+}
+
+/** Wraps Clerk's useAuth so the hook is called unconditionally (stable hook order). */
+function useClerkAuthToken(): AuthTokenState {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+  return { getToken, isLoaded, isSignedIn: Boolean(isSignedIn) };
+}
+
+export const useAuthToken: () => AuthTokenState = CLERK_ENABLED
+  ? useClerkAuthToken
+  : () => ({ getToken: async () => 'no-clerk', isLoaded: true, isSignedIn: true });

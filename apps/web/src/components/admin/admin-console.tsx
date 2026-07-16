@@ -45,17 +45,28 @@ import { Badge, Skeleton } from '@/components/ui/primitives';
  *     or switch them off.
  */
 export function AdminConsole() {
-  const { getToken } = useAuthToken();
+  const { getToken, isLoaded } = useAuthToken();
   const queryClient = useQueryClient();
   const api = createDashboardApi(getToken);
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
 
+  // A 401 that's just the token not being minted yet (Clerk still loading, or a
+  // brief window right after) should retry, not throw us onto the scary error
+  // screen. A 403 (not an admin) or a real bad-key 401 stops after a couple tries.
+  const retryTransient = (count: number, err: unknown) =>
+    err instanceof ApiRequestError && err.status === 401 ? count < 3 : false;
+
   const { data: me, isError, error } = useQuery({
     queryKey: ['admin', 'me'],
     queryFn: () => api.adminMe(),
-    retry: false,
+    // Don't fire until Clerk has loaded in the browser — before that getToken()
+    // returns null even for a signed-in admin, which is the spurious 401 that
+    // flashed "the API could not verify your sign-in" until you refreshed.
+    enabled: isLoaded,
+    retry: retryTransient,
+    retryDelay: 500,
   });
 
   const { data: overview } = useQuery({
@@ -64,10 +75,16 @@ export function AdminConsole() {
     enabled: Boolean(me),
   });
 
-  const { data: list, isLoading } = useQuery({
+  const {
+    data: list,
+    isLoading,
+    isError: listError,
+    error: listErr,
+  } = useQuery({
     queryKey: ['admin', 'restaurants', search, status],
     queryFn: () => api.adminListRestaurants({ search: search || undefined, status: status || undefined }),
     enabled: Boolean(me),
+    retry: retryTransient,
   });
 
   /**
@@ -317,6 +334,21 @@ export function AdminConsole() {
 
             {isLoading ? (
               <Skeleton className="h-64 w-full" />
+            ) : listError ? (
+              // A blank list used to be indistinguishable from "the query 500'd" — the
+              // usual cause being the subscription DB migration not yet applied in this
+              // environment, so selecting planTier/subscriptionStatus throws. Say so.
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">Couldn’t load restaurants.</p>
+                <p className="mt-1">
+                  {listErr instanceof ApiRequestError ? listErr.body.message : 'The API errored.'}
+                </p>
+                <p className="mt-2 text-amber-800">
+                  If this started after a deploy, the database migration for subscription plans
+                  likely hasn’t been applied yet — run <code className="font-mono">npm run db:deploy</code>{' '}
+                  against this environment’s database.
+                </p>
+              </div>
             ) : (
               <div className="space-y-2">
                 {list?.restaurants.map((r) => (
