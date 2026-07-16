@@ -19,8 +19,12 @@ import {
 } from '../../common/auth/platform-admin.guard';
 import { Public } from '../../common/auth/decorators';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { LeadsService } from '../leads/leads.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { AdminService } from './admin.service';
+
+const DEMO_STATUSES = ['NEW', 'CONTACTED', 'SCHEDULED', 'WON', 'LOST'] as const;
+const demoStatusSchema = z.object({ status: z.enum(DEMO_STATUSES) });
 
 /**
  * Onboarding a restaurant on their behalf, on a phone call.
@@ -77,7 +81,25 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly leads: LeadsService,
   ) {}
+
+  // --- Book-a-demo leads -----------------------------------------------------
+
+  /** The inbound demo / done-for-you-setup pipeline. Any admin can work it. */
+  @Get('demo-requests')
+  listDemoRequests(@Query('status') status?: (typeof DEMO_STATUSES)[number]) {
+    return this.leads.list(status);
+  }
+
+  @Patch('demo-requests/:id')
+  updateDemoRequest(
+    @Req() req: PlatformRequest,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(demoStatusSchema)) body: z.infer<typeof demoStatusSchema>,
+  ) {
+    return this.leads.updateStatus(id, body.status, req.admin!.email);
+  }
 
   /** Who am I? Used by the web app to decide whether to show the admin at all. */
   @Get('me')

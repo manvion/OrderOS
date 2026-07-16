@@ -404,6 +404,44 @@ enum SubscriptionStatus {
   CANCELED
 }
 
+/// Where a demo/"build it for me" request is in our follow-up pipeline.
+enum DemoRequestStatus {
+  NEW
+  CONTACTED
+  SCHEDULED
+  WON
+  LOST
+}
+
+/// A "Book a demo" / done-for-you setup lead from the marketing site.
+///
+/// This is NOT a tenant — nobody has signed up yet. It's an inbound lead the
+/// platform follows up on (and, for the concierge "we build your site" offer,
+/// quotes a one-time setup fee for). Deliberately its own table so a stranger
+/// filling in a form can never touch anything a real restaurant owns.
+model DemoRequest {
+  id             String            @id @default(cuid())
+  name           String
+  email          String
+  phone          String?
+  restaurantName String?
+  city           String?
+  /// What they said they want — free text from the form.
+  message        String?
+  /// Which plan or offer they clicked from, if any (e.g. "GROWTH", "concierge").
+  interest       String?
+  status         DemoRequestStatus @default(NEW)
+  /// The platform admin who picked it up, and when. Not a FK — admins are a small
+  /// separate table and we only need the id for display.
+  handledByAdmin String?
+  handledAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@map("demo_requests")
+}
+
 /// PERCENT: `value` is basis points (500 = 5%). FIXED: `value` is cents off.
 enum PromotionType {
   PERCENT

@@ -28,6 +28,7 @@ import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { StorefrontModule } from './modules/storefront/storefront.module';
+import { LeadsModule } from './modules/leads/leads.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { WidgetModule } from './modules/widget/widget.module';
 
@@ -87,6 +88,7 @@ import { WidgetModule } from './modules/widget/widget.module';
     DomainsModule,
     ShiftsModule,
     SubscriptionsModule,
+    LeadsModule,
   ],
   controllers: [HealthController],
   providers: [

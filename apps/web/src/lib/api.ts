@@ -543,6 +543,15 @@ export function createDashboardApi(
         method: 'PATCH',
         body: JSON.stringify({ tier }),
       }),
+
+    // Book-a-demo leads
+    adminListDemoRequests: (status?: string) =>
+      call<DemoRequest[]>(`/admin/demo-requests${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    adminUpdateDemoRequest: (id: string, status: DemoRequestStatus) =>
+      call<DemoRequest>(`/admin/demo-requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
     adminStartSupport: (id: string, reason: string) =>
       call<{ id: string; expiresAt: string }>(`/admin/restaurants/${id}/support-session`, {
         method: 'POST',
@@ -632,6 +641,24 @@ export type DashboardApi = ReturnType<typeof createDashboardApi>;
 export function getPlanPricing(currency?: string) {
   const qs = currency ? `?currency=${encodeURIComponent(currency)}` : '';
   return request<PublicPricing>(`/subscriptions/pricing${qs}`);
+}
+
+export interface DemoRequestInput {
+  name: string;
+  email: string;
+  phone?: string;
+  restaurantName?: string;
+  city?: string;
+  message?: string;
+  interest?: string;
+}
+
+/** Submit a "book a demo" / done-for-you-setup enquiry from the marketing page. */
+export function submitDemoRequest(body: DemoRequestInput) {
+  return request<{ received: boolean }>('/demo-requests', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 // --- Types ------------------------------------------------------------------
@@ -1361,6 +1388,23 @@ export interface AdminOverview {
     platformRevenue: number | null;
     orders: number | null;
   };
+}
+
+export type DemoRequestStatus = 'NEW' | 'CONTACTED' | 'SCHEDULED' | 'WON' | 'LOST';
+
+export interface DemoRequest {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  restaurantName: string | null;
+  city: string | null;
+  message: string | null;
+  interest: string | null;
+  status: DemoRequestStatus;
+  handledByAdmin: string | null;
+  handledAt: string | null;
+  createdAt: string;
 }
 
 export interface AdminRestaurant {

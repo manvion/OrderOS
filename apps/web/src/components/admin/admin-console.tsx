@@ -25,7 +25,13 @@ import {
 } from 'lucide-react';
 import { formatMoney, getPlan, PLAN_TIERS, type PlanTier } from '@dinedirect/shared';
 import { toast } from 'sonner';
-import { ApiRequestError, createDashboardApi, type AdminRestaurant } from '@/lib/api';
+import {
+  ApiRequestError,
+  createDashboardApi,
+  type AdminRestaurant,
+  type DemoRequest,
+  type DemoRequestStatus,
+} from '@/lib/api';
 import { tenantUrl } from '@/lib/tenant-url';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,6 +89,13 @@ export function AdminConsole() {
   } = useQuery({
     queryKey: ['admin', 'restaurants', search, status],
     queryFn: () => api.adminListRestaurants({ search: search || undefined, status: status || undefined }),
+    enabled: Boolean(me),
+    retry: retryTransient,
+  });
+
+  const { data: demoRequests } = useQuery({
+    queryKey: ['admin', 'demo-requests'],
+    queryFn: () => api.adminListDemoRequests(),
     enabled: Boolean(me),
     retry: retryTransient,
   });
@@ -152,6 +165,16 @@ export function AdminConsole() {
     },
     onError: (err) =>
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not change the plan'),
+  });
+
+  const updateLead = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: DemoRequestStatus }) =>
+      api.adminUpdateDemoRequest(id, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'demo-requests'] });
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the lead'),
   });
 
   /**
@@ -298,6 +321,34 @@ export function AdminConsole() {
               <Button variant="outline" size="sm" onClick={() => setStatus('draft')}>
                 Show me
               </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Book-a-demo leads */}
+        {demoRequests && demoRequests.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Demo requests
+                {demoRequests.some((d) => d.status === 'NEW') && (
+                  <Badge variant="warning" className="ml-2 text-[10px]">
+                    {demoRequests.filter((d) => d.status === 'NEW').length} new
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                People who asked for a walkthrough or a done-for-you setup.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {demoRequests.map((lead) => (
+                <LeadRow
+                  key={lead.id}
+                  lead={lead}
+                  onSetStatus={(s) => updateLead.mutate({ id: lead.id, status: s })}
+                />
+              ))}
             </CardContent>
           </Card>
         )}
@@ -622,6 +673,66 @@ function RestaurantRow({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const LEAD_STATUSES: DemoRequestStatus[] = ['NEW', 'CONTACTED', 'SCHEDULED', 'WON', 'LOST'];
+const LEAD_BADGE: Record<DemoRequestStatus, 'warning' | 'secondary' | 'success' | 'outline'> = {
+  NEW: 'warning',
+  CONTACTED: 'secondary',
+  SCHEDULED: 'secondary',
+  WON: 'success',
+  LOST: 'outline',
+};
+
+function LeadRow({
+  lead,
+  onSetStatus,
+}: {
+  lead: DemoRequest;
+  onSetStatus: (status: DemoRequestStatus) => void;
+}) {
+  return (
+    <div className="rounded-xl border p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">{lead.name}</span>
+            {lead.restaurantName && (
+              <span className="text-sm text-muted-foreground">· {lead.restaurantName}</span>
+            )}
+            <Badge variant={LEAD_BADGE[lead.status]} className="text-[10px]">
+              {lead.status.toLowerCase()}
+            </Badge>
+          </div>
+          <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            <a href={`mailto:${lead.email}`} className="hover:underline">
+              {lead.email}
+            </a>
+            {lead.phone && (
+              <a href={`tel:${lead.phone}`} className="hover:underline">
+                {lead.phone}
+              </a>
+            )}
+            {lead.city && <span>{lead.city}</span>}
+            <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
+          </p>
+          {lead.message && <p className="mt-1.5 text-sm">{lead.message}</p>}
+        </div>
+
+        <Select
+          value={lead.status}
+          onChange={(e) => onSetStatus(e.target.value as DemoRequestStatus)}
+          className="h-8 w-32 text-xs"
+        >
+          {LEAD_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s.charAt(0) + s.slice(1).toLowerCase()}
+            </option>
+          ))}
+        </Select>
+      </div>
     </div>
   );
 }

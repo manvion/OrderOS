@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Promotion } from '@prisma/client';
-import { formatMoney, type PromotionInput } from '@dinedirect/shared';
+import { formatMoney, planAllows, type PromotionInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { assertRestaurantCapability } from '../../common/plan/plan.util';
+import { assertRestaurantCapability, isMissingPlanColumn } from '../../common/plan/plan.util';
 
 export interface ResolvedDiscount {
   promotionId: string;
@@ -109,6 +109,25 @@ export class PromotionsService {
     code: string | undefined,
     currency: string,
   ): Promise<ResolvedDiscount | null> {
+    // The plan is the source of truth: a restaurant that built promos on a tier that
+    // includes them and then dropped to one that doesn't stops applying them —
+    // regardless of the promos still sitting active in the table. Resilient: a
+    // missing plan column (migration not applied) leaves promotions working.
+    let promotionsAllowed = true;
+    try {
+      const r = await this.prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { planTier: true },
+      });
+      if (r) promotionsAllowed = planAllows(r.planTier, 'PROMOTIONS');
+    } catch (err) {
+      if (!isMissingPlanColumn(err)) throw err;
+    }
+    if (!promotionsAllowed) {
+      if (code?.trim()) throw new BadRequestException('That code is not valid');
+      return null;
+    }
+
     const now = new Date();
     const subtotalCents = items.reduce((sum, i) => sum + i.lineTotalCents, 0);
 

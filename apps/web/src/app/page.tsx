@@ -26,6 +26,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/shared/reveal';
 import { PricingSection } from '@/components/marketing/pricing-section';
+import { DemoSection } from '@/components/marketing/demo-section';
+import { HeroStorefrontWidget } from '@/components/marketing/hero-storefront';
 
 /**
  * Every service the product offers, tagged with the tier it starts on — so the page
@@ -118,6 +120,12 @@ export default async function LandingPage() {
             >
               Pricing
             </a>
+            <a
+              href="#demo"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-background/70 transition-colors hover:bg-white/10 hover:text-background"
+            >
+              Book a demo
+            </a>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -192,7 +200,7 @@ export default async function LandingPage() {
                 the ETA bar fills — the whole platform in motion at a glance. Delivery
                 is shown generically; no courier brand is named. Pure CSS, so it runs
                 on the server-rendered page with no client JS. */}
-            <div className="rise-4 relative mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto">
+            <div className="rise-4 relative mx-auto w-full max-w-md space-y-5 lg:mx-0 lg:ml-auto">
               <div
                 className="absolute -inset-6 -z-10 rounded-[2rem] opacity-70 blur-2xl"
                 style={{
@@ -200,6 +208,10 @@ export default async function LandingPage() {
                     'linear-gradient(135deg, color-mix(in srgb, var(--brand) 45%, transparent), transparent 60%)',
                 }}
               />
+              {/* Widget 1: the customer's branded ordering site. */}
+              <HeroStorefrontWidget />
+
+              {/* Widget 2: a live order moving through it. */}
               <div className="card-interactive overflow-hidden rounded-3xl p-5 text-foreground">
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -476,6 +488,9 @@ export default async function LandingPage() {
             here is the number a restaurant is charged. Currency comes from the
             visitor's geo-IP, resolved server-side above. */}
         <PricingSection initialCurrency={initialCurrency} />
+
+        {/* Done-for-you setup + book-a-demo lead capture. */}
+        <DemoSection />
 
         {/* Final CTA -- solid brand colour, the one place on the page that should
             feel loud. Everything before this earned the right to ask. */}
