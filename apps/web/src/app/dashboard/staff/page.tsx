@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock, Mail, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Activity, Clock, Mail, Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
@@ -10,6 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/input';
 import { Badge, Label, Skeleton } from '@/components/ui/primitives';
+
+/** "staff.role_changed" -> "staff role changed" */
+function humanizeAction(action: string): string {
+  return action.replace(/[._]/g, ' ');
+}
 
 const ROLE_HELP: Record<string, string> = {
   OWNER: 'Everything, including payouts, billing and removing other owners.',
@@ -25,6 +30,7 @@ export default function StaffPage() {
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'OWNER' | 'MANAGER' | 'STAFF'>('STAFF');
+  const [activityUserId, setActivityUserId] = useState('');
 
   const { data: staff, isLoading } = useQuery({
     queryKey: ['staff', restaurant?.id],
@@ -35,6 +41,12 @@ export default function StaffPage() {
   const { data: invites } = useQuery({
     queryKey: ['invites', restaurant?.id],
     queryFn: () => api.listInvites(),
+    enabled: Boolean(restaurant),
+  });
+
+  const { data: activity, isLoading: loadingActivity } = useQuery({
+    queryKey: ['activity', restaurant?.id, activityUserId],
+    queryFn: () => api.getActivity({ userId: activityUserId || undefined, limit: 50 }),
     enabled: Boolean(restaurant),
   });
 
@@ -254,6 +266,68 @@ export default function StaffPage() {
                         </Button>
                       )}
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Activity className="h-4 w-4" />
+            Activity
+          </CardTitle>
+          <CardDescription>
+            What your team actually did — orders accepted, items 86&apos;d, refunds issued.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Select
+            value={activityUserId}
+            onChange={(e) => setActivityUserId(e.target.value)}
+            className="w-full sm:w-64"
+          >
+            <option value="">Everyone</option>
+            {staff?.map((member) => (
+              <option key={member.id} value={member.id}>
+                {[member.firstName, member.lastName].filter(Boolean).join(' ') || member.email}
+              </option>
+            ))}
+          </Select>
+
+          {loadingActivity ? (
+            <Skeleton className="h-32 w-full" />
+          ) : !activity?.length ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nothing here yet.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {activity.map((entry) => {
+                const actorName = entry.user
+                  ? [entry.user.firstName, entry.user.lastName].filter(Boolean).join(' ') ||
+                    entry.user.email
+                  : 'System';
+                return (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between gap-3 border-b py-2 text-sm last:border-0"
+                  >
+                    <span className="min-w-0 truncate">
+                      <span className="font-medium">{actorName}</span>{' '}
+                      <span className="text-muted-foreground">{humanizeAction(entry.action)}</span>
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </div>
                 );
               })}

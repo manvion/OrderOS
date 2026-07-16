@@ -724,6 +724,29 @@ export class RestaurantsService {
     });
   }
 
+  /**
+   * What a specific person (or everyone) actually did -- accountability, not
+   * scheduling. Reads the same AuditLog every mutating endpoint already writes
+   * to (see AuditService / the @Audit decorator), so this adds no new writes,
+   * just a read the dashboard didn't expose yet.
+   */
+  async listActivity(restaurantId: string, options: { userId?: string; limit?: number } = {}) {
+    return this.prisma.auditLog.findMany({
+      where: { restaurantId, ...(options.userId ? { userId: options.userId } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(options.limit ?? 100, 200),
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        metadata: true,
+        createdAt: true,
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+  }
+
   private storefrontUrl(slug: string): string {
     return storefrontBaseUrl(this.config, slug);
   }

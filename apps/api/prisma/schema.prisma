@@ -341,6 +341,7 @@ model Restaurant {
   customDomains       CustomDomain[]
   galleryImages       GalleryImage[]
   promotions          Promotion[]
+  shifts              Shift[]
 
   @@index([isPublished, isActive])
   @@map("restaurants")
@@ -590,12 +591,37 @@ model User {
   updatedAt DateTime @updatedAt
 
   auditLogs AuditLog[]
+  shifts    Shift[]
 
   /// One membership per person per restaurant.
   @@unique([clerkUserId, restaurantId])
   @@index([restaurantId])
   @@index([clerkUserId])
   @@map("users")
+}
+
+/// A scheduled block of time for one staff member. Nothing more than that --
+/// no clock-in/out, no timesheet math. A manager plans who's working when;
+/// staff see their own upcoming shifts.
+model Shift {
+  id String @id @default(cuid())
+
+  startsAt DateTime
+  endsAt   DateTime
+  note     String?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, startsAt])
+  @@index([userId, startsAt])
+  @@map("shifts")
 }
 
 /// A guest who ordered. Not a Clerk account — identified by phone within a

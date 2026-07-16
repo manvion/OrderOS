@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { UserButton } from '@clerk/nextjs';
 import {
   BarChart3,
+  CalendarDays,
   ExternalLink,
   Globe,
   ChefHat,
@@ -27,9 +28,9 @@ import { tenantUrl } from '@/lib/tenant-url';
 /**
  * `minRole` is the same hierarchy the API already enforces on writes --
  * mirrored here so the nav a role SEES matches what it can actually reach.
- * Kitchen and Orders are the only screens a plain STAFF login (kitchen,
- * front-desk, order-flow display) ever needs; everything else is business
- * admin that only MANAGER/OWNER should see exists at all.
+ * Kitchen, Orders and Schedule are the only screens a plain STAFF login
+ * (kitchen, front-desk, order-flow display) ever needs; everything else is
+ * business admin that only MANAGER/OWNER should see exists at all.
  */
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true, minRole: 'MANAGER' as const },
@@ -38,6 +39,8 @@ const NAV = [
   // because during service it is the only one that matters.
   { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' as const },
   { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' as const },
+  // Staff see only their own shifts here; a manager sees and edits everyone's.
+  { href: '/dashboard/schedule', label: 'Schedule', icon: CalendarDays, minRole: 'STAFF' as const },
   { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' as const },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' as const },
   { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' as const },

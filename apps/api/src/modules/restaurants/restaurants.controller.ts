@@ -221,6 +221,19 @@ export class RestaurantsController {
     return { success: true };
   }
 
+  @Get('current/activity')
+  @Roles('MANAGER')
+  async listActivity(
+    @TenantId() restaurantId: string,
+    @Query('userId') userId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.restaurants.listActivity(restaurantId, {
+      userId: userId || undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   // --- Invitations ----------------------------------------------------------
 
   @Get('current/invites')

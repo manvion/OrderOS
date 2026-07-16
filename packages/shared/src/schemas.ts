@@ -377,6 +377,21 @@ export const promotionSchema = z
   });
 export type PromotionInput = z.infer<typeof promotionSchema>;
 
+const shiftObjectSchema = z.object({
+  userId: z.string().cuid(),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  note: z.string().max(280).optional(),
+});
+export const shiftSchema = shiftObjectSchema.refine(
+  (s) => new Date(s.endsAt) > new Date(s.startsAt),
+  { message: 'A shift must end after it starts', path: ['endsAt'] },
+);
+export type ShiftInput = z.infer<typeof shiftSchema>;
+/** Partial updates skip the cross-field refine — ShiftsService re-checks
+ *  endsAt > startsAt itself once it has resolved both against the existing row. */
+export const shiftUpdateSchema = shiftObjectSchema.partial();
+
 export const refundSchema = z.object({
   amountCents: z.number().int().min(1).optional(), // omit for a full refund
   reason: z.string().max(500).optional(),

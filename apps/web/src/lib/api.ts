@@ -444,6 +444,13 @@ export function createDashboardApi(
       }),
     removeStaff: (id: string) =>
       call<{ success: boolean }>(`/restaurants/current/staff/${id}`, { method: 'DELETE' }),
+    getActivity: (params?: { userId?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.userId) qs.set('userId', params.userId);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      const query = qs.toString();
+      return call<ActivityLogEntry[]>(`/restaurants/current/activity${query ? `?${query}` : ''}`);
+    },
     listInvites: () => call<StaffInvite[]>('/restaurants/current/invites'),
     inviteStaff: (body: { email: string; role: string }) =>
       call<StaffInvite>('/restaurants/current/invites', {
@@ -452,6 +459,24 @@ export function createDashboardApi(
       }),
     revokeInvite: (id: string) =>
       call<{ success: boolean }>(`/restaurants/current/invites/${id}`, { method: 'DELETE' }),
+
+    // Shift scheduling. Staff always get back only their own shifts regardless
+    // of `userId` -- the API enforces that scoping, not this client.
+    listShifts: (params?: { userId?: string; from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.userId) qs.set('userId', params.userId);
+      if (params?.from) qs.set('from', params.from);
+      if (params?.to) qs.set('to', params.to);
+      const query = qs.toString();
+      return call<Shift[]>(`/shifts${query ? `?${query}` : ''}`);
+    },
+    createShift: (body: { userId: string; startsAt: string; endsAt: string; note?: string }) =>
+      call<Shift>('/shifts', { method: 'POST', body: JSON.stringify(body) }),
+    updateShift: (
+      id: string,
+      body: Partial<{ userId: string; startsAt: string; endsAt: string; note: string }>,
+    ) => call<Shift>(`/shifts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    deleteShift: (id: string) => call<{ success: boolean }>(`/shifts/${id}`, { method: 'DELETE' }),
 
     // Notifications — "did the customer actually get their texts?"
     getOrderNotifications: (orderId: string) =>
@@ -1118,6 +1143,25 @@ export interface StaffMember {
   role: 'OWNER' | 'MANAGER' | 'STAFF';
   isActive: boolean;
   createdAt: string;
+}
+
+export interface Shift {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  note: string | null;
+  userId: string;
+  user: { id: string; firstName: string | null; lastName: string | null; email: string };
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  user: { id: string; firstName: string | null; lastName: string | null; email: string } | null;
 }
 
 export interface StaffInvite {

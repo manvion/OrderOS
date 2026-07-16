@@ -25,6 +25,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { QrModule } from './modules/qr/qr.module';
 import { RestaurantsModule } from './modules/restaurants/restaurants.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { StorefrontModule } from './modules/storefront/storefront.module';
 import { WidgetModule } from './modules/widget/widget.module';
@@ -83,6 +84,7 @@ import { WidgetModule } from './modules/widget/widget.module';
     CustomersModule,
     AdminModule,
     DomainsModule,
+    ShiftsModule,
   ],
   controllers: [HealthController],
   providers: [
