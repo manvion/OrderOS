@@ -255,11 +255,17 @@ export default async function LandingPage() {
 
             <div className="mt-10 grid gap-6 sm:grid-cols-3">
               <Stat
-                value="15–30%"
-                label="Typical commission delivery marketplaces charge per order"
+                value="Up to 30%"
+                label="The cut a delivery marketplace takes out of every single order"
               />
-              <Stat value="0–5%" label="Our per-order fee — a fraction of theirs, and 0% on Pro" />
-              <Stat value="1" label="Menu to manage, instead of three apps with three logins" />
+              <Stat
+                value="3 apps"
+                label="Separate tablets and logins to juggle through a dinner rush"
+              />
+              <Stat
+                value="0"
+                label="Customer emails or phone numbers a marketplace ever hands back to you"
+              />
             </div>
           </div>
         </section>
