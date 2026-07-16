@@ -518,6 +518,9 @@ export class PaymentsService {
         case 'customer.subscription.deleted':
           await this.subscriptions.onSubscriptionDeleted(event.data.object);
           break;
+        case 'invoice.paid':
+          await this.subscriptions.onInvoicePaid(event.data.object);
+          break;
         case 'invoice.payment_failed':
           await this.subscriptions.onInvoicePaymentFailed(event.data.object);
           break;

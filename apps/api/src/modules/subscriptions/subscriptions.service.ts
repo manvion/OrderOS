@@ -10,6 +10,7 @@ import type { Restaurant } from '@prisma/client';
 import {
   billedAmountMinor,
   commissionBpsForTier,
+  formatMoney,
   getPlan,
   planPricingTable,
   PLAN_TIERS,
@@ -20,6 +21,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { effectiveCommissionBps } from '../../common/plan/plan.util';
+import { EmailService } from '../notifications/email.service';
 
 /**
  * The software subscription — how a restaurant pays US.
@@ -43,6 +45,7 @@ export class SubscriptionsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
   ) {
     this.stripe = new Stripe(this.config.getOrThrow<string>('STRIPE_SECRET_KEY'), {
       apiVersion: '2025-02-24.acacia',
@@ -281,21 +284,98 @@ export class SubscriptionsService {
     await this.downgradeToStarter(restaurant.id, 'subscription_deleted');
   }
 
-  /** A renewal payment failed — hold the features on, but flag PAST_DUE. */
+  /**
+   * A subscription invoice was paid — the initial charge or a monthly/annual
+   * renewal. Clears any PAST_DUE flag and emails the restaurant a branded receipt
+   * with a link to the actual invoice. (Stripe also generates the invoice and can
+   * email its own copy; this is the on-brand one, and it never depends on the
+   * dashboard email setting being on.)
+   */
+  async onInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
+    const restaurant = await this.findRestaurantForInvoice(invoice);
+    if (!restaurant) return;
+
+    if (restaurant.subscriptionStatus === 'PAST_DUE') {
+      await this.prisma.restaurant.update({
+        where: { id: restaurant.id },
+        data: { subscriptionStatus: 'ACTIVE' },
+      });
+    }
+
+    await this.emailInvoice(restaurant, invoice, 'paid');
+    this.logger.log(`Subscription invoice ${invoice.id} paid for ${restaurant.name}`);
+  }
+
+  /** A renewal payment failed — hold the features on, flag PAST_DUE, and email them. */
   async onInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-    const subId =
-      typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
-    if (!subId) return;
-    const restaurant = await this.prisma.restaurant.findFirst({
-      where: { stripeSubscriptionId: subId },
-      select: { id: true },
-    });
+    const restaurant = await this.findRestaurantForInvoice(invoice);
     if (!restaurant) return;
     await this.prisma.restaurant.update({
       where: { id: restaurant.id },
       data: { subscriptionStatus: 'PAST_DUE' },
     });
-    this.logger.warn(`Subscription ${subId} is PAST_DUE (invoice ${invoice.id} failed)`);
+    await this.emailInvoice(restaurant, invoice, 'failed');
+    this.logger.warn(`Subscription ${restaurant.stripeSubscriptionId} is PAST_DUE (invoice ${invoice.id} failed)`);
+  }
+
+  private async findRestaurantForInvoice(invoice: Stripe.Invoice) {
+    const subId =
+      typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+    const customerId =
+      typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+    if (!subId && !customerId) return null;
+    return this.prisma.restaurant.findFirst({
+      where: subId ? { stripeSubscriptionId: subId } : { stripeCustomerId: customerId! },
+    });
+  }
+
+  /** A branded receipt (or dunning notice) for a subscription invoice. */
+  private async emailInvoice(
+    restaurant: Restaurant,
+    invoice: Stripe.Invoice,
+    kind: 'paid' | 'failed',
+  ): Promise<void> {
+    const to = restaurant.notifyEmail || restaurant.email;
+    if (!to) return;
+
+    const cents = kind === 'paid' ? (invoice.amount_paid ?? invoice.amount_due) : invoice.amount_due;
+    const amount = formatMoney(cents, (invoice.currency ?? restaurant.currency).toUpperCase());
+    const planName = getPlan(restaurant.planTier).name;
+    const period =
+      restaurant.billingInterval === 'ANNUAL' ? 'yearly' : restaurant.billingInterval === 'MONTHLY' ? 'monthly' : '';
+    const link = invoice.hosted_invoice_url ?? invoice.invoice_pdf ?? null;
+    const linkBtn = link
+      ? `<p style="margin:20px 0 0"><a href="${link}" style="display:inline-block;background:${restaurant.brandPrimaryColor};color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px">View invoice</a></p>`
+      : '';
+
+    const body =
+      kind === 'paid'
+        ? `<h2 style="margin:0 0 8px;font-size:20px">Payment received — thank you</h2>
+           <p style="margin:0;color:#475569;font-size:15px">
+             Your ${period} <strong>DineDirect ${planName}</strong> subscription has been billed
+             <strong>${amount}</strong>. Everything on your plan stays on — nothing for you to do.
+           </p>${linkBtn}`
+        : `<h2 style="margin:0 0 8px;font-size:20px">We couldn’t process your payment</h2>
+           <p style="margin:0;color:#475569;font-size:15px">
+             The ${amount} charge for your <strong>DineDirect ${planName}</strong> subscription
+             didn’t go through. Please update your card to keep your paid features — you can do it
+             from Billing in your dashboard.
+           </p>${linkBtn}`;
+
+    await this.email.sendRaw({
+      to,
+      subject:
+        kind === 'paid'
+          ? `Your DineDirect ${planName} receipt — ${amount}`
+          : `Action needed: payment failed for DineDirect ${planName}`,
+      body,
+      restaurant: {
+        name: restaurant.name,
+        logoUrl: restaurant.logoUrl,
+        brandPrimaryColor: restaurant.brandPrimaryColor,
+        phone: restaurant.phone,
+      },
+    });
   }
 
   // --- Admin (comp / free upgrade) -------------------------------------------
