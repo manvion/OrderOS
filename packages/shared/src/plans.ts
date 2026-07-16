@@ -219,25 +219,30 @@ export function lowestTierWith(capability: PlanCapability): PlanTier {
  * blank or free-by-accident price.
  */
 const MONTHLY_PRICE_MINOR: Record<string, Record<PlanTier, number>> = {
-  // Benchmarked against real 2026 pricing for direct-ordering software:
-  //   Square Online $149 · Popmenu $179–499 · ChowNow $229–449 · Owner.com
-  //   $249 (5% comm.) / $499 (0% comm.).
-  // The 0%-commission premium players cluster at $449–499. Growth ($199) sits well
-  // under them; Pro ($399) matches their offer — a true 0%-commission flat plan —
-  // for $50 less, so it's strictly cheaper at any order volume. And we're the only
-  // one of the set with a genuinely free tier (funded by its 5% order commission).
+  // Anchored to REAL 2026 per-country pricing, not one USD price FX-converted:
+  //
+  //   US    ChowNow $229–449 · Popmenu $179–499 · Owner.com $249/$499 · Square $149
+  //         -> Growth $199, Pro $399 (a true 0%-commission flat plan under their $449).
+  //   UK/EU Flipdish ~£139/mo online ordering; Slerp premium above it
+  //         -> Growth £149/€149 (just over Flipdish), Pro £299/€299.
+  //   CA    tracks the US market; a touch higher in CAD terms.
+  //   AU    me&u / Mr Yum ~4.5% and Bopple ~5.9% are COMMISSION models with no
+  //         monthly — a flat sub is the cheaper story for a busy venue, so hold ~A$279.
+  //   IN    Petpooja ~₹1,200 · BillFeeds ₹999 · POSist ₹1,500+ — a genuinely cheap
+  //         market, so localised DOWN to a premium-but-realistic ₹1,999 / ₹3,999,
+  //         NOT the ~₹17k an FX-conversion of $199 would give.
+  //
+  // Every free tier is funded by its 5% order commission; Stripe bills all of these
+  // in minor units (cents / pence / paise / fils).
   USD: { STARTER: 0, GROWTH: 19900, PRO: 39900 },
   CAD: { STARTER: 0, GROWTH: 26900, PRO: 52900 },
-  GBP: { STARTER: 0, GROWTH: 15900, PRO: 31900 },
-  EUR: { STARTER: 0, GROWTH: 17900, PRO: 35900 },
-  AUD: { STARTER: 0, GROWTH: 28900, PRO: 57900 },
+  GBP: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
+  EUR: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
+  AUD: { STARTER: 0, GROWTH: 27900, PRO: 54900 },
   NZD: { STARTER: 0, GROWTH: 29900, PRO: 59900 },
-  SGD: { STARTER: 0, GROWTH: 24900, PRO: 49900 },
+  SGD: { STARTER: 0, GROWTH: 25900, PRO: 51900 },
   AED: { STARTER: 0, GROWTH: 74900, PRO: 149900 },
-  // India is a genuinely lower-priced market for restaurant software (Petpooja,
-  // UrbanPiper), so it is localised DOWN, not FX-converted up. Stripe still bills
-  // INR in paise, so keep minor units.
-  INR: { STARTER: 0, GROWTH: 499900, PRO: 999900 },
+  INR: { STARTER: 0, GROWTH: 199900, PRO: 399900 },
 };
 
 export const PLAN_PRICING_CURRENCY_FALLBACK = 'USD';
