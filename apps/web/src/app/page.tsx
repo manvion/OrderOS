@@ -8,6 +8,7 @@ import {
   Bike,
   Boxes,
   CalendarDays,
+  Check,
   ChefHat,
   Code2,
   CreditCard,
@@ -178,29 +179,46 @@ export default async function LandingPage() {
               </h1>
 
               <p className="rise-3 mt-6 max-w-md text-lg text-background/70">
-                Take orders straight from your own site — pickup, delivery, dine-in. A flat monthly
-                plan and a per-order fee a fraction of a marketplace's, so you keep what their 30%
-                cut used to take.
+                Your own branded ordering site for pickup, delivery and dine-in — live in an
+                afternoon. A flat monthly plan and a per-order fee a fraction of a marketplace's,
+                so you keep the 30% their apps take.
               </p>
 
-              <div className="rise-4 mt-9 flex flex-wrap items-center gap-4">
+              <div className="rise-4 mt-9 flex flex-wrap items-center gap-3">
                 <Button asChild size="lg" variant="brand">
                   <Link href="/sign-up">
                     Start free
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
-                <p className="text-sm text-background/60">Live in an afternoon. No card required.</p>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="border-white/20 bg-white/5 text-background hover:bg-white/10 hover:text-background"
+                >
+                  <Link href="#demo">Book a demo</Link>
+                </Button>
+              </div>
+
+              {/* Trust row — the three objections a restaurant raises, answered up front. */}
+              <div className="rise-4 mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-background/60">
+                {['Live in an afternoon', 'No card required', '0% commission on Pro'].map((t) => (
+                  <span key={t} className="flex items-center gap-1.5">
+                    <Check className="h-4 w-4 text-brand" />
+                    {t}
+                  </span>
+                ))}
               </div>
             </div>
 
-            {/* The visual anchor: a LIVE order-tracking widget that actually moves.
-                A vehicle rides a flowing route across a map to the customer's door,
-                the pins pulse, feature chips pop in (QR order, payment, loyalty), and
-                the ETA bar fills — the whole platform in motion at a glance. Delivery
-                is shown generically; no courier brand is named. Pure CSS, so it runs
-                on the server-rendered page with no client JS. */}
-            <div className="rise-4 relative mx-auto w-full max-w-md space-y-5 lg:mx-0 lg:ml-auto">
+            {/* The visual anchor: two composed widgets. The customer's branded
+                ordering SITE is the anchor, with a compact LIVE delivery tracker
+                floating over its corner — so the hero shows the site AND an order
+                moving through it, in one frame, without stacking two tall cards.
+                Delivery is generic; no courier brand named. Pure CSS animation. */}
+            <div className="rise-4 relative mx-auto w-full max-w-md pb-4 lg:mx-0 lg:ml-auto lg:pb-0">
+              {/* Brand glow behind the frame */}
               <div
                 className="absolute -inset-6 -z-10 rounded-[2rem] opacity-70 blur-2xl"
                 style={{
@@ -208,111 +226,67 @@ export default async function LandingPage() {
                     'linear-gradient(135deg, color-mix(in srgb, var(--brand) 45%, transparent), transparent 60%)',
                 }}
               />
-              {/* Widget 1: the customer's branded ordering site. */}
+
+              {/* Primary widget: the branded ordering site. */}
               <HeroStorefrontWidget />
 
-              {/* Widget 2: a live order moving through it. */}
-              <div className="card-interactive overflow-hidden rounded-3xl p-5 text-foreground">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Bella Burger · #0714-003
+              {/* Floating live-delivery tracker — compact, overlapping the corner. */}
+              <div className="relative z-20 mx-auto mt-4 w-60 sm:w-64 lg:absolute lg:-bottom-10 lg:-left-12 lg:mt-0">
+                <div className="rounded-2xl border bg-background p-4 text-foreground shadow-floating">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Order #0714-003
                     </p>
-                    <p className="mt-0.5 text-lg font-bold">Out for delivery</p>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                      <span className="pulse-dot inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 text-emerald-500" />
+                      Live
+                    </span>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
-                    <span className="pulse-dot inline-flex h-2 w-2 rounded-full bg-emerald-500 text-emerald-500" />
-                    Live
-                  </span>
-                </div>
+                  <p className="mt-0.5 text-sm font-bold">Out for delivery · 8 min</p>
 
-                {/* The map */}
-                <div className="relative mt-4 h-44 overflow-hidden rounded-2xl border">
-                  {/* Faint street grid */}
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background:
-                        'repeating-linear-gradient(0deg, transparent 0 21px, color-mix(in srgb, var(--foreground) 6%, transparent) 21px 22px), repeating-linear-gradient(90deg, transparent 0 21px, color-mix(in srgb, var(--foreground) 6%, transparent) 21px 22px)',
-                    }}
-                  />
-
-                  {/* The route — dashes flow toward the door */}
-                  <svg
-                    className="absolute inset-0 h-full w-full"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                    aria-hidden
-                  >
-                    <path
-                      d="M6 70 C 28 44, 44 60, 55 54 S 80 26, 90 18"
-                      fill="none"
-                      stroke="var(--brand)"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                      className="route-line"
+                  {/* Mini animated map: flowing route + riding vehicle + pulsing pin. */}
+                  <div className="relative mt-3 h-20 overflow-hidden rounded-xl border">
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          'repeating-linear-gradient(0deg, transparent 0 15px, color-mix(in srgb, var(--foreground) 6%, transparent) 15px 16px), repeating-linear-gradient(90deg, transparent 0 15px, color-mix(in srgb, var(--foreground) 6%, transparent) 15px 16px)',
+                      }}
                     />
-                  </svg>
-
-                  {/* Restaurant (origin) */}
-                  <span
-                    className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
-                    style={{ left: '6%', top: '70%' }}
-                  />
-                  {/* Customer's door (destination), pulsing */}
-                  <span
-                    className="pin-pulse absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-brand shadow"
-                    style={{ left: '90%', top: '18%' }}
-                  />
-                  {/* The vehicle, riding the route */}
-                  <span className="hero-vehicle absolute -translate-x-1/2 -translate-y-1/2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background shadow-floating">
-                      <Truck className="h-3.5 w-3.5" />
+                    <svg
+                      className="absolute inset-0 h-full w-full"
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M6 70 C 28 44, 44 60, 55 54 S 80 26, 90 18"
+                        fill="none"
+                        stroke="var(--brand)"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                        className="route-line"
+                      />
+                    </svg>
+                    <span
+                      className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground"
+                      style={{ left: '6%', top: '70%' }}
+                    />
+                    <span
+                      className="pin-pulse absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-brand"
+                      style={{ left: '90%', top: '18%' }}
+                    />
+                    <span className="hero-vehicle absolute -translate-x-1/2 -translate-y-1/2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background shadow">
+                        <Truck className="h-2.5 w-2.5" />
+                      </span>
                     </span>
-                  </span>
-
-                  {/* Feature chips popping in, staggered */}
-                  <span
-                    className="hero-chip absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-semibold shadow-soft"
-                    style={{ animationDelay: '0s' }}
-                  >
-                    <QrCode className="h-3 w-3 text-brand" /> New QR order · Table 6
-                  </span>
-                  <span
-                    className="hero-chip absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-semibold shadow-soft"
-                    style={{ animationDelay: '2s' }}
-                  >
-                    <CreditCard className="h-3 w-3 text-brand" /> Paid · $31.50
-                  </span>
-                  <span
-                    className="hero-chip absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-semibold shadow-soft"
-                    style={{ animationDelay: '4s' }}
-                  >
-                    <Gift className="h-3 w-3 text-brand" /> +15 loyalty points
-                  </span>
-                </div>
-
-                {/* ETA + filling progress */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-1.5 font-semibold">
-                      <Truck className="h-4 w-4 text-brand" /> Arriving in 8 min
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">1.2 km away</span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+
+                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
                     <div className="eta-fill h-full rounded-full bg-brand" />
                   </div>
-                </div>
-
-                {/* Stage trail */}
-                <div className="mt-4 flex items-center justify-between text-[11px] font-semibold">
-                  <span className="text-foreground">✓ Placed</span>
-                  <span className="text-foreground">✓ Kitchen</span>
-                  <span className="text-brand">● On the way</span>
-                  <span className="text-muted-foreground">Delivered</span>
                 </div>
               </div>
             </div>
