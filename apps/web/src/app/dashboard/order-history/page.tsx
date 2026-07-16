@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { History, Search } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { useDashboard, useApi } from '@/components/dashboard/dashboard-provider';
+import { PlanGate } from '@/components/dashboard/plan-gate';
 import type { Order } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +32,14 @@ const STATUS_STYLE: Record<string, 'default' | 'secondary' | 'success' | 'warnin
  * where it lives, forever.
  */
 export default function OrderHistoryPage() {
+  return (
+    <PlanGate capability="FULL_ANALYTICS">
+      <OrderHistoryPageInner />
+    </PlanGate>
+  );
+}
+
+function OrderHistoryPageInner() {
   const api = useApi();
   const { restaurant } = useDashboard();
   const [status, setStatus] = useState('');

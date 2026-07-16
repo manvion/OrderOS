@@ -54,13 +54,31 @@ const NAV: NavItem[] = [
   // because during service it is the only one that matters.
   { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' },
   { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' },
-  { href: '/dashboard/order-history', label: 'Order history', icon: History, minRole: 'STAFF' },
+  {
+    href: '/dashboard/order-history',
+    label: 'Order history',
+    icon: History,
+    minRole: 'STAFF',
+    capability: 'FULL_ANALYTICS',
+  },
   // Staff see only their own shifts here; a manager sees and edits everyone's.
-  { href: '/dashboard/schedule', label: 'Schedule', icon: CalendarDays, minRole: 'STAFF' },
+  {
+    href: '/dashboard/schedule',
+    label: 'Schedule',
+    icon: CalendarDays,
+    minRole: 'STAFF',
+    capability: 'SHIFTS',
+  },
   { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' },
   { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, minRole: 'MANAGER' },
+  {
+    href: '/dashboard/analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    minRole: 'MANAGER',
+    capability: 'FULL_ANALYTICS',
+  },
   {
     href: '/dashboard/tax-reports',
     label: 'Tax reports',
