@@ -19,6 +19,7 @@ import {
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { effectiveCommissionBps } from '../../common/plan/plan.util';
 
 /**
  * The software subscription — how a restaurant pays US.
@@ -88,7 +89,9 @@ export class SubscriptionsService {
       currentPeriodEnd: r.planCurrentPeriodEnd,
       currency: r.currency,
       plan: getPlan(r.planTier),
-      commissionBps: r.platformFeeBps,
+      // Derived from the plan (not the stored column), so the rate a restaurant sees
+      // always matches the plan's current rate. See effectiveCommissionBps.
+      commissionBps: effectiveCommissionBps(r),
       /** True when a live Stripe subscription exists — i.e. "Manage billing" should show. */
       manageable: Boolean(r.stripeSubscriptionId),
       /** Every tier, priced in this restaurant's currency, ready to render as upgrade cards. */
@@ -151,7 +154,7 @@ export class SubscriptionsService {
         // from Stripe's own record, not from a query param we'd have to trust.
         subscription_data: { metadata: { restaurantId, tier, interval } },
         metadata: { kind: 'subscription', restaurantId, tier, interval },
-        success_url: `${webUrl}/dashboard/billing?checkout=success`,
+        success_url: `${webUrl}/dashboard/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${webUrl}/dashboard/billing?checkout=cancelled`,
         allow_promotion_codes: true,
       },
@@ -179,6 +182,31 @@ export class SubscriptionsService {
       return_url: `${webUrl}/dashboard/billing`,
     });
     return { url: session.url };
+  }
+
+  /**
+   * Apply a just-completed checkout immediately, from the success page, without
+   * waiting on the webhook.
+   *
+   * Stripe redirects the owner back the instant they pay — often a beat before the
+   * `checkout.session.completed` webhook lands (and it rescues the case where that
+   * webhook is misconfigured entirely). So the return page calls this with the
+   * session id and the plan flips right away. Idempotent: it routes through the same
+   * onCheckoutCompleted the webhook uses, and a later webhook re-applying the same
+   * state is harmless.
+   */
+  async reconcileCheckout(restaurantId: string, sessionId: string) {
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+
+    // Guard: a subscription checkout, for THIS restaurant, that actually completed.
+    if (session.mode !== 'subscription') return this.getPlanState(restaurantId);
+    if (session.metadata?.restaurantId && session.metadata.restaurantId !== restaurantId) {
+      throw new BadRequestException('That checkout session belongs to another restaurant');
+    }
+    if (session.status === 'complete' || session.payment_status === 'paid') {
+      await this.onCheckoutCompleted(session);
+    }
+    return this.getPlanState(restaurantId);
   }
 
   private async ensureCustomer(restaurant: Restaurant): Promise<string> {

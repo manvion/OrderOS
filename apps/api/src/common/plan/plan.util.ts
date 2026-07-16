@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import {
+  commissionBpsForTier,
   getPlan,
   lowestTierWith,
   planAllows,
@@ -9,6 +10,26 @@ import {
   type PlanTier,
 } from '@dinedirect/shared';
 import type { PrismaService } from '../prisma/prisma.service';
+
+/**
+ * The commission a restaurant actually pays, per order, in basis points.
+ *
+ * The PLAN is the source of truth, not a stored number: the effective rate is the
+ * plan's rate for the restaurant's tier — UNLESS a SUPER_ADMIN negotiated a custom
+ * one (`commissionOverridden`), in which case their exact `platformFeeBps` stands.
+ * Deriving it (rather than reading a materialised column) means changing a plan's
+ * rate in plans.ts updates every restaurant on it at once, with nothing to re-sync.
+ * Falls back to the stored value only when the tier is unknown (pre-migration).
+ */
+export function effectiveCommissionBps(r: {
+  planTier?: PlanTier | null;
+  platformFeeBps: number;
+  commissionOverridden?: boolean | null;
+}): number {
+  if (r.commissionOverridden) return r.platformFeeBps;
+  if (!r.planTier) return r.platformFeeBps;
+  return commissionBpsForTier(r.planTier);
+}
 
 /**
  * Server-side plan enforcement.

@@ -12,6 +12,8 @@ const checkoutSchema = z.object({
   interval: z.enum(['MONTHLY', 'ANNUAL']),
 });
 
+const reconcileSchema = z.object({ sessionId: z.string().min(1).max(200) });
+
 @ApiTags('subscriptions')
 @Controller('subscriptions')
 @UseGuards(ClerkAuthGuard)
@@ -54,5 +56,19 @@ export class SubscriptionsController {
   @Roles('OWNER')
   portal(@TenantId() restaurantId: string) {
     return this.subscriptions.createPortalLink(restaurantId);
+  }
+
+  /**
+   * Apply a just-finished checkout immediately, from the success page — so the plan
+   * flips the moment the owner returns, without waiting on (or depending on) the
+   * webhook. Returns the fresh plan state.
+   */
+  @Post('reconcile')
+  @Roles('OWNER')
+  reconcile(
+    @TenantId() restaurantId: string,
+    @Body(new ZodValidationPipe(reconcileSchema)) body: z.infer<typeof reconcileSchema>,
+  ) {
+    return this.subscriptions.reconcileCheckout(restaurantId, body.sessionId);
   }
 }

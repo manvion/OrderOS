@@ -20,7 +20,11 @@ import {
   type PricedLineItem,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { isMissingPlanColumn, PLAN_DB_COLUMNS } from '../../common/plan/plan.util';
+import {
+  effectiveCommissionBps,
+  isMissingPlanColumn,
+  PLAN_DB_COLUMNS,
+} from '../../common/plan/plan.util';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
 import { applyLoyaltyDelta, pointsForSubtotal } from '../../common/loyalty/loyalty.util';
 import { AuditService } from '../../common/audit/audit.service';
@@ -355,7 +359,8 @@ export class OrdersService {
                * the restaurant reconciles its own commission against.
                */
               platformFeeCents: Math.round(
-                ((pricing.subtotalCents - pricing.discountCents) * restaurant.platformFeeBps) /
+                ((pricing.subtotalCents - pricing.discountCents) *
+                  effectiveCommissionBps(restaurant)) /
                   10_000,
               ),
               courierCostCents,

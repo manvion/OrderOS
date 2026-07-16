@@ -629,6 +629,12 @@ export function createDashboardApi(
     /** A link into Stripe's billing portal to change card, switch plan, or cancel. */
     createBillingPortal: () =>
       call<{ url: string }>('/subscriptions/portal', { method: 'POST' }),
+    /** Apply a just-finished checkout immediately (called on the success return). */
+    reconcilePlanCheckout: (sessionId: string) =>
+      call<PlanState>('/subscriptions/reconcile', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+      }),
   };
 }
 

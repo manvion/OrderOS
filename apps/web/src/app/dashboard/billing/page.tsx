@@ -41,19 +41,31 @@ export default function BillingPage() {
     enabled: Boolean(restaurant),
   });
 
-  // Stripe drops the owner back here after checkout; say what happened once, in an
-  // effect (never during render), then scrub the query param so a refresh is quiet.
+  // Stripe drops the owner back here after checkout. Rather than wait on the webhook
+  // (which can lag a few seconds, or be misconfigured), reconcile the session
+  // directly so the plan flips immediately. Runs once, in an effect, then scrubs the
+  // query params so a refresh is quiet.
   const checkout = params.get('checkout');
+  const sessionId = params.get('session_id');
   useEffect(() => {
     if (checkout === 'success') {
-      toast.success('You’re all set — your new plan is active.');
-      void queryClient.invalidateQueries({ queryKey: ['subscriptions', 'plan'] });
+      const finish = async () => {
+        try {
+          if (sessionId) await api.reconcilePlanCheckout(sessionId);
+        } catch {
+          // Non-fatal: the webhook is the backstop. We still refetch below.
+        }
+        await queryClient.invalidateQueries({ queryKey: ['subscriptions', 'plan'] });
+        toast.success('You’re all set — your new plan is active.');
+      };
+      void finish();
       window.history.replaceState(null, '', '/dashboard/billing');
     } else if (checkout === 'cancelled') {
       toast('Checkout cancelled — no change to your plan.');
       window.history.replaceState(null, '', '/dashboard/billing');
     }
-  }, [checkout, queryClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkout, sessionId]);
 
   const startCheckout = useMutation({
     mutationFn: (tier: PlanTier) => api.createPlanCheckout(tier, interval),

@@ -15,7 +15,7 @@ import {
   type PlanTier,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { isMissingPlanColumn } from '../../common/plan/plan.util';
+import { effectiveCommissionBps, isMissingPlanColumn } from '../../common/plan/plan.util';
 import { AuditService } from '../../common/audit/audit.service';
 import { ClerkService } from '../../common/auth/clerk.service';
 import { EmailService } from '../notifications/email.service';
@@ -194,6 +194,7 @@ export class AdminService {
       onboardingStep: true,
       stripeChargesEnabled: true,
       platformFeeBps: true,
+      commissionOverridden: true,
       createdAt: true,
 
       // Everything the setup checklist needs, so the list can show WHY each
@@ -284,6 +285,10 @@ export class AdminService {
 
       return {
         ...r,
+        // Show the EFFECTIVE commission (derived from the plan unless a custom rate
+        // was negotiated), so the admin sees what a restaurant actually pays — not a
+        // stale materialised number.
+        platformFeeBps: effectiveCommissionBps(r),
         setupProgress: setupProgress(steps),
         publishBlockers: publishBlockers(steps).map((s) => s.label),
       };
