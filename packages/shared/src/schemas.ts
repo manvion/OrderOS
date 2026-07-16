@@ -305,6 +305,8 @@ export const productSchema = z.object({
   imageUrl: z.string().url().nullable().optional(),
   isAvailable: z.boolean().default(true),
   sortOrder: z.number().int().min(0).default(0),
+  trackInventory: z.boolean().default(false),
+  stockQuantity: z.number().int().min(0).max(1_000_000).default(0),
   modifierGroups: z.array(modifierGroupSchema).max(10).default([]),
 });
 export type ProductInput = z.infer<typeof productSchema>;

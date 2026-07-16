@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import type { RefundInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { applyInventoryDelta } from '../../common/inventory/inventory.util';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -562,7 +563,7 @@ export class PaymentsService {
       include: {
         payment: true,
         restaurant: true,
-        items: { select: { name: true, quantity: true } },
+        items: { select: { name: true, quantity: true, productId: true } },
       },
     });
     if (!order?.payment) {
@@ -610,6 +611,10 @@ export class PaymentsService {
         cardLast4,
       },
     });
+
+    // The order is now real money -- decrement now, not at PENDING creation,
+    // so an abandoned checkout never holds stock hostage from a paying customer.
+    await applyInventoryDelta(this.prisma, order.items, -1);
 
     await this.audit.log({
       restaurantId: order.restaurantId,
@@ -754,7 +759,11 @@ export class PaymentsService {
   async refund(restaurantId: string, orderId: string, input: RefundInput, userId?: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { payment: true, restaurant: true },
+      include: {
+        payment: true,
+        restaurant: true,
+        items: { select: { productId: true, quantity: true } },
+      },
     });
     if (!order?.payment) throw new NotFoundException('Order not found');
 
@@ -893,6 +902,10 @@ export class PaymentsService {
             },
           },
         });
+
+        // Stock was decremented when this order was paid -- a full refund means
+        // none of it is going out the door, so give it back.
+        await applyInventoryDelta(tx, order.items, 1);
       }
     });
 

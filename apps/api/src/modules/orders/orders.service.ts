@@ -18,6 +18,7 @@ import {
   type PricedLineItem,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { applyInventoryDelta } from '../../common/inventory/inventory.util';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourierRouter } from '../delivery/courier.router';
@@ -381,7 +382,7 @@ export class OrdersService {
     const now = new Date();
 
     const order = await this.prisma.$transaction(async (tx) => {
-      return tx.order.create({
+      const created = await tx.order.create({
         data: {
           orderNumber,
           handoffCode: generateHandoffCode((n) => randomBytes(n)),
@@ -452,6 +453,12 @@ export class OrdersService {
         },
         include: this.orderInclude(),
       });
+
+      // Paid the instant staff typed it in -- decrement now, not on some later
+      // confirmation that will never come for a walk-in.
+      await applyInventoryDelta(tx, lineItems, -1);
+
+      return created;
     });
 
     await this.audit.log({
@@ -885,7 +892,11 @@ export class OrdersService {
   ) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { payment: true, restaurant: true },
+      include: {
+        payment: true,
+        restaurant: true,
+        items: { select: { productId: true, quantity: true } },
+      },
     });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -940,6 +951,13 @@ export class OrdersService {
             },
           });
         }
+      }
+
+      // Stock only ever left the shelf once this order was PAID -- cancelling
+      // an order that never got that far never touched inventory, so there is
+      // nothing here to give back.
+      if (to === 'CANCELLED' && order.payment?.status === 'PAID') {
+        await applyInventoryDelta(tx, order.items, 1);
       }
 
       return result;

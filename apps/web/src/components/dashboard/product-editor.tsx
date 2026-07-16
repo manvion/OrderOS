@@ -59,6 +59,8 @@ export function ProductEditor({
   const [price, setPrice] = useState(product ? (product.priceCents / 100).toFixed(2) : '');
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? '');
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
+  const [trackInventory, setTrackInventory] = useState(product?.trackInventory ?? false);
+  const [stockQuantity, setStockQuantity] = useState(String(product?.stockQuantity ?? 0));
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [groups, setGroups] = useState<DraftGroup[]>(
@@ -127,6 +129,8 @@ export function ProductEditor({
         priceCents,
         categoryId,
         isAvailable,
+        trackInventory,
+        stockQuantity: trackInventory ? Math.max(0, Math.round(Number(stockQuantity) || 0)) : 0,
         sortOrder: product?.sortOrder ?? 0,
         modifierGroups: groups
           // Drop half-finished groups rather than rejecting the whole save.
@@ -264,6 +268,37 @@ export function ProductEditor({
               </p>
             </div>
             <Switch checked={isAvailable} onCheckedChange={setIsAvailable} />
+          </div>
+
+          <div className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Track inventory</p>
+                <p className="text-xs text-muted-foreground">
+                  For a limited count — a batch dessert, a specific bottled drink. Most menu
+                  items are made to order and don&apos;t need this.
+                </p>
+              </div>
+              <Switch checked={trackInventory} onCheckedChange={setTrackInventory} />
+            </div>
+            {trackInventory && (
+              <div className="space-y-2">
+                <Label htmlFor="p-stock">Units in stock</Label>
+                <Input
+                  id="p-stock"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={stockQuantity}
+                  onChange={(e) => setStockQuantity(e.target.value)}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Decreases automatically as orders come in. When it hits 0, this item is marked
+                  unavailable on its own.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Modifier groups */}

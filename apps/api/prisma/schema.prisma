@@ -721,6 +721,14 @@ model Product {
   /// historical order items still reference the product.
   isAvailable Boolean @default(true)
 
+  /// Opt-in per product -- most menu items (a dish made to order) have no
+  /// meaningful "stock count". Only products with a real finite count
+  /// (a limited-batch dessert, a case of a specific bottled drink) turn this on.
+  trackInventory Boolean @default(false)
+  /// Only meaningful when trackInventory is true. Decremented when an order
+  /// is paid, restored when a paid order is cancelled; never read otherwise.
+  stockQuantity  Int     @default(0)
+
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 

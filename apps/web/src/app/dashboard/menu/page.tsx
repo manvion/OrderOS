@@ -280,6 +280,20 @@ export default function MenuPage() {
                                 {product.modifierGroups.length === 1 ? '' : 's'}
                               </Badge>
                             )}
+                            {product.trackInventory && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${
+                                  product.stockQuantity <= 0
+                                    ? 'border-destructive/40 text-destructive'
+                                    : product.stockQuantity <= 5
+                                      ? 'border-amber-500/40 text-amber-700'
+                                      : ''
+                                }`}
+                              >
+                                {product.stockQuantity} in stock
+                              </Badge>
+                            )}
                           </div>
                           {product.description && (
                             <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">

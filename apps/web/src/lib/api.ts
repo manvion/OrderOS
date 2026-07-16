@@ -923,6 +923,8 @@ export interface Product {
   imageUrl: string | null;
   isAvailable: boolean;
   sortOrder: number;
+  trackInventory: boolean;
+  stockQuantity: number;
   categoryId: string;
   category?: { id: string; name: string };
   modifierGroups: MenuModifierGroup[];
