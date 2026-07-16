@@ -38,6 +38,11 @@ const adminCreateRestaurantSchema = createRestaurantSchema.extend({
   platformFeeBps: z.number().int().min(0).max(3000).optional(),
   /** Which plan to put them on from day one. Defaults to the free Starter tier. */
   planTier: z.enum(PLAN_TIERS as [PlanTier, ...PlanTier[]]).optional(),
+  /**
+   * An optional initial password for the owner. When present we create their account
+   * immediately (they change it later); when absent we email them an invite instead.
+   */
+  ownerPassword: z.string().min(8).max(72).optional(),
 });
 
 const feeSchema = z.object({

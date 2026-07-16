@@ -106,6 +106,7 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
     // Admin-only. Ignored entirely in self-signup: the person filling the form IS
     // the owner, and they cannot set their own commission or plan.
     ownerEmail: '',
+    ownerPassword: '',
     feePercent: '',
     planTier: 'STARTER' as PlanTier,
 
@@ -196,8 +197,11 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
       slugOk &&
       form.phone.length > 6 &&
       form.email.includes('@') &&
-      // The owner's own email. We invite them; we never set their password.
-      (!isAdmin || form.ownerEmail.includes('@')),
+      // The owner's own email, plus (if the admin chose to set one) a password of at
+      // least 8 characters. A blank password is fine — it means "send an invite".
+      (!isAdmin ||
+        (form.ownerEmail.includes('@') &&
+          (form.ownerPassword.trim().length === 0 || form.ownerPassword.trim().length >= 8))),
     form.street.length > 2 && form.city.length > 1 && form.state.length > 1 && form.postalCode.length > 2,
     // Hours are always valid — a restaurant that's closed every day is odd, but
     // it's their business, and blocking them here helps nobody.
@@ -265,6 +269,8 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
           ...(form.feePercent.trim()
             ? { platformFeeBps: Math.round(parseFloat(form.feePercent) * 100) }
             : {}),
+          // A password creates the account immediately; blank sends an email invite.
+          ...(form.ownerPassword.trim() ? { ownerPassword: form.ownerPassword } : {}),
         });
         toast.success(
           `Created. ${form.ownerEmail} has been emailed an invitation — they set their own password.`,
@@ -418,13 +424,26 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
 
                   <Field
                     label="Owner's email"
-                    hint="We email them an invitation. They set their own password — we never see it."
+                    hint="Leave the password below blank to email them an invite to set their own."
                   >
                     <Input
                       type="email"
                       value={form.ownerEmail}
                       onChange={(e) => set('ownerEmail', e.target.value)}
                       placeholder="joe@joesburgers.com"
+                    />
+                  </Field>
+
+                  <Field
+                    label="Set a password (optional)"
+                    hint="Fill this in to create their account now with this password — they can change it later. Leave blank to send an email invite instead."
+                  >
+                    <Input
+                      type="text"
+                      autoComplete="off"
+                      value={form.ownerPassword}
+                      onChange={(e) => set('ownerPassword', e.target.value)}
+                      placeholder="At least 8 characters"
                     />
                   </Field>
 

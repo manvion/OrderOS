@@ -50,6 +50,27 @@ export class ClerkService {
     return this.client.users.getUser(clerkUserId);
   }
 
+  /** Find a Clerk account by email, or null. Checked before we try to create one. */
+  async findUserByEmail(email: string) {
+    const res = await this.client.users.getUserList({ emailAddress: [email], limit: 1 });
+    return res.data[0] ?? null;
+  }
+
+  /**
+   * Create a Clerk account with a password the PLATFORM chose.
+   *
+   * Used only by admin onboarding, when an operator opts to hand a restaurant an
+   * initial password (which the owner changes later) instead of the default email
+   * invite. It IS a real trade-off — a password we set is one we briefly knew — so
+   * it's deliberately opt-in per onboarding, never the default.
+   */
+  async createUserWithPassword(email: string, password: string) {
+    return this.client.users.createUser({
+      emailAddress: [email],
+      password,
+    });
+  }
+
   /** Primary email for a Clerk user, or null if they somehow have none. */
   async getPrimaryEmail(clerkUserId: string): Promise<string | null> {
     const user = await this.client.users.getUser(clerkUserId);

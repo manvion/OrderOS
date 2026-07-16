@@ -15,7 +15,9 @@ import {
   type PlanTier,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { isMissingPlanColumn } from '../../common/plan/plan.util';
 import { AuditService } from '../../common/audit/audit.service';
+import { ClerkService } from '../../common/auth/clerk.service';
 import { EmailService } from '../notifications/email.service';
 import { StaffInvitesService } from '../restaurants/staff-invites.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
@@ -32,6 +34,12 @@ export type AdminCreateRestaurantInput = CreateRestaurantInput & {
   ownerEmail: string;
   platformFeeBps?: number;
   planTier?: PlanTier;
+  /**
+   * Optional initial password for the owner's account. When set, we create the
+   * account ourselves and it's live immediately; when omitted (the default), we
+   * email an invite and the owner sets their own password.
+   */
+  ownerPassword?: string;
 };
 
 @Injectable()
@@ -46,6 +54,8 @@ export class AdminService {
     // Borrowed for ONE thing: the setup checklist, so support and the owner are
     // looking at the same list rather than two that drift apart.
     private readonly restaurants: RestaurantsService,
+    // Only for the opt-in "set the owner a password" path; the default is an invite.
+    private readonly clerk: ClerkService,
   ) {}
 
   // --- The platform at a glance ---------------------------------------------
@@ -161,49 +171,77 @@ export class AdminService {
       ...(opts.status === 'suspended' ? { isActive: false } : {}),
     };
 
-    const restaurants = await this.prisma.restaurant.findMany({
+    const findArgs = {
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' as const },
       take: take + 1,
       ...(opts.cursor ? { skip: 1, cursor: { id: opts.cursor } } : {}),
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        email: true,
-        phone: true,
-        city: true,
-        orderingMode: true,
-        isActive: true,
-        isPublished: true,
-        onboardingStep: true,
-        stripeChargesEnabled: true,
-        platformFeeBps: true,
-        planTier: true,
-        subscriptionStatus: true,
-        createdAt: true,
+    };
 
-        // Everything the setup checklist needs, so the list can show WHY each
-        // restaurant is stuck without a query per row.
-        pickupEnabled: true,
-        deliveryEnabled: true,
-        dineInEnabled: true,
-        logoUrl: true,
-        taxRateBps: true,
+    // Everything EXCEPT the plan columns. Split out so that, if the subscription
+    // migration hasn't been applied in this environment yet, we can still serve the
+    // admin list without the two fields rather than 500 the whole page.
+    const baseSelect = {
+      id: true,
+      name: true,
+      slug: true,
+      email: true,
+      phone: true,
+      city: true,
+      orderingMode: true,
+      isActive: true,
+      isPublished: true,
+      onboardingStep: true,
+      stripeChargesEnabled: true,
+      platformFeeBps: true,
+      createdAt: true,
 
-        _count: {
-          select: {
-            orders: true,
-            products: true,
-            users: true,
-            categories: { where: { isActive: true } },
-            // Filtered relation counts — an unavailable product sells nothing, and
-            // counting it would tell an owner their menu is done when it isn't.
-            qrCodes: { where: { isActive: true } },
-          },
+      // Everything the setup checklist needs, so the list can show WHY each
+      // restaurant is stuck without a query per row.
+      pickupEnabled: true,
+      deliveryEnabled: true,
+      dineInEnabled: true,
+      logoUrl: true,
+      taxRateBps: true,
+
+      _count: {
+        select: {
+          orders: true,
+          products: true,
+          users: true,
+          categories: { where: { isActive: true } },
+          // Filtered relation counts — an unavailable product sells nothing, and
+          // counting it would tell an owner their menu is done when it isn't.
+          qrCodes: { where: { isActive: true } },
         },
       },
-    });
+    } satisfies Prisma.RestaurantSelect;
+
+    type Row = Prisma.RestaurantGetPayload<{ select: typeof baseSelect }> & {
+      planTier: PlanTier;
+      subscriptionStatus: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED';
+    };
+
+    let restaurants: Row[];
+    try {
+      restaurants = await this.prisma.restaurant.findMany({
+        ...findArgs,
+        select: { ...baseSelect, planTier: true, subscriptionStatus: true },
+      });
+    } catch (err) {
+      if (!isMissingPlanColumn(err)) throw err;
+      this.logger.error(
+        'Restaurant plan columns are missing from this database — the subscription ' +
+          'migration has not been applied here. Run `npx prisma migrate deploy`. Serving ' +
+          'the admin list without plan info until then.',
+      );
+      const rows = await this.prisma.restaurant.findMany({ ...findArgs, select: baseSelect });
+      restaurants = rows.map((r) => ({
+        ...r,
+        planTier: 'STARTER' as PlanTier,
+        subscriptionStatus: 'ACTIVE' as const,
+      }));
+    }
 
     /**
      * Attach the checklist to every row.
@@ -388,14 +426,24 @@ export class AdminService {
       },
     });
 
-    // The owner claims it by accepting an invite sent to their own email.
-    await this.invites.create(
-      restaurant.id,
-      { email: input.ownerEmail, role: 'OWNER' },
-      // The invite is attributed to the platform, not to a staff member of theirs
-      // (there aren't any yet). Passing OWNER lets it mint an OWNER invite.
-      { id: 'platform', role: 'OWNER' },
-    );
+    /**
+     * Two ways to hand over ownership:
+     *  - DEFAULT: email an invite; the owner sets their own password, we never see it.
+     *  - OPT-IN: the admin typed an initial password, so we create the account now and
+     *    it's usable immediately (the owner changes it later). A password we set is one
+     *    we briefly knew, so this is per-onboarding, never the default.
+     */
+    if (input.ownerPassword) {
+      await this.createOwnerAccount(restaurant.id, input.ownerEmail, input.ownerPassword, admin);
+    } else {
+      await this.invites.create(
+        restaurant.id,
+        { email: input.ownerEmail, role: 'OWNER' },
+        // Attributed to the platform, not a staff member of theirs (there aren't any
+        // yet). Passing OWNER lets it mint an OWNER invite.
+        { id: 'platform', role: 'OWNER' },
+      );
+    }
 
     await this.audit.log({
       restaurantId: restaurant.id,
@@ -406,14 +454,70 @@ export class AdminService {
         byAdmin: admin.email,
         ownerEmail: input.ownerEmail,
         platformFeeBps: restaurant.platformFeeBps,
+        ownerAccount: input.ownerPassword ? 'password_set' : 'invited',
       },
     });
 
     this.logger.log(
-      `Admin ${admin.email} created restaurant ${restaurant.slug} and invited ${input.ownerEmail} as owner`,
+      `Admin ${admin.email} created restaurant ${restaurant.slug} for ${input.ownerEmail} ` +
+        `(${input.ownerPassword ? 'account created with a set password' : 'invited'})`,
     );
 
     return restaurant;
+  }
+
+  /**
+   * Create the owner's Clerk account with a password the admin chose, and make them
+   * OWNER of the restaurant right away. Refuses if an account already exists for that
+   * email — we must never overwrite someone's existing password; send them an invite
+   * instead. Surfaces Clerk's own words on failure (weak/pwned password, instance that
+   * requires a username, etc.) so the admin can fix the actual thing.
+   */
+  private async createOwnerAccount(
+    restaurantId: string,
+    email: string,
+    password: string,
+    admin: PlatformAdminUser,
+  ) {
+    const normalized = email.trim().toLowerCase();
+
+    const existing = await this.clerk.findUserByEmail(normalized);
+    if (existing) {
+      throw new BadRequestException(
+        `An account already exists for ${normalized}. Leave the password blank to email them ` +
+          `an invite to claim this restaurant — we won't reset an existing password.`,
+      );
+    }
+
+    let clerkUser;
+    try {
+      clerkUser = await this.clerk.createUserWithPassword(normalized, password);
+    } catch (err) {
+      throw new BadRequestException(`Could not create the owner's account: ${(err as Error).message}`);
+    }
+
+    await this.prisma.user.create({
+      data: {
+        clerkUserId: clerkUser.id,
+        email: normalized,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+        role: 'OWNER',
+        restaurantId,
+      },
+    });
+
+    await this.audit.log({
+      restaurantId,
+      action: 'platform.owner_account_created',
+      entityType: 'Restaurant',
+      entityId: restaurantId,
+      metadata: { byAdmin: admin.email, ownerEmail: normalized },
+    });
+    this.logger.warn(
+      `Admin ${admin.email} created an owner account for ${normalized} with a platform-set password`,
+    );
   }
 
   /**

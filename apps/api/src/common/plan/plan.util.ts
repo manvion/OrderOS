@@ -79,6 +79,22 @@ export function assertWithinLimit(
 }
 
 /**
+ * True when a query failed because the subscription columns aren't in the database
+ * yet — i.e. the plan migration hasn't been applied in this environment.
+ *
+ * Before that migration there was no plan gating at all, so the safe behaviour when
+ * we literally cannot read a tier is to FAIL OPEN: let the action through, exactly
+ * as it would have before subscriptions existed, rather than block a restaurant out
+ * of a feature it already had. Duck-typed so it needs no Prisma value import.
+ */
+export function isMissingPlanColumn(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code === 'P2022') return true; // Prisma: "column does not exist"
+  return /planTier|subscriptionStatus|PlanTier|SubscriptionStatus/.test(e.message ?? '');
+}
+
+/**
  * Load a restaurant's tier and assert a capability, in one call. The common shape:
  * a service already has a `restaurantId` and just wants to gate before it acts.
  * A missing restaurant is left to the downstream write to reject (a bad FK), so
@@ -89,10 +105,16 @@ export async function assertRestaurantCapability(
   restaurantId: string,
   capability: PlanCapability,
 ): Promise<void> {
-  const r = await prisma.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { planTier: true },
-  });
+  let r: { planTier: PlanTier } | null;
+  try {
+    r = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { planTier: true },
+    });
+  } catch (err) {
+    if (isMissingPlanColumn(err)) return; // migration not applied here — fail open
+    throw err;
+  }
   if (r) assertPlanCapability(r, capability);
 }
 
@@ -104,9 +126,15 @@ export async function assertRestaurantWithinLimit(
   currentCount: number,
   what: string,
 ): Promise<void> {
-  const r = await prisma.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { planTier: true },
-  });
+  let r: { planTier: PlanTier } | null;
+  try {
+    r = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { planTier: true },
+    });
+  } catch (err) {
+    if (isMissingPlanColumn(err)) return; // migration not applied here — fail open
+    throw err;
+  }
   if (r) assertWithinLimit(r, key, currentCount, what);
 }

@@ -568,6 +568,21 @@ export class RestaurantsService {
   }
 
   async publish(restaurantId: string, userId?: string) {
+    /**
+     * A public ordering WEBSITE is a paid capability — the free Starter tier is a QR
+     * ordering system, not a website. So a WEBSITE-mode restaurant can't go live
+     * without a plan that includes it; a QR_ONLY restaurant publishes freely, because
+     * its "storefront" is just the terminal a scanned code opens. Fails open if the
+     * plan columns aren't migrated in yet (assertRestaurantCapability handles that).
+     */
+    const { orderingMode } = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { orderingMode: true },
+    });
+    if (orderingMode === 'WEBSITE') {
+      await assertRestaurantCapability(this.prisma, restaurantId, 'WEBSITE_STOREFRONT');
+    }
+
     const readiness = await this.getPublishReadiness(restaurantId);
     if (!readiness.ready) {
       throw new BadRequestException({

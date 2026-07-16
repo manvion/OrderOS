@@ -102,6 +102,7 @@ export class AnalyticsService {
    * restaurant's Stripe payout per day.
    */
   async getRevenueSeries(restaurantId: string, period: Period = '30d') {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'FULL_ANALYTICS');
     const days = PERIOD_DAYS[period];
     const start = new Date(Date.now() - days * 86_400_000);
     start.setHours(0, 0, 0, 0);
@@ -165,6 +166,7 @@ export class AnalyticsService {
   }
 
   async getTopProducts(restaurantId: string, period: Period = '30d', limit = 10) {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'FULL_ANALYTICS');
     const start = new Date(Date.now() - PERIOD_DAYS[period] * 86_400_000);
 
     const rows = await this.prisma.orderItem.groupBy({
@@ -219,6 +221,7 @@ export class AnalyticsService {
    * margin here means every delivery order loses money.
    */
   async getDeliveryEconomics(restaurantId: string, period: Period = '30d') {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'FULL_ANALYTICS');
     const start = new Date(Date.now() - PERIOD_DAYS[period] * 86_400_000);
 
     const deliveries = await this.prisma.delivery.findMany({
