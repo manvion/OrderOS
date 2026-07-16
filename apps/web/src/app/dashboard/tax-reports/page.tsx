@@ -1,9 +1,18 @@
 'use client';
 
 import { useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
+import { PlanGate } from '@/components/dashboard/plan-gate';
 import { TaxReportPanel } from '@/components/dashboard/tax-report-panel';
 
 export default function TaxReportsPage() {
+  return (
+    <PlanGate capability="TAX_REPORTS">
+      <TaxReportsPageInner />
+    </PlanGate>
+  );
+}
+
+function TaxReportsPageInner() {
   const { restaurant } = useDashboard();
   useRequireRole('MANAGER', '/dashboard/kitchen');
 

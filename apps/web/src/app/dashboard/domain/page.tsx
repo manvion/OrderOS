@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
+import { PlanGate } from '@/components/dashboard/plan-gate';
 import { ApiRequestError, type CustomDomain } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,14 @@ import { Badge, Label, Skeleton } from '@/components/ui/primitives';
  * fails — and show it as a copyable table with their registrar's field names.
  */
 export default function DomainPage() {
+  return (
+    <PlanGate capability="CUSTOM_DOMAIN">
+      <DomainPageInner />
+    </PlanGate>
+  );
+}
+
+function DomainPageInner() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();

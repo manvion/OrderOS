@@ -15,6 +15,7 @@ import {
 import { formatMoney, type WidgetSettings } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
+import { PlanGate } from '@/components/dashboard/plan-gate';
 import { ApiRequestError } from '@/lib/api';
 import type { WebsiteIntegration, WidgetFunnel } from '@/lib/api';
 import { WidgetAppearance } from '@/components/dashboard/widget-appearance';
@@ -24,6 +25,14 @@ import { Input } from '@/components/ui/input';
 import { Badge, Label, Skeleton } from '@/components/ui/primitives';
 
 export default function WebsitePage() {
+  return (
+    <PlanGate capability="WEBSITE_STOREFRONT">
+      <WebsitePageInner />
+    </PlanGate>
+  );
+}
+
+function WebsitePageInner() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();

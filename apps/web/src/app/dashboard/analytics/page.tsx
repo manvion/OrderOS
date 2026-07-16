@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { formatMoney } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
+import { PlanGate } from '@/components/dashboard/plan-gate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/primitives';
@@ -23,6 +24,14 @@ const PERIODS = ['7d', '30d', '90d'] as const;
 type Period = (typeof PERIODS)[number];
 
 export default function AnalyticsPage() {
+  return (
+    <PlanGate capability="FULL_ANALYTICS">
+      <AnalyticsPageInner />
+    </PlanGate>
+  );
+}
+
+function AnalyticsPageInner() {
   const api = useApi();
   const { restaurant } = useDashboard();
   useRequireRole('MANAGER', '/dashboard/kitchen');

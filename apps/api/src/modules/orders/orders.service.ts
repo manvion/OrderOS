@@ -654,7 +654,12 @@ export class OrdersService {
   }
 
   private assertFulfillmentAllowed(
-    restaurant: { pickupEnabled: boolean; deliveryEnabled: boolean; dineInEnabled: boolean },
+    restaurant: {
+      pickupEnabled: boolean;
+      deliveryEnabled: boolean;
+      dineInEnabled: boolean;
+      planTier?: PlanTier | null;
+    },
     input: Pick<CreateOrderInput, 'fulfillment'>,
   ): void {
     const enabled: Record<string, boolean> = {
@@ -662,6 +667,17 @@ export class OrdersService {
       DELIVERY: restaurant.deliveryEnabled,
       DINE_IN: restaurant.dineInEnabled,
     };
+    // The plan is the source of truth: courier delivery requires a plan that
+    // includes it, even if the old flag is still on. (planTier is absent only in the
+    // pre-migration fallback, where we fail open.) Pickup and dine-in are on every
+    // plan, so only delivery is plan-gated here.
+    if (
+      input.fulfillment === 'DELIVERY' &&
+      restaurant.planTier &&
+      !planAllows(restaurant.planTier, 'DELIVERY')
+    ) {
+      throw new BadRequestException('delivery is not available at this restaurant');
+    }
     if (!enabled[input.fulfillment]) {
       throw new BadRequestException(
         `${input.fulfillment.toLowerCase().replace('_', '-')} is not available at this restaurant`,

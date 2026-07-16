@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
+import { PlanGate } from '@/components/dashboard/plan-gate';
 import { ApiRequestError, type Shift } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,6 +35,14 @@ function combine(date: Date, time: string): string {
 }
 
 export default function SchedulePage() {
+  return (
+    <PlanGate capability="SHIFTS">
+      <SchedulePageInner />
+    </PlanGate>
+  );
+}
+
+function SchedulePageInner() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant, can } = useDashboard();
