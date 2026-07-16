@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Rocket } from 'lucide-react';
+import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Lock, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BusinessHours } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
@@ -292,7 +292,7 @@ export default function SettingsPage() {
 function DeliverySettings() {
   const api = useApi();
   const queryClient = useQueryClient();
-  const { restaurant, can } = useDashboard();
+  const { restaurant, can, hasFeature } = useDashboard();
 
   const [form, setForm] = useState({
     pickupEnabled: restaurant?.pickupEnabled ?? true,
@@ -324,6 +324,8 @@ function DeliverySettings() {
 
   if (!restaurant) return null;
   const readOnly = !can('MANAGER');
+  // Courier delivery is a paid capability. Pickup and dine-in stay on every plan.
+  const deliveryLocked = !hasFeature('DELIVERY');
 
   return (
     <Card>
@@ -342,10 +344,11 @@ function DeliverySettings() {
           />
           <Toggle
             label="Delivery"
-            hint="You or Uber deliver"
-            checked={form.deliveryEnabled}
+            hint={deliveryLocked ? 'Available on Growth — upgrade to enable' : 'You or a courier deliver'}
+            checked={form.deliveryEnabled && !deliveryLocked}
             onChange={(deliveryEnabled) => setForm({ ...form, deliveryEnabled })}
-            disabled={readOnly}
+            disabled={readOnly || deliveryLocked}
+            locked={deliveryLocked}
           />
           <Toggle
             label="Dine in"
@@ -364,25 +367,26 @@ function DeliverySettings() {
           <Toggle
             label="Uber Direct"
             hint="Dispatch an Uber courier when an order is marked ready"
-            checked={form.uberDirectEnabled}
+            checked={form.uberDirectEnabled && !deliveryLocked}
             onChange={(uberDirectEnabled) => setForm({ ...form, uberDirectEnabled })}
             // Dispatching a courier for a restaurant that doesn't do delivery is
-            // nonsense, so the toggle is only meaningful once delivery is on.
-            disabled={readOnly || !form.deliveryEnabled}
+            // nonsense, so the toggle is only meaningful once delivery is on — and
+            // delivery itself needs a plan that includes it.
+            disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
           />
           <Toggle
             label="DoorDash Drive"
             hint="Dispatch a DoorDash courier when an order is marked ready"
-            checked={form.doorDashEnabled}
+            checked={form.doorDashEnabled && !deliveryLocked}
             onChange={(doorDashEnabled) => setForm({ ...form, doorDashEnabled })}
-            disabled={readOnly || !form.deliveryEnabled}
+            disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
           />
           <Toggle
             label="We have our own driver"
             hint="Deliver it yourself instead of paying for a courier"
-            checked={form.selfDeliveryEnabled}
+            checked={form.selfDeliveryEnabled && !deliveryLocked}
             onChange={(selfDeliveryEnabled) => setForm({ ...form, selfDeliveryEnabled })}
-            disabled={readOnly || !form.deliveryEnabled}
+            disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
           />
 
           {/* Two couriers is not twice the setup — it is a running auction on every
@@ -480,17 +484,23 @@ function Toggle({
   checked,
   onChange,
   disabled,
+  locked,
 }: {
   label: string;
   hint: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  /** Plan-locked (not just role-disabled): dims the row and shows a lock. */
+  locked?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+    <div className={`flex items-center justify-between gap-4 rounded-lg border p-3 ${locked ? 'opacity-70' : ''}`}>
       <div className="min-w-0">
-        <p className="text-sm font-medium">{label}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          {label}
+          {locked && <Lock className="h-3 w-3 text-muted-foreground" aria-label="Upgrade to unlock" />}
+        </p>
         <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />

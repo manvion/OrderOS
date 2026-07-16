@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, Upload } from 'lucide-react';
+import { ImagePlus, Lock, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError } from '@/lib/api';
@@ -31,7 +31,10 @@ import { Label } from '@/components/ui/primitives';
 export function BrandingEditor() {
   const api = useApi();
   const queryClient = useQueryClient();
-  const { restaurant, can } = useDashboard();
+  const { restaurant, can, hasFeature } = useDashboard();
+  // The ordering-website layouts are a paid capability. Logo, name, cover and colours
+  // are NOT — they print on QR codes, the kitchen board and every email, on any plan.
+  const websiteLocked = !hasFeature('WEBSITE_STOREFRONT');
 
   const logoRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
@@ -287,7 +290,7 @@ export function BrandingEditor() {
             {/* The owner's setting, not the customer's -- there is no toggle on
                 the live site. Same layout and personality either way; only the
                 palette flips. */}
-            <div className="inline-flex shrink-0 rounded-lg border bg-muted/40 p-1">
+            <div className={`inline-flex shrink-0 rounded-lg border bg-muted/40 p-1 ${websiteLocked ? 'hidden' : ''}`}>
               {(['LIGHT', 'DARK'] as const).map((m) => (
                 <button
                   key={m}
@@ -305,7 +308,17 @@ export function BrandingEditor() {
               ))}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {websiteLocked && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                The ordering website and its layouts are on{' '}
+                <span className="font-semibold text-foreground">Growth</span> and up. Your logo,
+                name and colours above still print on your QR codes and emails on every plan.
+              </span>
+            </div>
+          )}
+          <div className={`grid gap-3 sm:grid-cols-3 lg:grid-cols-4 ${websiteLocked ? 'hidden' : ''}`}>
             <TemplateOption
               swatch="photo"
               title="Classic"
