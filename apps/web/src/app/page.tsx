@@ -11,9 +11,10 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PricingSection } from '@/components/marketing/pricing-section';
 
 const TICKER_ITEMS = [
-  'No commission on direct orders',
+  'The lowest per-order fee around',
   'Secure, encrypted checkout',
   'Delivery dispatched automatically',
   'QR ordering for every table',
@@ -49,6 +50,12 @@ export default function LandingPage() {
               className="rounded-lg px-3 py-2 text-sm font-medium text-background/70 transition-colors hover:bg-white/10 hover:text-background"
             >
               How it works
+            </a>
+            <a
+              href="#pricing"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-background/70 transition-colors hover:bg-white/10 hover:text-background"
+            >
+              Pricing
             </a>
           </nav>
 
@@ -90,7 +97,7 @@ export default function LandingPage() {
           <div className="container relative grid gap-12 py-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-28">
             <div>
               <span className="rise-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
-                No marketplace commission, ever
+                Flat plans · fees as low as 0.5% per order
               </span>
 
               <h1 className="rise-2 mt-5 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
@@ -102,8 +109,8 @@ export default function LandingPage() {
               </h1>
 
               <p className="rise-3 mt-6 max-w-md text-lg text-background/70">
-                Take orders straight from your own site — pickup, delivery, dine-in. Payments are
-                processed securely and delivery dispatches automatically. Keep what a marketplace
+                Take orders straight from your own site — pickup, delivery, dine-in. A flat monthly
+                plan and a per-order fee a fraction of a marketplace's, so you keep what their 30%
                 cut used to take.
               </p>
 
@@ -192,7 +199,7 @@ export default function LandingPage() {
                 value="15–30%"
                 label="Typical commission delivery marketplaces charge per order"
               />
-              <Stat value="$0" label="Commission when someone orders from your own website" />
+              <Stat value="0.5–3%" label="Our per-order fee — a fraction of theirs, dropping with your plan" />
               <Stat value="1" label="Menu to manage, instead of three apps with three logins" />
             </div>
           </div>
@@ -264,12 +271,16 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Pricing -- computed from the same table the API bills from, so the number
+            here is the number a restaurant is charged. */}
+        <PricingSection />
+
         {/* Final CTA -- solid brand colour, the one place on the page that should
             feel loud. Everything before this earned the right to ask. */}
         <section className="bg-brand py-20 text-brand-foreground">
           <div className="container flex flex-col items-center gap-6 text-center">
             <h2 className="max-w-xl text-3xl font-bold tracking-tight sm:text-4xl">
-              Stop paying commission on food you already cooked.
+              Stop paying a marketplace 30% on food you already cooked.
             </h2>
             <Button
               asChild

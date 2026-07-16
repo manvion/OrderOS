@@ -2,6 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { CategoryInput, ProductInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
+import {
+  assertRestaurantCapability,
+  assertRestaurantWithinLimit,
+} from '../../common/plan/plan.util';
 import { StorageService } from '../storage/storage.service';
 import { PromotionsService, type ActivePromotionForMenu } from '../promotions/promotions.service';
 
@@ -172,6 +176,22 @@ export class MenuService {
     });
     if (!category) throw new NotFoundException('Category not found');
 
+    // The free tier caps the menu size — enforced on the way in so an owner is
+    // stopped at the 41st item, not silently sold a plan they've already outgrown.
+    const productCount = await this.prisma.product.count({ where: { restaurantId } });
+    await assertRestaurantWithinLimit(
+      this.prisma,
+      restaurantId,
+      'maxMenuItems',
+      productCount,
+      'menu items',
+    );
+
+    // Stock tracking is a paid capability. Only refuse when they're turning it ON.
+    if (input.trackInventory) {
+      await assertRestaurantCapability(this.prisma, restaurantId, 'INVENTORY');
+    }
+
     const { modifierGroups, ...productData } = input;
 
     const product = await this.prisma.product.create({
@@ -216,6 +236,11 @@ export class MenuService {
   async updateProduct(restaurantId: string, id: string, input: Partial<ProductInput>) {
     const existing = await this.prisma.product.findFirst({ where: { id, restaurantId } });
     if (!existing) throw new NotFoundException('Product not found');
+
+    // Enabling stock tracking on an existing product is gated too, not just at create.
+    if (input.trackInventory && !existing.trackInventory) {
+      await assertRestaurantCapability(this.prisma, restaurantId, 'INVENTORY');
+    }
 
     if (input.categoryId) {
       const category = await this.prisma.category.findFirst({

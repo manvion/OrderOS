@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { assertRestaurantCapability } from '../../common/plan/plan.util';
 
 export type Period = '7d' | '30d' | '90d';
 
@@ -285,6 +286,7 @@ export class AnalyticsService {
    * restaurant later changes its tax rates.
    */
   async getTaxReport(restaurantId: string, from: Date, to: Date) {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'TAX_REPORTS');
     const taxRows = await this.prisma.$queryRaw<
       Array<{ day: Date; tax_name: string; amount_cents: bigint }>
     >`

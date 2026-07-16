@@ -18,6 +18,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
+import { assertRestaurantCapability } from '../../common/plan/plan.util';
 import { AuditService } from '../../common/audit/audit.service';
 
 @Injectable()
@@ -40,6 +41,8 @@ export class WidgetService {
   }
 
   async create(restaurantId: string, input: CreateIntegrationInput, userId?: string) {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'WIDGET');
+
     const domain = normalizeDomain(input.domain);
     if (!domain) {
       throw new BadRequestException(

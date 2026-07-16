@@ -13,6 +13,7 @@ import { applyLoyaltyDelta } from '../../common/loyalty/loyalty.util';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class PaymentsService {
@@ -24,6 +25,9 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    // Stripe Billing (our subscription revenue) rides the SAME webhook as order
+    // payments; those events are handed straight to this service.
+    private readonly subscriptions: SubscriptionsService,
   ) {
     this.stripe = new Stripe(this.config.getOrThrow<string>('STRIPE_SECRET_KEY'), {
       // Pinned. Stripe ships breaking API changes behind versions, so never let
@@ -484,7 +488,14 @@ export class PaymentsService {
     try {
       switch (event.type) {
         case 'checkout.session.completed':
-          await this.onCheckoutCompleted(event.data.object);
+          // ONE event type, two products: a subscription checkout (us billing the
+          // restaurant) and an order checkout (a customer paying the restaurant).
+          // The mode tells them apart, so an order handler never sees a sub session.
+          if (event.data.object.mode === 'subscription') {
+            await this.subscriptions.onCheckoutCompleted(event.data.object);
+          } else {
+            await this.onCheckoutCompleted(event.data.object);
+          }
           break;
         case 'checkout.session.expired':
           await this.onCheckoutExpired(event.data.object);
@@ -498,6 +509,19 @@ export class PaymentsService {
         case 'account.updated':
           await this.onAccountUpdated(event.data.object);
           break;
+
+        // --- Stripe Billing: our subscription revenue -------------------------
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated':
+          await this.subscriptions.onSubscriptionChanged(event.data.object);
+          break;
+        case 'customer.subscription.deleted':
+          await this.subscriptions.onSubscriptionDeleted(event.data.object);
+          break;
+        case 'invoice.payment_failed':
+          await this.subscriptions.onInvoicePaymentFailed(event.data.object);
+          break;
+
         default:
           this.logger.debug(`Ignoring unhandled Stripe event type: ${event.type}`);
       }

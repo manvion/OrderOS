@@ -9,7 +9,14 @@
  *    works at two restaurants can say which one they're acting as.
  */
 
-import type { TaxComponent } from '@dinedirect/shared';
+import type {
+  BillingInterval,
+  PlanDefinition,
+  PlanPrice,
+  PlanTier,
+  SubscriptionStatus,
+  TaxComponent,
+} from '@dinedirect/shared';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -530,6 +537,12 @@ export function createDashboardApi(
         method: 'PATCH',
         body: JSON.stringify({ isActive, reason }),
       }),
+    /** Comp a restaurant onto a plan for free. Returns their new plan state. */
+    adminSetPlan: (id: string, tier: PlanTier) =>
+      call<PlanState>(`/admin/restaurants/${id}/plan`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tier }),
+      }),
     adminStartSupport: (id: string, reason: string) =>
       call<{ id: string; expiresAt: string }>(`/admin/restaurants/${id}/support-session`, {
         method: 'POST',
@@ -594,12 +607,64 @@ export function createDashboardApi(
       if (!res.ok) throw new Error('Could not download the report');
       return res.blob();
     },
+
+    // Subscription / billing
+    /** Current plan + the tiers this restaurant can move to, priced in its currency. */
+    getPlanState: () => call<PlanState>('/subscriptions/plan'),
+    /** Start Stripe Checkout for a paid plan. Returns a URL to send the browser to. */
+    createPlanCheckout: (tier: PlanTier, interval: BillingInterval) =>
+      call<{ checkoutUrl: string }>('/subscriptions/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ tier, interval }),
+      }),
+    /** A link into Stripe's billing portal to change card, switch plan, or cancel. */
+    createBillingPortal: () =>
+      call<{ url: string }>('/subscriptions/portal', { method: 'POST' }),
   };
 }
 
 export type DashboardApi = ReturnType<typeof createDashboardApi>;
 
+/**
+ * The public pricing table for the marketing page — no session, localised by
+ * currency. `currency` is optional; the server falls back to USD.
+ */
+export function getPlanPricing(currency?: string) {
+  const qs = currency ? `?currency=${encodeURIComponent(currency)}` : '';
+  return request<PublicPricing>(`/subscriptions/pricing${qs}`);
+}
+
 // --- Types ------------------------------------------------------------------
+
+/** One tier as priced for a specific restaurant, with its full definition attached. */
+export interface PlanPriceWithDefinition extends PlanPrice {
+  plan: PlanDefinition;
+}
+
+/** A tier option in the current restaurant's context — same, plus "is this my plan". */
+export interface PlanTierOption extends PlanPriceWithDefinition {
+  current: boolean;
+}
+
+/** The signed-in restaurant's subscription state. Mirrors SubscriptionsService.getPlanState. */
+export interface PlanState {
+  tier: PlanTier;
+  status: SubscriptionStatus;
+  interval: BillingInterval | null;
+  currentPeriodEnd: string | null;
+  currency: string;
+  plan: PlanDefinition;
+  commissionBps: number;
+  /** True when a live Stripe subscription exists — show "Manage billing". */
+  manageable: boolean;
+  pricing: PlanTierOption[];
+}
+
+/** The public pricing table for the marketing page. */
+export interface PublicPricing {
+  currency: string;
+  tiers: PlanPriceWithDefinition[];
+}
 
 export interface Address {
   street: string;
@@ -1312,6 +1377,10 @@ export interface AdminRestaurant {
   onboardingStep: string;
   stripeChargesEnabled: boolean;
   platformFeeBps: number;
+  /** Which SaaS tier they're on. */
+  planTier: PlanTier;
+  /** Subscription lifecycle state. */
+  subscriptionStatus: SubscriptionStatus;
   createdAt: string;
   _count: { orders: number; products: number; users: number };
 

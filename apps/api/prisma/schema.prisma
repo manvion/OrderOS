@@ -309,7 +309,33 @@ model Restaurant {
   stripeChargesEnabled  Boolean @default(false)
   stripePayoutsEnabled  Boolean @default(false)
   /// Platform commission in basis points, taken as a Stripe application fee.
+  ///
+  /// The EFFECTIVE rate. Normally derived from `planTier` (see plans.ts), but a
+  /// platform SUPER_ADMIN can override it per restaurant for a negotiated deal; when
+  /// they do, `commissionOverridden` is set so a later plan change doesn't quietly
+  /// reset the number we shook hands on.
   platformFeeBps        Int     @default(0)
+  commissionOverridden  Boolean @default(false)
+
+  // --- SaaS subscription -----------------------------------------------------
+  //
+  // The plan the restaurant is on. This is SEPARATE from Stripe Connect above:
+  // Connect is how the restaurant gets PAID by its customers; the fields here are
+  // how the restaurant PAYS US for the software, billed on the platform's own
+  // Stripe account (Stripe Billing), not on their connected account.
+  /// Which tier they're on. Everyone starts on the free STARTER tier.
+  planTier              PlanTier           @default(STARTER)
+  /// ACTIVE/TRIALING = features on. PAST_DUE = grace period. CANCELED = back to Starter.
+  subscriptionStatus    SubscriptionStatus @default(ACTIVE)
+  /// Null on the free tier. MONTHLY or ANNUAL once they pay.
+  billingInterval       BillingInterval?
+  /// Their customer + subscription on the PLATFORM's Stripe account. Unique: the
+  /// billing webhook finds the restaurant BY these ids, so each maps to one tenant.
+  stripeCustomerId       String? @unique
+  stripeSubscriptionId   String? @unique
+  /// When the current paid period ends — what we honour features until, and what
+  /// the billing page shows as "renews on". Null on the free tier.
+  planCurrentPeriodEnd   DateTime?
 
   // Lifecycle
   onboardingStep OnboardingStep @default(ACCOUNT)
@@ -355,6 +381,27 @@ model Restaurant {
 
   @@index([isPublished, isActive])
   @@map("restaurants")
+}
+
+/// SaaS subscription tier. The definitions (price, limits, what each unlocks) live
+/// in packages/shared/src/plans.ts — this enum is only the identity.
+enum PlanTier {
+  STARTER
+  GROWTH
+  PRO
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+/// Mirrors Stripe's subscription lifecycle, collapsed to the states we act on.
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
 }
 
 /// PERCENT: `value` is basis points (500 = 5%). FIXED: `value` is cents off.

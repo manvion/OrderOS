@@ -23,7 +23,7 @@ import {
   UtensilsCrossed,
   Wrench,
 } from 'lucide-react';
-import { formatMoney } from '@dinedirect/shared';
+import { formatMoney, getPlan, PLAN_TIERS, type PlanTier } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, createDashboardApi, type AdminRestaurant } from '@/lib/api';
 import { tenantUrl } from '@/lib/tenant-url';
@@ -120,6 +120,21 @@ export function AdminConsole() {
     },
     onError: (err) =>
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update'),
+  });
+
+  /**
+   * Comp a restaurant onto a plan — a promised free upgrade, a partner, a beta.
+   * SUPER_ADMIN only, no card charged. It sets the plan AND the plan's commission
+   * (unless a custom rate was negotiated), so the two stay in step.
+   */
+  const setPlan = useMutation({
+    mutationFn: ({ id, tier }: { id: string; tier: PlanTier }) => api.adminSetPlan(id, tier),
+    onSuccess: (state) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin'] });
+      toast.success(`Plan set to ${state.plan.name}. No card was charged.`);
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not change the plan'),
   });
 
   /**
@@ -314,6 +329,7 @@ export function AdminConsole() {
                     onSetActive={(isActive, reason) =>
                       setActive.mutate({ id: r.id, isActive, reason })
                     }
+                    onSetPlan={(tier) => setPlan.mutate({ id: r.id, tier })}
                   />
                 ))}
 
@@ -337,12 +353,14 @@ function RestaurantRow({
   onSupport,
   onSetFee,
   onSetActive,
+  onSetPlan,
 }: {
   restaurant: AdminRestaurant;
   isSuper: boolean;
   onSupport: (reason: string, page?: string) => void;
   onSetFee: (bps: number) => void;
   onSetActive: (isActive: boolean, reason: string) => void;
+  onSetPlan: (tier: PlanTier) => void;
 }) {
   const [fee, setFee] = useState((r.platformFeeBps / 100).toFixed(2));
   const [setupOpen, setSetupOpen] = useState(false);
@@ -407,6 +425,18 @@ function RestaurantRow({
               no Stripe
             </Badge>
           )}
+
+          <Badge
+            variant={r.planTier === 'STARTER' ? 'outline' : 'secondary'}
+            className="text-[10px] uppercase"
+          >
+            {getPlan(r.planTier).name}
+          </Badge>
+          {r.subscriptionStatus === 'PAST_DUE' && (
+            <Badge variant="warning" className="text-[10px]">
+              past due
+            </Badge>
+          )}
         </div>
 
         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -432,10 +462,25 @@ function RestaurantRow({
         )}
       </div>
 
-      {/* Commission. SUPER_ADMIN only — a support agent must never be able to
-          discount the product to placate an angry caller. */}
+      {/* Plan + commission. SUPER_ADMIN only — a support agent must never be able to
+          comp a plan or discount the product to placate an angry caller. */}
       {isSuper && (
         <div className="flex items-center gap-1.5">
+          <Select
+            value={r.planTier}
+            onChange={(e) => {
+              const tier = e.target.value as PlanTier;
+              if (tier !== r.planTier) onSetPlan(tier);
+            }}
+            className="h-8 w-28 text-xs"
+            title="Comp this restaurant onto a plan (no charge)"
+          >
+            {PLAN_TIERS.map((t) => (
+              <option key={t} value={t}>
+                {getPlan(t).name}
+              </option>
+            ))}
+          </Select>
           <Percent className="h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={fee}

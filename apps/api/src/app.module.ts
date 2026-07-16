@@ -28,6 +28,7 @@ import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { StorefrontModule } from './modules/storefront/storefront.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { WidgetModule } from './modules/widget/widget.module';
 
 @Module({
@@ -85,6 +86,7 @@ import { WidgetModule } from './modules/widget/widget.module';
     AdminModule,
     DomainsModule,
     ShiftsModule,
+    SubscriptionsModule,
   ],
   controllers: [HealthController],
   providers: [

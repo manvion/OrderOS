@@ -4,8 +4,19 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { createDashboardApi, type DashboardApi, type RestaurantWithRole } from '@/lib/api';
-import { ROLE_RANK, type StaffRole } from '@dinedirect/shared';
+import {
+  createDashboardApi,
+  type DashboardApi,
+  type PlanState,
+  type RestaurantWithRole,
+} from '@/lib/api';
+import {
+  planAllows,
+  ROLE_RANK,
+  type PlanCapability,
+  type PlanTier,
+  type StaffRole,
+} from '@dinedirect/shared';
 
 interface DashboardContextValue {
   api: DashboardApi;
@@ -15,6 +26,15 @@ interface DashboardContextValue {
   switchRestaurant: (id: string) => void;
   /** Hierarchical: can(MANAGER) is true for an OWNER. */
   can: (role: StaffRole) => boolean;
+  /** The restaurant's current subscription, once loaded. */
+  planState: PlanState | null;
+  /** The tier they're on, or null until the plan loads. */
+  planTier: PlanTier | null;
+  /**
+   * Does the current plan include this capability? Optimistic while the plan is
+   * still loading (returns true) so paid nav doesn't flash a lock and then unlock.
+   */
+  hasFeature: (capability: PlanCapability) => boolean;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -73,6 +93,14 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     [getToken, restaurant?.id],
   );
 
+  // The subscription for the active restaurant. Drives feature gating in the nav
+  // and the pages; the server enforces the same gates regardless.
+  const { data: planState = null } = useQuery({
+    queryKey: ['subscriptions', 'plan', restaurant?.id],
+    queryFn: () => api.getPlanState(),
+    enabled: Boolean(restaurant?.id),
+  });
+
   const value: DashboardContextValue = {
     api,
     restaurant,
@@ -80,6 +108,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     isLoading,
     switchRestaurant: setActiveId,
     can: (role) => (restaurant ? ROLE_RANK[restaurant.role] >= ROLE_RANK[role] : false),
+    planState,
+    planTier: planState?.tier ?? null,
+    hasFeature: (capability) => (planState ? planAllows(planState.tier, capability) : true),
   };
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;

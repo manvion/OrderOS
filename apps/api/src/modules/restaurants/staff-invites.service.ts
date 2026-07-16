@@ -13,6 +13,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { ClerkService } from '../../common/auth/clerk.service';
 import { EmailService } from '../notifications/email.service';
+import { assertRestaurantWithinLimit } from '../../common/plan/plan.util';
 
 const INVITE_TTL_DAYS = 7;
 
@@ -70,6 +71,33 @@ export class StaffInvitesService {
     });
     if (existingStaff) {
       throw new ConflictException(`${email} is already on your team`);
+    }
+
+    /**
+     * Seat limit — but only when this is a genuinely NEW seat. Re-inviting someone
+     * who already has a pending invite (the "they lost the email" case handled by
+     * the upsert below) must not be blocked as if it added a head, and it wouldn't:
+     * they're already counted. A used seat = active staff + still-open invites.
+     */
+    const existingInvite = await this.prisma.staffInvite.findUnique({
+      where: { restaurantId_email: { restaurantId, email } },
+      select: { acceptedAt: true, revokedAt: true },
+    });
+    const isReinvite = existingInvite && !existingInvite.acceptedAt && !existingInvite.revokedAt;
+    if (!isReinvite) {
+      const [activeUsers, pendingInvites] = await Promise.all([
+        this.prisma.user.count({ where: { restaurantId, isActive: true } }),
+        this.prisma.staffInvite.count({
+          where: { restaurantId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        }),
+      ]);
+      await assertRestaurantWithinLimit(
+        this.prisma,
+        restaurantId,
+        'maxStaff',
+        activeUsers + pendingInvites,
+        'staff seats',
+      );
     }
 
     const invite = await this.prisma.staffInvite.upsert({

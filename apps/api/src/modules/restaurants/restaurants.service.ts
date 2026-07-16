@@ -29,6 +29,7 @@ import {
   type UpdateRestaurantInput,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { assertPlanCapability, assertRestaurantCapability } from '../../common/plan/plan.util';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { RedisService } from '../../common/redis/redis.service';
 import { ClerkService } from '../../common/auth/clerk.service';
@@ -286,8 +287,15 @@ export class RestaurantsService {
 
     const current = await this.prisma.restaurant.findUniqueOrThrow({
       where: { id: restaurantId },
-      select: { country: true, state: true },
+      select: { country: true, state: true, planTier: true },
     });
+
+    /**
+     * Turning a plan-gated feature ON is a settings write like any other, so this is
+     * where those gates live. We only refuse the ENABLE — an owner who downgrades can
+     * still turn a feature off, and a request that doesn't touch the flag is untouched.
+     */
+    if (rest.loyaltyEnabled === true) assertPlanCapability(current, 'LOYALTY');
 
     /** Whichever country this update LANDS on: the new one if the address is changing. */
     const country = address?.country ?? current.country;
@@ -386,6 +394,12 @@ export class RestaurantsService {
       throw new BadRequestException(
         'At least one fulfillment method must be enabled, or customers cannot order at all',
       );
+    }
+
+    // Courier delivery is a paid capability. Pickup and dine-in are on every plan
+    // (they're the free tier's whole point), so only the delivery toggle is gated.
+    if (input.deliveryEnabled) {
+      await assertRestaurantCapability(this.prisma, restaurantId, 'DELIVERY');
     }
 
     const restaurant = await this.prisma.restaurant.update({

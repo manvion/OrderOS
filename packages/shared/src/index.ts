@@ -8,3 +8,4 @@ export * from './setup';
 export * from './about';
 export * from './countries';
 export * from './handoff';
+export * from './plans';

@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { createRestaurantSchema } from '@dinedirect/shared';
+import { createRestaurantSchema, PLAN_TIERS } from '@dinedirect/shared';
 import { z } from 'zod';
 import {
   PlatformAdminGuard,
@@ -19,6 +19,7 @@ import {
 } from '../../common/auth/platform-admin.guard';
 import { Public } from '../../common/auth/decorators';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { AdminService } from './admin.service';
 
 /**
@@ -33,8 +34,10 @@ import { AdminService } from './admin.service';
 const adminCreateRestaurantSchema = createRestaurantSchema.extend({
   /** The person who will OWN this. They get an invite; we never set their password. */
   ownerEmail: z.string().email(),
-  /** Our commission. Only we can see or set this. */
+  /** Our commission. Only we can see or set this. Omit to use the plan's default. */
   platformFeeBps: z.number().int().min(0).max(3000).optional(),
+  /** Which plan to put them on from day one. Defaults to the free Starter tier. */
+  planTier: z.enum(PLAN_TIERS as [string, ...string[]]).optional(),
 });
 
 const feeSchema = z.object({
@@ -44,6 +47,10 @@ const feeSchema = z.object({
 const suspendSchema = z.object({
   isActive: z.boolean(),
   reason: z.string().min(3).max(500),
+});
+
+const planSchema = z.object({
+  tier: z.enum(PLAN_TIERS as [string, ...string[]]),
 });
 
 const supportSchema = z.object({
@@ -62,7 +69,10 @@ const supportSchema = z.object({
 @Public()
 @UseGuards(PlatformAdminGuard)
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   /** Who am I? Used by the web app to decide whether to show the admin at all. */
   @Get('me')
@@ -127,6 +137,23 @@ export class AdminController {
     @Body(new ZodValidationPipe(suspendSchema)) body: z.infer<typeof suspendSchema>,
   ) {
     return this.admin.setActive(id, body.isActive, body.reason, req.admin!);
+  }
+
+  /**
+   * Put a restaurant on a plan for free — a comp, a promised upgrade, a partner.
+   *
+   * SUPER_ADMIN only, like the commission: this is giving away the product, and it
+   * must not be something a support agent can do to placate an angry caller. No card
+   * is charged and any existing paid subscription is left untouched.
+   */
+  @Patch('restaurants/:id/plan')
+  @PlatformRoles('SUPER_ADMIN')
+  setPlan(
+    @Req() req: PlatformRequest,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(planSchema)) body: z.infer<typeof planSchema>,
+  ) {
+    return this.subscriptions.adminSetPlan(id, body.tier as never, req.admin!.email);
   }
 
   /**

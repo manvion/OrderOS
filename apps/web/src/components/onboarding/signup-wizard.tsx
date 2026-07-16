@@ -19,9 +19,12 @@ import {
   DEFAULT_BUSINESS_HOURS,
   WEEKDAYS,
   getCountry,
+  getPlan,
   createRestaurantSchema,
   resolveTaxProfile,
+  PLAN_TIERS,
   type BusinessHours,
+  type PlanTier,
   type TaxComponent,
   type TaxCountry,
 } from '@dinedirect/shared';
@@ -101,9 +104,10 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
     dineInEnabled: false,
 
     // Admin-only. Ignored entirely in self-signup: the person filling the form IS
-    // the owner, and they cannot set their own commission.
+    // the owner, and they cannot set their own commission or plan.
     ownerEmail: '',
-    feePercent: '0',
+    feePercent: '',
+    planTier: 'STARTER' as PlanTier,
 
     prepTimeMinutes: 20,
     deliveryFeeCents: 499,
@@ -255,7 +259,12 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
         await api.adminCreateRestaurant({
           ...parsed.data,
           ownerEmail: form.ownerEmail.trim(),
-          platformFeeBps: Math.round(parseFloat(form.feePercent || '0') * 100),
+          planTier: form.planTier,
+          // Leave the commission blank to let the server use the plan's default rate.
+          // Only send an explicit number when the admin has typed one to override it.
+          ...(form.feePercent.trim()
+            ? { platformFeeBps: Math.round(parseFloat(form.feePercent) * 100) }
+            : {}),
         });
         toast.success(
           `Created. ${form.ownerEmail} has been emailed an invitation — they set their own password.`,
@@ -419,7 +428,29 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                     />
                   </Field>
 
-                  <Field label="Our commission (%)" hint="Applies to orders from the moment they go live.">
+                  <Field
+                    label="Plan"
+                    hint="Assigned now, no card required — the owner can upgrade later from their own billing page."
+                  >
+                    <Select
+                      value={form.planTier}
+                      onChange={(e) => set('planTier', e.target.value as PlanTier)}
+                    >
+                      {PLAN_TIERS.map((t) => {
+                        const plan = getPlan(t);
+                        return (
+                          <option key={t} value={t}>
+                            {plan.name} — {plan.tagline}
+                          </option>
+                        );
+                      })}
+                    </Select>
+                  </Field>
+
+                  <Field
+                    label="Our commission (%)"
+                    hint={`Leave blank to use the plan default (${(getPlan(form.planTier).commissionBps / 100).toFixed(getPlan(form.planTier).commissionBps % 100 ? 2 : 0)}%). Override only for a negotiated rate.`}
+                  >
                     <Input
                       type="number"
                       step="0.1"
@@ -427,6 +458,9 @@ export function SignupWizard({ mode = 'self' }: { mode?: 'self' | 'admin' }) {
                       max="30"
                       value={form.feePercent}
                       onChange={(e) => set('feePercent', e.target.value)}
+                      placeholder={(getPlan(form.planTier).commissionBps / 100).toFixed(
+                        getPlan(form.planTier).commissionBps % 100 ? 2 : 0,
+                      )}
                     />
                   </Field>
                 </div>

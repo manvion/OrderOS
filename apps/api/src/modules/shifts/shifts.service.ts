@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ROLE_RANK, type ShiftInput, type StaffRole } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { assertRestaurantCapability } from '../../common/plan/plan.util';
 
 export interface ListShiftsOptions {
   from?: Date;
@@ -50,6 +51,8 @@ export class ShiftsService {
   }
 
   async createShift(restaurantId: string, input: ShiftInput) {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'SHIFTS');
+
     const member = await this.prisma.user.findFirst({
       where: { id: input.userId, restaurantId, isActive: true },
     });

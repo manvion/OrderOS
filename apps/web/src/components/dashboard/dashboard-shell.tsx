@@ -7,6 +7,7 @@ import { UserButton } from '@clerk/nextjs';
 import {
   BarChart3,
   CalendarDays,
+  CreditCard,
   ExternalLink,
   Globe,
   ChefHat,
@@ -14,6 +15,7 @@ import {
   Landmark,
   LayoutDashboard,
   Link2,
+  Lock,
   QrCode,
   Receipt,
   Rocket,
@@ -22,6 +24,7 @@ import {
   UtensilsCrossed,
   Users,
 } from 'lucide-react';
+import type { PlanCapability } from '@dinedirect/shared';
 import { useDashboard } from './dashboard-provider';
 import { Skeleton, Badge } from '@/components/ui/primitives';
 import { Select } from '@/components/ui/input';
@@ -34,29 +37,58 @@ import { tenantUrl } from '@/lib/tenant-url';
  * (kitchen, front-desk, order-flow display) ever needs; everything else is
  * business admin that only MANAGER/OWNER should see exists at all.
  */
-const NAV = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true, minRole: 'MANAGER' as const },
-  { href: '/dashboard/setup', label: 'Get set up', icon: Rocket, minRole: 'MANAGER' as const },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  minRole: 'STAFF' | 'MANAGER' | 'OWNER';
+  /** When set and the plan lacks it, the item shows a lock — it's an upsell, not a hidden door. */
+  capability?: PlanCapability;
+}
+
+const NAV: NavItem[] = [
+  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true, minRole: 'MANAGER' },
+  { href: '/dashboard/setup', label: 'Get set up', icon: Rocket, minRole: 'MANAGER' },
   // The screen staff actually live in, on a tablet by the pass. High in the list
   // because during service it is the only one that matters.
-  { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' as const },
-  { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' as const },
-  { href: '/dashboard/order-history', label: 'Order history', icon: History, minRole: 'STAFF' as const },
+  { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' },
+  { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' },
+  { href: '/dashboard/order-history', label: 'Order history', icon: History, minRole: 'STAFF' },
   // Staff see only their own shifts here; a manager sees and edits everyone's.
-  { href: '/dashboard/schedule', label: 'Schedule', icon: CalendarDays, minRole: 'STAFF' as const },
-  { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' as const },
-  { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' as const },
-  { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' as const },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, minRole: 'MANAGER' as const },
-  { href: '/dashboard/tax-reports', label: 'Tax reports', icon: Landmark, minRole: 'MANAGER' as const },
-  { href: '/dashboard/qr', label: 'QR codes', icon: QrCode, minRole: 'MANAGER' as const },
-  { href: '/dashboard/website', label: 'My website', icon: Globe, minRole: 'MANAGER' as const },
-  { href: '/dashboard/domain', label: 'Domain', icon: Link2, minRole: 'OWNER' as const },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings, minRole: 'OWNER' as const },
+  { href: '/dashboard/schedule', label: 'Schedule', icon: CalendarDays, minRole: 'STAFF' },
+  { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' },
+  { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' },
+  { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, minRole: 'MANAGER' },
+  {
+    href: '/dashboard/tax-reports',
+    label: 'Tax reports',
+    icon: Landmark,
+    minRole: 'MANAGER',
+    capability: 'TAX_REPORTS',
+  },
+  { href: '/dashboard/qr', label: 'QR codes', icon: QrCode, minRole: 'MANAGER' },
+  {
+    href: '/dashboard/website',
+    label: 'My website',
+    icon: Globe,
+    minRole: 'MANAGER',
+    capability: 'WEBSITE_STOREFRONT',
+  },
+  {
+    href: '/dashboard/domain',
+    label: 'Domain',
+    icon: Link2,
+    minRole: 'OWNER',
+    capability: 'CUSTOM_DOMAIN',
+  },
+  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard, minRole: 'OWNER' },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings, minRole: 'OWNER' },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { restaurant, restaurants, isLoading, switchRestaurant, can } = useDashboard();
+  const { restaurant, restaurants, isLoading, switchRestaurant, can, hasFeature } = useDashboard();
   const visibleNav = NAV.filter((n) => can(n.minRole));
   const pathname = usePathname();
   const router = useRouter();
@@ -144,8 +176,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {visibleNav.map(({ href, label, icon: Icon, exact }) => {
+          {visibleNav.map(({ href, label, icon: Icon, exact, capability }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
+            const locked = capability ? !hasFeature(capability) : false;
             return (
               <Link
                 key={href}
@@ -157,7 +190,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                <span className="flex-1">{label}</span>
+                {locked && <Lock className="h-3 w-3 opacity-60" aria-label="Upgrade to unlock" />}
               </Link>
             );
           })}

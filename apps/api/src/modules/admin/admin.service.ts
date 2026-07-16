@@ -8,9 +8,11 @@ import {
 import type { Prisma } from '@prisma/client';
 import {
   buildSetupChecklist,
+  commissionBpsForTier,
   publishBlockers,
   setupProgress,
   type CreateRestaurantInput,
+  type PlanTier,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -29,6 +31,7 @@ const SUPPORT_SESSION_MINUTES = 60;
 export type AdminCreateRestaurantInput = CreateRestaurantInput & {
   ownerEmail: string;
   platformFeeBps?: number;
+  planTier?: PlanTier;
 };
 
 @Injectable()
@@ -176,6 +179,8 @@ export class AdminService {
         onboardingStep: true,
         stripeChargesEnabled: true,
         platformFeeBps: true,
+        planTier: true,
+        subscriptionStatus: true,
         createdAt: true,
 
         // Everything the setup checklist needs, so the list can show WHY each
@@ -320,6 +325,8 @@ export class AdminService {
     const existing = await this.prisma.restaurant.findUnique({ where: { slug: input.slug } });
     if (existing) throw new BadRequestException(`The address "${input.slug}" is already taken`);
 
+    const tier: PlanTier = input.planTier ?? 'STARTER';
+
     const { DEFAULT_BUSINESS_HOURS, totalTaxBps } = await import('@dinedirect/shared');
 
     /**
@@ -369,7 +376,14 @@ export class AdminService {
         minOrderCents: input.minOrderCents,
         prepTimeMinutes: input.prepTimeMinutes,
 
-        platformFeeBps: input.platformFeeBps ?? 0,
+        // The plan is assigned here, at onboarding, without a card — the owner can
+        // upgrade later from their own billing page. Commission follows the plan
+        // unless the admin typed an explicit rate (a negotiated deal), in which case
+        // it's flagged as an override so a later plan change won't reset it.
+        planTier: tier,
+        subscriptionStatus: 'ACTIVE',
+        platformFeeBps: input.platformFeeBps ?? commissionBpsForTier(tier),
+        commissionOverridden: input.platformFeeBps !== undefined,
         onboardingStep: 'BUSINESS_DETAILS',
       },
     });
@@ -426,7 +440,9 @@ export class AdminService {
 
     const restaurant = await this.prisma.restaurant.update({
       where: { id: restaurantId },
-      data: { platformFeeBps: bps },
+      // Flag it as a hand-negotiated rate so a later plan change or renewal webhook
+      // won't quietly reset it to the plan default. See SubscriptionsService.applyPlan.
+      data: { platformFeeBps: bps, commissionOverridden: true },
     });
 
     await this.audit.log({

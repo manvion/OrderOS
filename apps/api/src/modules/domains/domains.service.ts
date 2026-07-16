@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertRestaurantCapability } from '../../common/plan/plan.util';
 import { PaymentsService } from '../payments/payments.service';
 import { VercelClient } from './vercel.client';
 
@@ -47,6 +48,7 @@ export class DomainsService {
    * so we compute the precise records and show them verbatim.
    */
   async add(restaurantId: string, input: { domain: string }, userId?: string) {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'CUSTOM_DOMAIN');
     this.vercel.assertConfigured();
 
     const domain = normalizeDomain(input.domain);

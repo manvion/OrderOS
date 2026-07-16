@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Promotion } from '@prisma/client';
 import { formatMoney, type PromotionInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { assertRestaurantCapability } from '../../common/plan/plan.util';
 
 export interface ResolvedDiscount {
   promotionId: string;
@@ -34,6 +35,8 @@ export class PromotionsService {
   }
 
   async create(restaurantId: string, input: PromotionInput) {
+    await assertRestaurantCapability(this.prisma, restaurantId, 'PROMOTIONS');
+
     const code = input.code?.trim().toUpperCase() || null;
     if (code) {
       const existing = await this.prisma.promotion.findFirst({
