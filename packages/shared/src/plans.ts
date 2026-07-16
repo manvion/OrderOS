@@ -215,21 +215,25 @@ export function lowestTierWith(capability: PlanCapability): PlanTier {
  * blank or free-by-accident price.
  */
 const MONTHLY_PRICE_MINOR: Record<string, Record<PlanTier, number>> = {
-  // Benchmarked against ChowNow (~$149), BentoBox/Popmenu ($149–400) and
-  // Owner.com (~$399): pitched a little UNDER market, with a genuinely free tier
-  // that a marketplace-weary independent can start on today.
-  USD: { STARTER: 0, GROWTH: 9900, PRO: 19900 },
-  CAD: { STARTER: 0, GROWTH: 12900, PRO: 26900 },
-  GBP: { STARTER: 0, GROWTH: 7900, PRO: 15900 },
-  EUR: { STARTER: 0, GROWTH: 8900, PRO: 17900 },
-  AUD: { STARTER: 0, GROWTH: 13900, PRO: 28900 },
-  NZD: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
-  SGD: { STARTER: 0, GROWTH: 12900, PRO: 26900 },
-  AED: { STARTER: 0, GROWTH: 34900, PRO: 74900 },
-  // India is a genuinely lower-priced market for restaurant software (Petpooja et
-  // al.), so it is localised DOWN, not FX-converted up. Stripe still bills INR in
-  // paise, so keep minor units.
-  INR: { STARTER: 0, GROWTH: 249900, PRO: 499900 },
+  // Benchmarked against real 2026 pricing for direct-ordering software:
+  //   Square Online $149 · Popmenu $179–499 · ChowNow $229–449 · Owner.com
+  //   $249 (5% comm.) / $499 (0% comm.).
+  // The 0%-commission premium players cluster at $449–499. We sit a clear step
+  // UNDER them ($149 / $299) AND take only a token 1% / 0.5% on top — while being
+  // the only one of the set with a genuinely free tier. Positioned as "everything
+  // the $499 tools do, for less, plus free to start."
+  USD: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
+  CAD: { STARTER: 0, GROWTH: 19900, PRO: 39900 },
+  GBP: { STARTER: 0, GROWTH: 11900, PRO: 23900 },
+  EUR: { STARTER: 0, GROWTH: 13900, PRO: 27900 },
+  AUD: { STARTER: 0, GROWTH: 21900, PRO: 42900 },
+  NZD: { STARTER: 0, GROWTH: 22900, PRO: 44900 },
+  SGD: { STARTER: 0, GROWTH: 18900, PRO: 37900 },
+  AED: { STARTER: 0, GROWTH: 54900, PRO: 109900 },
+  // India is a genuinely lower-priced market for restaurant software (Petpooja,
+  // UrbanPiper), so it is localised DOWN, not FX-converted up. Stripe still bills
+  // INR in paise, so keep minor units.
+  INR: { STARTER: 0, GROWTH: 399900, PRO: 799900 },
 };
 
 export const PLAN_PRICING_CURRENCY_FALLBACK = 'USD';
