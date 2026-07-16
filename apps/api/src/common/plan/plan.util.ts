@@ -95,6 +95,21 @@ export function isMissingPlanColumn(err: unknown): boolean {
 }
 
 /**
+ * The columns the subscription migration adds. Pass as Prisma `omit` on a full-row
+ * read to keep it working against a database where that migration hasn't been
+ * applied yet — the fallback path after `isMissingPlanColumn` catches the first try.
+ */
+export const PLAN_DB_COLUMNS = {
+  planTier: true,
+  subscriptionStatus: true,
+  billingInterval: true,
+  stripeCustomerId: true,
+  stripeSubscriptionId: true,
+  planCurrentPeriodEnd: true,
+  commissionOverridden: true,
+} as const;
+
+/**
  * Load a restaurant's tier and assert a capability, in one call. The common shape:
  * a service already has a `restaurantId` and just wants to gate before it acts.
  * A missing restaurant is left to the downstream write to reject (a bad FK), so

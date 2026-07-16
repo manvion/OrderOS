@@ -17,8 +17,10 @@ import {
   Percent,
   QrCode,
   Rocket,
+  Search,
   Smartphone,
   Truck,
+  Users,
   UtensilsCrossed,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -325,27 +327,42 @@ export default async function LandingPage() {
           not invented stats about a product with no customers yet.
         */}
         <section id="why-direct" className="border-b bg-foreground py-20 text-background lg:py-24">
-          <div className="container">
-            <p className="text-sm font-semibold uppercase tracking-widest text-brand">
-              The problem
-            </p>
-            <h2 className="mt-2 max-w-lg text-3xl font-bold tracking-tight sm:text-4xl">
-              Marketplace apps are renting you your own customers back.
-            </h2>
+          <div className="container grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-16">
+            {/* Left: the case, in words. */}
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-brand">
+                The problem
+              </p>
+              <h2 className="mt-2 max-w-lg text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+                Third-party apps are taking your profits.
+              </h2>
 
-            <div className="mt-10 grid gap-6 sm:grid-cols-3">
-              <Stat
-                value="Up to 30%"
-                label="The cut a delivery marketplace takes out of every single order"
-              />
-              <Stat
-                value="3 apps"
-                label="Separate tablets and logins to juggle through a dinner rush"
-              />
-              <Stat
-                value="0"
-                label="Customer emails or phone numbers a marketplace ever hands back to you"
-              />
+              <div className="mt-8 space-y-4">
+                <ProblemCard
+                  icon={Percent}
+                  title="30% commission fees"
+                  body="On a $50 order, a delivery marketplace can pocket $15 — every single time. That's money coming straight out of your margin."
+                />
+                <ProblemCard
+                  icon={Users}
+                  title="No customer ownership"
+                  body="Marketplaces own your customer data. You can't remarket, build loyalty, or reach your best regulars directly."
+                />
+                <ProblemCard
+                  icon={Search}
+                  title="Invisible online"
+                  body="Without a proper ordering site, the 90% of people who look you up online may never make it through your door."
+                />
+              </div>
+            </div>
+
+            {/* Right: the numbers behind it. 2×2. */}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Stat value="30%" label="Average commission delivery apps take per order" />
+              <Stat value="90%" label="Of customers research a restaurant online before visiting" />
+              <Stat value="~30%" label="More revenue from online orders vs. phone orders, on average" />
+              {/* Honest: 0% is the Pro tier; every plan is a fraction of a marketplace's. */}
+              <Stat value="0%" label="Commission on Pro — and a fraction of theirs on every plan" />
             </div>
           </div>
         </section>
@@ -498,6 +515,28 @@ function Stat({ value, label }: { value: string; label: string }) {
     <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
       <p className="text-4xl font-black tabular-nums text-brand">{value}</p>
       <p className="mt-2 text-sm text-background/70">{label}</p>
+    </div>
+  );
+}
+
+function ProblemCard({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof Percent;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/15 text-brand">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <h3 className="font-bold">{title}</h3>
+        <p className="mt-1 text-sm text-background/70">{body}</p>
+      </div>
     </div>
   );
 }

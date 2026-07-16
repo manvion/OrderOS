@@ -5,19 +5,22 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { OrderStatus, Prisma } from '@prisma/client';
+import type { OrderStatus, Prisma, Restaurant } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import {
   canTransition,
   generateHandoffCode,
   isOpenAt,
+  planAllows,
   priceOrder,
+  type PlanTier,
   type TaxComponent,
   type BusinessHours,
   type CreateOrderInput,
   type PricedLineItem,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { isMissingPlanColumn, PLAN_DB_COLUMNS } from '../../common/plan/plan.util';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
 import { applyLoyaltyDelta, pointsForSubtotal } from '../../common/loyalty/loyalty.util';
 import { AuditService } from '../../common/audit/audit.service';
@@ -65,6 +68,46 @@ export class OrdersService {
   ) {}
 
   /**
+   * Load the restaurant a new order is placed against — resiliently.
+   *
+   * Order creation reads the whole restaurant row, which selects the subscription
+   * columns. If that migration hasn't been applied in this environment, the first
+   * read throws and we retry omitting those columns, so a lagging migration can
+   * NEVER stop a restaurant taking orders. The plan-derived bits (loyalty gating)
+   * fail open when the columns are absent — see loyaltyAllowedByPlan.
+   */
+  private async loadRestaurantForOrder(
+    where: Prisma.RestaurantWhereInput,
+  ): Promise<Restaurant | null> {
+    try {
+      return await this.prisma.restaurant.findFirst({ where });
+    } catch (err) {
+      if (!isMissingPlanColumn(err)) throw err;
+      this.logger.error(
+        'Restaurant plan columns missing — run `npx prisma migrate deploy`. Taking the ' +
+          'order without plan-derived gating until then.',
+      );
+      // The omitted plan fields are absent at runtime; loyaltyAllowedByPlan reads
+      // planTier defensively and fails open, so the cast is safe.
+      return (await this.prisma.restaurant.findFirst({
+        where,
+        omit: PLAN_DB_COLUMNS,
+      })) as Restaurant | null;
+    }
+  }
+
+  /**
+   * Does the restaurant's PLAN allow earning loyalty on this order? The plan is the
+   * source of truth: a restaurant that ticked loyalty on before it was on a plan
+   * that includes it must not still accrue points. Fails open (allows) when the
+   * plan column is absent, i.e. the migration hasn't run here yet.
+   */
+  private loyaltyAllowedByPlan(restaurant: object): boolean {
+    const tier = (restaurant as { planTier?: PlanTier | null }).planTier;
+    return !tier || planAllows(tier, 'LOYALTY');
+  }
+
+  /**
    * Create an order from a customer's cart.
    *
    * The cart contains product ids and modifier ids — NO prices. Every price is
@@ -77,8 +120,10 @@ export class OrdersService {
    * kitchens should never start cooking against an unpaid ticket.
    */
   async create(restaurantId: string, input: CreateOrderInput, clerkUserId?: string) {
-    const restaurant = await this.prisma.restaurant.findFirst({
-      where: { id: restaurantId, isPublished: true, isActive: true },
+    const restaurant = await this.loadRestaurantForOrder({
+      id: restaurantId,
+      isPublished: true,
+      isActive: true,
     });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
 
@@ -219,9 +264,10 @@ export class OrdersService {
     // Frozen now so a later change to the earn rate can't reprice a promise
     // already implied by this checkout. NOT credited to the customer yet --
     // that happens only once Stripe confirms payment (see PaymentsService).
-    const loyaltyPointsEarned = restaurant.loyaltyEnabled
-      ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
-      : 0;
+    const loyaltyPointsEarned =
+      restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)
+        ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
+        : 0;
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
@@ -353,9 +399,7 @@ export class OrdersService {
    * at the counter typing this in IS the confirmation the kitchen is open.
    */
   async createWalkIn(restaurantId: string, input: WalkInOrderInput, userId: string) {
-    const restaurant = await this.prisma.restaurant.findFirst({
-      where: { id: restaurantId, isActive: true },
-    });
+    const restaurant = await this.loadRestaurantForOrder({ id: restaurantId, isActive: true });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
 
     this.assertFulfillmentAllowed(restaurant, { fulfillment: input.fulfillment });
@@ -381,9 +425,10 @@ export class OrdersService {
       });
     }
 
-    const loyaltyPointsEarned = restaurant.loyaltyEnabled
-      ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
-      : 0;
+    const loyaltyPointsEarned =
+      restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)
+        ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
+        : 0;
 
     const customerName = input.customerName?.trim() || 'Walk-in customer';
     const customerPhone = input.customerPhone?.trim() ?? '';

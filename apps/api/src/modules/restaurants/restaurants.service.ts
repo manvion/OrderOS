@@ -35,23 +35,8 @@ import {
   assertPlanCapability,
   assertRestaurantCapability,
   isMissingPlanColumn,
+  PLAN_DB_COLUMNS,
 } from '../../common/plan/plan.util';
-
-/**
- * The columns the subscription migration adds. Omitted from full-row reads when we
- * detect that migration hasn't been applied yet, so an owner (or a platform admin
- * opening a support session) can still load their dashboard instead of being
- * bounced to onboarding by a 500. See listForUser.
- */
-const PLAN_COLUMNS = {
-  planTier: true,
-  subscriptionStatus: true,
-  billingInterval: true,
-  stripeCustomerId: true,
-  stripeSubscriptionId: true,
-  planCurrentPeriodEnd: true,
-  commissionOverridden: true,
-} as const;
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { RedisService } from '../../common/redis/redis.service';
 import { ClerkService } from '../../common/auth/clerk.service';
@@ -198,7 +183,7 @@ export class RestaurantsService {
   private async loadUserRestaurants(clerkUserId: string, omitPlan: boolean) {
     const memberships = await this.prisma.user.findMany({
       where: { clerkUserId, isActive: true },
-      include: { restaurant: omitPlan ? { omit: PLAN_COLUMNS } : true },
+      include: { restaurant: omitPlan ? { omit: PLAN_DB_COLUMNS } : true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -229,7 +214,7 @@ export class RestaurantsService {
 
     const restaurants = await this.prisma.restaurant.findMany({
       where: { id: { in: sessions.map((s) => s.restaurantId) }, isActive: true },
-      ...(omitPlan ? { omit: PLAN_COLUMNS } : {}),
+      ...(omitPlan ? { omit: PLAN_DB_COLUMNS } : {}),
     });
 
     const alreadyStaff = new Set(own.map((r) => r.id));
