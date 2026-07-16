@@ -19,17 +19,39 @@ import {
   getCountry,
   isOpenAt,
   isValidTaxId,
+  planAllows,
   publishBlockers,
   setupProgress,
   totalTaxBps,
   type BusinessHours,
+  type PlanTier,
   type CreateRestaurantInput,
   type DeliverySettingsInput,
   type SetupStep,
   type UpdateRestaurantInput,
 } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { assertPlanCapability, assertRestaurantCapability } from '../../common/plan/plan.util';
+import {
+  assertPlanCapability,
+  assertRestaurantCapability,
+  isMissingPlanColumn,
+} from '../../common/plan/plan.util';
+
+/**
+ * The columns the subscription migration adds. Omitted from full-row reads when we
+ * detect that migration hasn't been applied yet, so an owner (or a platform admin
+ * opening a support session) can still load their dashboard instead of being
+ * bounced to onboarding by a 500. See listForUser.
+ */
+const PLAN_COLUMNS = {
+  planTier: true,
+  subscriptionStatus: true,
+  billingInterval: true,
+  stripeCustomerId: true,
+  stripeSubscriptionId: true,
+  planCurrentPeriodEnd: true,
+  commissionOverridden: true,
+} as const;
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { RedisService } from '../../common/redis/redis.service';
 import { ClerkService } from '../../common/auth/clerk.service';
@@ -152,11 +174,31 @@ export class RestaurantsService {
     return restaurant;
   }
 
-  /** Restaurants this Clerk user is staff at. Drives the dashboard's tenant switcher. */
+  /**
+   * Restaurants this Clerk user is staff at. Drives the dashboard's tenant switcher
+   * and is what the whole dashboard boots from.
+   *
+   * Wrapped so a not-yet-migrated database can't take every dashboard down: if the
+   * plan columns are missing, we retry omitting them rather than 500 (which the
+   * dashboard reads as "you have no restaurants" and redirects to onboarding).
+   */
   async listForUser(clerkUserId: string) {
+    try {
+      return await this.loadUserRestaurants(clerkUserId, false);
+    } catch (err) {
+      if (!isMissingPlanColumn(err)) throw err;
+      this.logger.error(
+        'Restaurant plan columns are missing — run `npx prisma migrate deploy`. ' +
+          'Loading dashboards without plan fields until then.',
+      );
+      return this.loadUserRestaurants(clerkUserId, true);
+    }
+  }
+
+  private async loadUserRestaurants(clerkUserId: string, omitPlan: boolean) {
     const memberships = await this.prisma.user.findMany({
       where: { clerkUserId, isActive: true },
-      include: { restaurant: true },
+      include: { restaurant: omitPlan ? { omit: PLAN_COLUMNS } : true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -187,6 +229,7 @@ export class RestaurantsService {
 
     const restaurants = await this.prisma.restaurant.findMany({
       where: { id: { in: sessions.map((s) => s.restaurantId) }, isActive: true },
+      ...(omitPlan ? { omit: PLAN_COLUMNS } : {}),
     });
 
     const alreadyStaff = new Set(own.map((r) => r.id));
@@ -273,9 +316,32 @@ export class RestaurantsService {
     });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
 
+    /**
+     * The PLAN is the source of truth for what the storefront offers, not the old
+     * on/off flags. A restaurant that ticked "delivery" or "loyalty" before it was on
+     * a plan that includes them must not still show delivery to customers — so the
+     * effective flag is (their setting AND their plan grants it).
+     *
+     * Fetched in its own tiny, independently-resilient query so a not-yet-migrated
+     * database can never 500 the customer storefront: a missing column defaults the
+     * tier to PRO, i.e. don't gate — fail OPEN, exactly as before plans existed.
+     */
+    let tier: PlanTier = 'PRO';
+    try {
+      const p = await this.prisma.restaurant.findUnique({
+        where: { id: restaurant.id },
+        select: { planTier: true },
+      });
+      if (p) tier = p.planTier;
+    } catch (err) {
+      if (!isMissingPlanColumn(err)) throw err;
+    }
+
     const hours = restaurant.businessHours as unknown as BusinessHours;
     return {
       ...restaurant,
+      deliveryEnabled: restaurant.deliveryEnabled && planAllows(tier, 'DELIVERY'),
+      loyaltyEnabled: restaurant.loyaltyEnabled && planAllows(tier, 'LOYALTY'),
       isOpen: isOpenAt(hours, restaurant.timezone),
       /** Can this restaurant actually take money right now? */
       acceptingOrders: isOpenAt(hours, restaurant.timezone),

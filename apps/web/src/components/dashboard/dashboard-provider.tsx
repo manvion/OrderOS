@@ -23,6 +23,8 @@ interface DashboardContextValue {
   restaurant: RestaurantWithRole | null;
   restaurants: RestaurantWithRole[];
   isLoading: boolean;
+  /** The "which restaurants am I staff at" call failed (e.g. the API errored). */
+  loadError: boolean;
   switchRestaurant: (id: string) => void;
   /** Hierarchical: can(MANAGER) is true for an OWNER. */
   can: (role: StaffRole) => boolean;
@@ -76,7 +78,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   // Unbound client: used only to discover which restaurants this user works at.
   const bootstrapApi = useMemo(() => createDashboardApi(getToken), [getToken]);
 
-  const { data: restaurants = [], isLoading } = useQuery({
+  const {
+    data: restaurants = [],
+    isLoading,
+    isError: loadError,
+  } = useQuery({
     queryKey: ['restaurants', 'mine'],
     queryFn: () => bootstrapApi.listMine(),
   });
@@ -106,6 +112,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     restaurant,
     restaurants,
     isLoading,
+    loadError,
     switchRestaurant: setActiveId,
     can: (role) => (restaurant ? ROLE_RANK[restaurant.role] >= ROLE_RANK[role] : false),
     planState,

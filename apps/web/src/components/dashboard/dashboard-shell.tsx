@@ -88,18 +88,46 @@ const NAV: NavItem[] = [
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { restaurant, restaurants, isLoading, switchRestaurant, can, hasFeature } = useDashboard();
+  const { restaurant, restaurants, isLoading, loadError, switchRestaurant, can, hasFeature } =
+    useDashboard();
   const visibleNav = NAV.filter((n) => can(n.minRole));
   const pathname = usePathname();
   const router = useRouter();
 
   // Signed in but not staff anywhere: they've never created a restaurant. Send
   // them to onboarding rather than showing an empty dashboard.
+  //
+  // ONLY on a clean, successful empty result — NOT when the lookup errored. An
+  // errored "which restaurants am I staff at?" call used to look identical to "you
+  // have none", so a 500 (e.g. an API whose subscription migration isn't applied)
+  // teleported an owner — or a platform admin who just opened a support session —
+  // straight into the create-a-restaurant wizard. That's the wrong door.
   useEffect(() => {
-    if (!isLoading && restaurants.length === 0) {
+    if (!isLoading && !loadError && restaurants.length === 0) {
       router.replace('/onboarding');
     }
-  }, [isLoading, restaurants.length, router]);
+  }, [isLoading, loadError, restaurants.length, router]);
+
+  if (loadError && !restaurant) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="max-w-md space-y-2 text-center">
+          <p className="font-semibold">Couldn’t load your restaurants</p>
+          <p className="text-sm text-muted-foreground">
+            The API returned an error. If this started after a deploy, the database migration for
+            subscription plans likely hasn’t been applied yet — run{' '}
+            <code className="font-mono">npm run db:deploy</code> (or redeploy the API) and reload.
+          </p>
+          <button
+            onClick={() => router.refresh()}
+            className="mt-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !restaurant) {
     return (

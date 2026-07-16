@@ -12,8 +12,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { addressSchema, createOrderSchema, type CreateOrderInput } from '@dinedirect/shared';
+import { addressSchema, createOrderSchema, planAllows, type CreateOrderInput } from '@dinedirect/shared';
 import { z } from 'zod';
+import { isMissingPlanColumn } from '../../common/plan/plan.util';
 import { Public, TenantId } from '../../common/auth/decorators';
 import type { AuthedRequest } from '../../common/auth/request-context';
 import {
@@ -168,6 +169,21 @@ export class StorefrontController {
 
     if (!restaurant.deliveryEnabled) {
       return { deliverable: false as const, reason: 'This restaurant does not deliver' };
+    }
+
+    // Defense in depth: the plan is the source of truth, so a restaurant whose plan
+    // doesn't include delivery isn't deliverable even if its flag is still on.
+    // Resilient: a missing plan column (pre-migration) leaves delivery as-is.
+    try {
+      const p = await this.prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { planTier: true },
+      });
+      if (p && !planAllows(p.planTier, 'DELIVERY')) {
+        return { deliverable: false as const, reason: 'This restaurant does not deliver' };
+      }
+    } catch (err) {
+      if (!isMissingPlanColumn(err)) throw err;
     }
 
     // Delivery with no courier at all: the restaurant drives it themselves, so it's a
