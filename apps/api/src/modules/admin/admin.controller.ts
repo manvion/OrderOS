@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { createRestaurantSchema, PLAN_TIERS } from '@dinedirect/shared';
+import { createRestaurantSchema, PLAN_TIERS, type PlanTier } from '@dinedirect/shared';
 import { z } from 'zod';
 import {
   PlatformAdminGuard,
@@ -37,7 +37,7 @@ const adminCreateRestaurantSchema = createRestaurantSchema.extend({
   /** Our commission. Only we can see or set this. Omit to use the plan's default. */
   platformFeeBps: z.number().int().min(0).max(3000).optional(),
   /** Which plan to put them on from day one. Defaults to the free Starter tier. */
-  planTier: z.enum(PLAN_TIERS as [string, ...string[]]).optional(),
+  planTier: z.enum(PLAN_TIERS as [PlanTier, ...PlanTier[]]).optional(),
 });
 
 const feeSchema = z.object({
