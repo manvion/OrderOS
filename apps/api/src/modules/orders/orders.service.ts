@@ -300,8 +300,17 @@ export class OrdersService {
               amountCents: pricing.totalCents,
               currency: restaurant.currency,
               status: 'PENDING',
+              /**
+               * Commission is taken on NET FOOD SALES (subtotal minus discount) — NOT
+               * on the whole total. Taking a cut of sales tax is taking a cut of money
+               * that belongs to the government; taking a cut of the tip is taking it
+               * from the staff; and delivery is largely a pass-through. So the base is
+               * the merchandise the restaurant actually sold, which is also the number
+               * the restaurant reconciles its own commission against.
+               */
               platformFeeCents: Math.round(
-                (pricing.totalCents * restaurant.platformFeeBps) / 10_000,
+                ((pricing.subtotalCents - pricing.discountCents) * restaurant.platformFeeBps) /
+                  10_000,
               ),
               courierCostCents,
             },

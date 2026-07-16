@@ -115,25 +115,29 @@ function BoardColumn({
             return (
               <div
                 key={`${o.shortId}-${i}`}
-                className={`animate-rise rounded-2xl border border-background/10 bg-background/10 py-4 text-center ${
+                className={`animate-rise rounded-2xl border border-background/10 bg-background/10 px-2 py-6 text-center ${
                   highlight ? 'shadow-floating' : ''
                 }`}
               >
                 {o.fulfillment === 'DINE_IN' && o.tableNumber ? (
                   <>
-                    <p className="text-[10px] uppercase tracking-widest text-background/50">Table</p>
-                    <p className="font-mono text-2xl font-black tracking-widest">{o.tableNumber}</p>
+                    <p className="text-xs uppercase tracking-widest text-background/50">Table</p>
+                    <p className="font-mono text-4xl font-black leading-none tracking-widest sm:text-5xl">
+                      {o.tableNumber}
+                    </p>
                   </>
                 ) : (
-                  <p className="font-mono text-2xl font-black tracking-widest">{o.shortId}</p>
+                  <p className="font-mono text-4xl font-black leading-none tracking-widest sm:text-5xl">
+                    {o.shortId}
+                  </p>
                 )}
                 {o.customerFirstName && (
-                  <p className="mt-1 truncate px-2 text-sm font-medium text-background/80">
+                  <p className="mt-2.5 truncate px-2 text-lg font-semibold text-background/85 sm:text-xl">
                     {o.customerFirstName}
                   </p>
                 )}
                 {countdown && (
-                  <p className="mt-1.5 font-mono text-xs font-semibold text-background/60">
+                  <p className="mt-2 font-mono text-base font-semibold text-background/70 sm:text-lg">
                     {countdown}
                   </p>
                 )}
