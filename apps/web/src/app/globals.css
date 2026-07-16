@@ -311,6 +311,72 @@
     to { transform: translateX(-50%); }
   }
 
+  /* -------------------------------------------------------------------------
+   * Hero widget — a live delivery-tracking card that actually moves.
+   * The route dashes flow, a vehicle rides the route and loops, the pickup and
+   * drop pins pulse, feature chips pop in and out, and the ETA bar fills.
+   * ---------------------------------------------------------------------- */
+
+  /* The dashed route "flows" toward the destination. */
+  .route-line {
+    stroke-dasharray: 5 5;
+    animation: route-flow 0.7s linear infinite;
+  }
+  @keyframes route-flow {
+    to { stroke-dashoffset: -10; }
+  }
+
+  /* The vehicle rides the route (left/top waypoints roughly trace the curve),
+     fading in at the restaurant and out as it reaches the door, so the loop
+     never teleports. */
+  .hero-vehicle {
+    animation: vehicle-ride 6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  @keyframes vehicle-ride {
+    0%   { left: 6%;  top: 70%; opacity: 0; }
+    8%   { opacity: 1; }
+    25%  { left: 30%; top: 48%; }
+    50%  { left: 55%; top: 54%; }
+    75%  { left: 79%; top: 28%; }
+    92%  { left: 90%; top: 18%; opacity: 1; }
+    100% { left: 90%; top: 18%; opacity: 0; }
+  }
+
+  /* A radiating ring for the drop pin. */
+  .pin-pulse::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 60%, transparent);
+    animation: pin-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes pin-ring {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent); }
+    70%  { box-shadow: 0 0 0 12px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+
+  /* Feature chips pop in, hold, and fade — staggered by animation-delay inline. */
+  .hero-chip {
+    animation: chip-pop 6s ease-in-out infinite;
+  }
+  @keyframes chip-pop {
+    0%, 100% { opacity: 0; transform: translateY(8px) scale(0.9); }
+    8%, 30%  { opacity: 1; transform: translateY(0) scale(1); }
+    42%      { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  }
+
+  /* The ETA progress bar fills across the loop, then resets. */
+  .eta-fill {
+    animation: eta-fill 6s ease-in-out infinite;
+  }
+  @keyframes eta-fill {
+    0%   { width: 8%; }
+    92%  { width: 100%; }
+    100% { width: 100%; }
+  }
+
   /**
    * Motion is seasoning, not the meal. For anyone who asked their OS for less of
    * it, everything above becomes instant and still -- same page, no theatre.
@@ -321,6 +387,10 @@
     .reveal { opacity: 1; transform: none; transition: none; }
     .img-zoom img { transition: none; }
     .marquee-track { animation: none; }
+    .route-line, .hero-vehicle, .pin-pulse::after, .hero-chip, .eta-fill { animation: none; }
+    .hero-vehicle { opacity: 1; }
+    .hero-chip { opacity: 1; transform: none; }
+    .eta-fill { width: 65%; }
   }
 }
 

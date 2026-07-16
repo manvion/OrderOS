@@ -184,8 +184,12 @@ export default async function LandingPage() {
               </div>
             </div>
 
-            {/* The visual anchor. Not stock art -- the product's own kitchen ticket, the
-                thing an owner will stare at fifty times a shift once they're live. */}
+            {/* The visual anchor: a LIVE order-tracking widget that actually moves.
+                A vehicle rides a flowing route across a map to the customer's door,
+                the pins pulse, feature chips pop in (QR order, payment, loyalty), and
+                the ETA bar fills — the whole platform in motion at a glance. Delivery
+                is shown generically; no courier brand is named. Pure CSS, so it runs
+                on the server-rendered page with no client JS. */}
             <div className="rise-4 relative mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto">
               <div
                 className="absolute -inset-6 -z-10 rounded-[2rem] opacity-70 blur-2xl"
@@ -195,30 +199,106 @@ export default async function LandingPage() {
                 }}
               />
               <div className="card-interactive overflow-hidden rounded-3xl p-5 text-foreground">
-                <div className="flex items-center justify-between border-b pb-3">
+                {/* Header */}
+                <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Order 0714-003
+                      Bella Burger · #0714-003
                     </p>
-                    <p className="mt-0.5 font-mono text-2xl font-black tracking-tight">VXKY</p>
+                    <p className="mt-0.5 text-lg font-bold">Out for delivery</p>
                   </div>
-                  <span className="pulse-dot inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 text-emerald-500" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                    <span className="pulse-dot inline-flex h-2 w-2 rounded-full bg-emerald-500 text-emerald-500" />
+                    Live
+                  </span>
                 </div>
 
-                <ul className="mt-3 space-y-2 text-sm">
-                  <li className="flex justify-between">
-                    <span>2× Smash burger, no onion</span>
-                    <span className="tabular-nums text-muted-foreground">24.00</span>
-                  </li>
-                  <li className="flex justify-between">
-                    <span>1× Truffle fries</span>
-                    <span className="tabular-nums text-muted-foreground">7.50</span>
-                  </li>
-                </ul>
+                {/* The map */}
+                <div className="relative mt-4 h-44 overflow-hidden rounded-2xl border">
+                  {/* Faint street grid */}
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background:
+                        'repeating-linear-gradient(0deg, transparent 0 21px, color-mix(in srgb, var(--foreground) 6%, transparent) 21px 22px), repeating-linear-gradient(90deg, transparent 0 21px, color-mix(in srgb, var(--foreground) 6%, transparent) 21px 22px)',
+                    }}
+                  />
 
-                <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-900">
-                  <Truck className="h-4 w-4 shrink-0" />
-                  Driver assigned — 8 min out
+                  {/* The route — dashes flow toward the door */}
+                  <svg
+                    className="absolute inset-0 h-full w-full"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    aria-hidden
+                  >
+                    <path
+                      d="M6 70 C 28 44, 44 60, 55 54 S 80 26, 90 18"
+                      fill="none"
+                      stroke="var(--brand)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                      className="route-line"
+                    />
+                  </svg>
+
+                  {/* Restaurant (origin) */}
+                  <span
+                    className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
+                    style={{ left: '6%', top: '70%' }}
+                  />
+                  {/* Customer's door (destination), pulsing */}
+                  <span
+                    className="pin-pulse absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-brand shadow"
+                    style={{ left: '90%', top: '18%' }}
+                  />
+                  {/* The vehicle, riding the route */}
+                  <span className="hero-vehicle absolute -translate-x-1/2 -translate-y-1/2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background shadow-floating">
+                      <Truck className="h-3.5 w-3.5" />
+                    </span>
+                  </span>
+
+                  {/* Feature chips popping in, staggered */}
+                  <span
+                    className="hero-chip absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-semibold shadow-soft"
+                    style={{ animationDelay: '0s' }}
+                  >
+                    <QrCode className="h-3 w-3 text-brand" /> New QR order · Table 6
+                  </span>
+                  <span
+                    className="hero-chip absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-semibold shadow-soft"
+                    style={{ animationDelay: '2s' }}
+                  >
+                    <CreditCard className="h-3 w-3 text-brand" /> Paid · $31.50
+                  </span>
+                  <span
+                    className="hero-chip absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-background/95 px-2.5 py-1 text-[11px] font-semibold shadow-soft"
+                    style={{ animationDelay: '4s' }}
+                  >
+                    <Gift className="h-3 w-3 text-brand" /> +15 loyalty points
+                  </span>
+                </div>
+
+                {/* ETA + filling progress */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      <Truck className="h-4 w-4 text-brand" /> Arriving in 8 min
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">1.2 km away</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="eta-fill h-full rounded-full bg-brand" />
+                  </div>
+                </div>
+
+                {/* Stage trail */}
+                <div className="mt-4 flex items-center justify-between text-[11px] font-semibold">
+                  <span className="text-foreground">✓ Placed</span>
+                  <span className="text-foreground">✓ Kitchen</span>
+                  <span className="text-brand">● On the way</span>
+                  <span className="text-muted-foreground">Delivered</span>
                 </div>
               </div>
             </div>
