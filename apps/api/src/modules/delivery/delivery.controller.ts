@@ -31,6 +31,21 @@ const selfStatusSchema = z.object({
   status: z.enum(['OUT_FOR_DELIVERY', 'DELIVERED']),
 });
 
+const driverPingSchema = z.object({
+  lat: z.number().gte(-90).lte(90),
+  lng: z.number().gte(-180).lte(180),
+});
+
+const driverStatusSchema = z.object({
+  status: z.enum(['OUT_FOR_DELIVERY', 'DELIVERED']),
+  /**
+   * Optional proof-of-delivery photo as a data URL, sent with a DELIVERED. The web
+   * page compresses it to a small JPEG first; capped here as a coarse guard against a
+   * multi-megabyte body (the storage layer enforces the real 5MB image limit).
+   */
+  photo: z.string().max(8_000_000).optional(),
+});
+
 const handoffSchema = z
   .object({
     code: z.string().max(12).optional(),
@@ -162,6 +177,44 @@ export class DeliveryController {
   @Post('orders/:orderId/refresh')
   refresh(@TenantId() restaurantId: string, @Param('orderId') orderId: string) {
     return this.delivery.refreshStatus(restaurantId, orderId);
+  }
+
+  /**
+   * The restaurant's own driver, sharing live location from their phone.
+   *
+   * All three routes are @Public and authorised ONLY by the unguessable share token
+   * in the URL — the driver is not a logged-in user of ours, they just scanned a QR
+   * the kitchen showed them. Same capability-URL trust model as the customer's
+   * tracking link. Throttled hard because a phone streaming GPS is a chatty client
+   * and the token is the only gate.
+   */
+  @Get('driver/:token')
+  @Public()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  driverContext(@Param('token') token: string) {
+    return this.delivery.getDriverContext(token);
+  }
+
+  @Post('driver/:token/ping')
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  driverPing(
+    @Param('token') token: string,
+    @Body(new ZodValidationPipe(driverPingSchema)) body: { lat: number; lng: number },
+  ) {
+    return this.delivery.recordDriverPing(token, body);
+  }
+
+  @Post('driver/:token/status')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  driverStatus(
+    @Param('token') token: string,
+    @Body(new ZodValidationPipe(driverStatusSchema))
+    body: z.infer<typeof driverStatusSchema>,
+  ) {
+    return this.delivery.advanceDriverStatus(token, body.status, body.photo);
   }
 
   /**

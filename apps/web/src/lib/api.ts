@@ -214,6 +214,45 @@ export const storefrontApi = {
     }),
 };
 
+export interface DriverContext {
+  orderNumber: string;
+  restaurantName: string;
+  customerName: string;
+  dropoffAddress: string | null;
+  dropoffNotes: string | null;
+  dropoffLatitude: number | null;
+  dropoffLongitude: number | null;
+  status: string;
+  finished: boolean;
+}
+
+/**
+ * The restaurant's own driver, on the /d/<token> page. No session — the token in
+ * the URL is the whole credential (same model as the customer's tracking link), so
+ * these calls carry nothing but the token.
+ */
+export const driverApi = {
+  getContext: (token: string) => request<DriverContext>(`/delivery/driver/${token}`),
+
+  ping: (token: string, lat: number, lng: number) =>
+    request<{ accepted: boolean }>(`/delivery/driver/${token}/ping`, {
+      method: 'POST',
+      // keepalive so a fix still posts even as the driver backgrounds the tab.
+      keepalive: true,
+      body: JSON.stringify({ lat, lng }),
+    }),
+
+  setStatus: (
+    token: string,
+    status: 'OUT_FOR_DELIVERY' | 'DELIVERED',
+    photo?: string,
+  ) =>
+    request<unknown>(`/delivery/driver/${token}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, ...(photo ? { photo } : {}) }),
+    }),
+};
+
 /**
  * Dashboard client. `getToken` comes from Clerk's `useAuth()` — passed in rather
  * than imported so this module stays usable from server components too.
@@ -1163,6 +1202,10 @@ export interface Delivery {
   provider: 'UBER' | 'SELF';
   driverName: string | null;
   driverPhone: string | null;
+  /** For a SELF delivery: the capability token behind the /d/<token> driver link. */
+  driverShareToken: string | null;
+  /** Proof-of-delivery photo the driver took at handover, if any. */
+  proofOfDeliveryUrl: string | null;
   trackingUrl: string | null;
   courierName: string | null;
   courierPhone: string | null;

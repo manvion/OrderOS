@@ -14,6 +14,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SmsService } from '../notifications/sms.service';
 import { OrdersService } from '../orders/orders.service';
+import { StorageService } from '../storage/storage.service';
 import { GeocodingService, distanceMeters, type GeoPoint, type GeocodableAddress } from './geocoding.service';
 import { CourierRouter } from './courier.router';
 import {
@@ -77,6 +78,19 @@ function generatePickupCode(): string {
     .join('');
 }
 
+/**
+ * Turn a `data:image/jpeg;base64,...` URL from the driver's phone into a Buffer the
+ * storage layer can take. Only the image types the store already allows get through;
+ * anything else is rejected here rather than deep inside the upload.
+ */
+function decodeImageDataUrl(dataUrl: string): { buffer: Buffer; mimeType: string } {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/i.exec(dataUrl.trim());
+  if (!match) {
+    throw new BadRequestException('Proof photo must be a JPEG, PNG or WebP image');
+  }
+  return { mimeType: match[1].toLowerCase(), buffer: Buffer.from(match[2], 'base64') };
+}
+
 /** Great-circle distance in metres. Used to tell courier movement from GPS jitter. */
 function haversineMeters(
   a: { latitude: number; longitude: number },
@@ -112,6 +126,9 @@ export class DeliveryService {
     private readonly sms: SmsService,
     @Inject(forwardRef(() => OrdersService))
     private readonly orders: OrdersService,
+    // Proof-of-delivery photos from the driver's phone land in the same store as
+    // every other tenant image.
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -1140,6 +1157,12 @@ export class DeliveryService {
       );
     }
 
+    // A fresh capability token every time a self-delivery is (re)assigned. Long and
+    // random: it's the only thing standing between a stranger and the ability to post
+    // fake GPS for this order, so it must be unguessable, and rotating it on reassign
+    // means a link handed to yesterday's driver can't move today's order.
+    const driverShareToken = randomBytes(24).toString('base64url');
+
     const delivery = await this.prisma.delivery.upsert({
       where: { orderId },
       create: {
@@ -1149,12 +1172,14 @@ export class DeliveryService {
         status: 'CREATED',
         driverName: driver.name,
         driverPhone: driver.phone,
+        driverShareToken,
       },
       update: {
         provider: 'SELF',
         status: 'CREATED',
         driverName: driver.name,
         driverPhone: driver.phone,
+        driverShareToken,
         // A queued Uber retry must not resurrect a delivery the restaurant has
         // decided to handle themselves — that sends a courier to collect food their
         // own driver already took. Cleared in the same write that claims it as SELF.
@@ -1313,6 +1338,125 @@ export class DeliveryService {
       // only needs enough to draw a convincing line.
       take: 200,
     });
+  }
+
+  // --- Own-driver live location (the /d/<token> page) ------------------------
+  //
+  // A self-delivering restaurant's own rider has no courier API sending us GPS. So
+  // instead the rider opens a capability link on their phone and the browser streams
+  // location straight into the same courierLatitude/Longitude + CourierPing rows a
+  // real courier's webhooks write — which is all the customer's map ever reads. No
+  // app, no key, no third party.
+
+  private async findByShareToken(token: string) {
+    const delivery = await this.prisma.delivery.findUnique({
+      where: { driverShareToken: token },
+      include: {
+        order: {
+          select: {
+            orderNumber: true,
+            customerName: true,
+            fulfillment: true,
+            deliveryStreet: true,
+            deliveryCity: true,
+            deliveryState: true,
+            deliveryPostalCode: true,
+            deliveryLatitude: true,
+            deliveryLongitude: true,
+            deliveryNotes: true,
+          },
+        },
+        restaurant: { select: { id: true, name: true, phone: true } },
+      },
+    });
+    // A deliberately vague 404 — the token IS the credential, so a precise "expired"
+    // vs "wrong" would help someone probing for a valid one.
+    if (!delivery) throw new NotFoundException('This driver link is not valid');
+    return delivery;
+  }
+
+  /** What the driver's phone shows: where to go, for which order, and its state. */
+  async getDriverContext(token: string) {
+    const d = await this.findByShareToken(token);
+    const o = d.order;
+    const dropoff = [o.deliveryStreet, o.deliveryCity, o.deliveryState, o.deliveryPostalCode]
+      .filter(Boolean)
+      .join(', ');
+
+    return {
+      orderNumber: o.orderNumber,
+      restaurantName: d.restaurant.name,
+      customerName: o.customerName,
+      dropoffAddress: dropoff || null,
+      dropoffNotes: o.deliveryNotes ?? null,
+      dropoffLatitude: o.deliveryLatitude,
+      dropoffLongitude: o.deliveryLongitude,
+      status: d.status,
+      // Terminal deliveries stop accepting pings; the page uses this to shut sharing
+      // off and say "delivered" rather than silently posting into the void.
+      finished: d.status === 'DELIVERED' || d.status === 'CANCELLED' || d.status === 'FAILED',
+    };
+  }
+
+  /** A location fix from the driver's phone. The hot path — kept tiny. */
+  async recordDriverPing(token: string, location: { lat: number; lng: number }) {
+    const d = await this.prisma.delivery.findUnique({
+      where: { driverShareToken: token },
+      select: { id: true, status: true },
+    });
+    if (!d) throw new NotFoundException('This driver link is not valid');
+
+    // Don't keep tracking a delivery that's over — a phone left with the page open
+    // would otherwise ping for hours after the food was dropped.
+    if (d.status === 'DELIVERED' || d.status === 'CANCELLED' || d.status === 'FAILED') {
+      return { accepted: false as const };
+    }
+
+    await this.prisma.delivery.update({
+      where: { id: d.id },
+      data: { courierLatitude: location.lat, courierLongitude: location.lng },
+    });
+    // Reuses the 15m-dedupe helper, so a rider idling at a light doesn't spam rows.
+    await this.recordCourierPing(d.id, location);
+    return { accepted: true as const };
+  }
+
+  /**
+   * The driver advances their own order from their phone (picked up / delivered),
+   * optionally attaching a proof-of-delivery photo taken at handover.
+   *
+   * The photo is stored and stamped on the delivery BEFORE the status transition, so
+   * that by the time the "delivered" notification fires the proof is already on the
+   * record — a customer disputing "I never got it" is answered by an image with a
+   * timestamp, not by the driver's word.
+   */
+  async advanceDriverStatus(
+    token: string,
+    status: 'OUT_FOR_DELIVERY' | 'DELIVERED',
+    photoBase64?: string,
+  ) {
+    const d = await this.findByShareToken(token);
+
+    if (photoBase64 && status === 'DELIVERED') {
+      try {
+        const { buffer, mimeType } = decodeImageDataUrl(photoBase64);
+        const { url } = await this.storage.upload(
+          buffer,
+          mimeType,
+          `restaurants/${d.restaurant.id}/proof-of-delivery`,
+        );
+        await this.prisma.delivery.update({
+          where: { id: d.id },
+          data: { proofOfDeliveryUrl: url },
+        });
+      } catch (err) {
+        // A failed photo upload must NOT block marking the food delivered — the
+        // handover already happened in the real world. Log and carry on.
+        this.logger.warn(`Proof-of-delivery photo upload failed: ${(err as Error).message}`);
+      }
+    }
+
+    return this.markSelfDeliveryStatus(d.restaurant.id, d.orderId, status);
   }
 
   private mapStatus(uberStatus: UberDeliveryStatus): DeliveryStatus {

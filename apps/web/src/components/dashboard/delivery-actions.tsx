@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Bike, Check, ExternalLink, Truck } from 'lucide-react';
+import QRCode from 'qrcode';
+import { AlertTriangle, Bike, Check, Copy, ExternalLink, MapPin, MessageCircle, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError, type Order } from '@/lib/api';
@@ -159,6 +160,16 @@ export function DeliveryActions({ order }: { order: Order }) {
           Your driver{delivery.driverName ? ` · ${delivery.driverName}` : ''}
         </p>
 
+        {/* Hand the driver a link so their phone shares live location and lets them
+            mark it delivered — no login, they just scan or tap. */}
+        {delivery.driverShareToken && order.status !== 'DELIVERED' && (
+          <DriverHandoffCard
+            token={delivery.driverShareToken}
+            driverPhone={delivery.driverPhone}
+            orderNumber={order.orderNumber}
+          />
+        )}
+
         {order.status === 'DRIVER_ASSIGNED' && (
           <Button
             size="sm"
@@ -188,6 +199,7 @@ export function DeliveryActions({ order }: { order: Order }) {
       </div>
     );
   }
+
 
   /**
    * ESCALATED: automation is out of options and a human must act.
@@ -323,6 +335,90 @@ export function DeliveryActions({ order }: { order: Order }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The link that turns the restaurant's own rider into a live pin.
+ *
+ * The driver isn't a user of ours and never will be, so we don't onboard them — we
+ * hand them a capability URL and let their own phone do the rest. Three ways to get
+ * it to them, because the driver might be standing at the pass (scan the QR) or
+ * already on the road (WhatsApp / copy):
+ */
+function DriverHandoffCard({
+  token,
+  driverPhone,
+  orderNumber,
+}: {
+  token: string;
+  driverPhone: string | null;
+  orderNumber: string;
+}) {
+  const [qr, setQr] = useState<string | null>(null);
+  const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    // Built from the browser's own origin, so it points at whatever host the
+    // dashboard is being served from without a hard-coded domain.
+    const link = `${window.location.origin}/d/${token}`;
+    setUrl(link);
+    void QRCode.toDataURL(link, { width: 320, margin: 1 }).then(setQr).catch(() => setQr(null));
+  }, [token]);
+
+  const message = `Delivery for order #${orderNumber}. Open this on your phone to share your location and mark it delivered: ${url}`;
+  const waHref = driverPhone
+    ? `https://wa.me/${driverPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Driver link copied');
+    } catch {
+      toast.error('Could not copy — long-press the link instead');
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed p-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+        <MapPin className="h-3.5 w-3.5" />
+        Give your driver live tracking
+      </p>
+
+      <div className="flex items-center gap-3">
+        {qr ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={qr}
+            alt="Scan to open the driver page"
+            className="h-24 w-24 shrink-0 rounded-md border bg-white"
+          />
+        ) : (
+          <div className="h-24 w-24 shrink-0 animate-pulse rounded-md bg-muted" />
+        )}
+
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-[11px] text-muted-foreground">
+            Driver scans this, taps <span className="font-medium">Start sharing</span>, and the
+            customer sees them move. They can mark it delivered — with a photo — from the same page.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+              <a href={waHref} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+              </a>
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={copy}>
+              <Copy className="h-3.5 w-3.5" />
+              Copy link
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1217,6 +1217,13 @@ model Delivery {
   driverName  String?
   driverPhone String?
 
+  /// Capability token for the restaurant's OWN driver to stream live location from
+  /// their phone, no login. Minted per self-delivery; the /d/<token> page posts GPS
+  /// against it and we write it straight into courierLatitude/Longitude + a ping, so
+  /// a self-rider's pin moves on the customer's map exactly like a courier's. Null
+  /// for dispatched (Uber/DoorDash/Porter) deliveries — those report their own GPS.
+  driverShareToken String? @unique
+
   /**
    * The courier's own identifiers, whichever courier that is. Interpret them
    * against `provider` above — a DoorDash delivery id means nothing to Uber's API,
@@ -1274,6 +1281,10 @@ model Delivery {
   pickedUpAt  DateTime?
   deliveredAt DateTime?
   cancelledAt DateTime?
+
+  /// Proof-of-delivery photo the driver snaps when they hand the food over, from the
+  /// /d/<token> page. A public storage URL; null until (and unless) they take one.
+  proofOfDeliveryUrl String?
 
   /// Attempt counter for the retry queue. Guards against infinite retry loops.
   attemptCount Int      @default(0)

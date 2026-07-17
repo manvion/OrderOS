@@ -256,6 +256,30 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
             </div>
           </section>
 
+          {/* Proof of delivery — the photo the driver took at handover, if any. The
+              answer to "they say it never arrived". */}
+          {order.delivery?.proofOfDeliveryUrl && (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold">Proof of delivery</h3>
+              <a
+                href={order.delivery.proofOfDeliveryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={order.delivery.proofOfDeliveryUrl}
+                  alt="Photo taken by the driver at handover"
+                  className="max-h-64 rounded-lg border object-contain"
+                />
+              </a>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Taken by the driver when the food was handed over.
+              </p>
+            </section>
+          )}
+
           {/* Notification log — the answer to "they say they never got the text" */}
           <section>
             <h3 className="mb-2 text-sm font-semibold">Messages sent</h3>
