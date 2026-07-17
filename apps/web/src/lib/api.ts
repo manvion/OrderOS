@@ -867,6 +867,8 @@ export interface StorefrontRestaurant {
   timezone: string;
   isOpen: boolean;
   acceptingOrders: boolean;
+  /** Pro plan: hide the "Powered by DineDirect" footer — fully the restaurant's brand. */
+  removeBranding: boolean;
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
   dineInEnabled: boolean;

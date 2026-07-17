@@ -219,7 +219,9 @@ export default async function StorefrontLayout({
                 {restaurant.phone}
               </a>
             </p>
-            <p className="pt-4 text-xs">Powered by DineDirect</p>
+            {!restaurant.removeBranding && (
+              <p className="pt-4 text-xs">Powered by DineDirect</p>
+            )}
           </div>
         </footer>
       </div>

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import type { Order, Restaurant } from '@prisma/client';
-import { formatMoney, getCountry } from '@dinedirect/shared';
+import { formatMoney, getCountry, planAllows, type PlanTier } from '@dinedirect/shared';
 import type { OrderContext } from './templates';
 import type { SendResult } from './sms.service';
 
@@ -27,6 +27,12 @@ interface BrandedRestaurant {
   legalName?: string | null;
   taxId?: string | null;
   country?: string;
+  /**
+   * Drives whether the "Powered by DineDirect" line shows. A Pro restaurant has the
+   * REMOVE_BRANDING capability, so their customer emails carry only THEIR identity —
+   * no platform footer. Absent (staff invites, a bare shell) = show it.
+   */
+  planTier?: PlanTier | null;
 }
 
 @Injectable()
@@ -60,6 +66,8 @@ export class EmailService {
       to: order.customerEmail,
       subject: content.subject,
       html: this.shell(restaurant, content.body),
+      // The customer ordered from the restaurant, so the email is FROM the restaurant.
+      fromName: restaurant.name,
       // Replies must reach the restaurant, not our no-reply mailbox. A customer
       // replying "no pickles!" to a receipt is a real thing that happens.
       replyTo: restaurant.email,
@@ -80,6 +88,7 @@ export class EmailService {
       to,
       subject: content.subject,
       html: this.shell(restaurant, content.body),
+      fromName: restaurant.name,
       // So the kitchen can just hit reply and talk to the customer.
       replyTo: order.customerEmail,
     });
@@ -376,11 +385,28 @@ export class EmailService {
     return `Dine in${order.tableNumber ? ` — table ${this.escape(order.tableNumber)}` : ''}`;
   }
 
+  /**
+   * Compose the From header so the customer's inbox shows the RESTAURANT's name, not
+   * our platform address. The sending address stays our verified Resend domain (we
+   * can't verify a fresh domain per restaurant), but "Joe's Diner <orders@…>" reads
+   * as the restaurant, which is who the customer thinks they ordered from.
+   */
+  private fromWithName(name?: string): string {
+    if (!name) return this.from;
+    // this.from is either "addr" or "Existing Name <addr>"; keep only the address.
+    const address = this.from.match(/<([^>]+)>/)?.[1] ?? this.from;
+    // Strip anything that could break or inject into the header.
+    const clean = name.replace(/["<>\r\n]/g, '').trim();
+    return clean ? `${clean} <${address}>` : this.from;
+  }
+
   private async send(params: {
     to: string;
     subject: string;
     html: string;
     replyTo?: string;
+    /** Display name for the From header — the restaurant, on customer-facing mail. */
+    fromName?: string;
   }): Promise<SendResult> {
     if (!this.resend) {
       this.logger.log(`[Email stub] -> ${params.to}: ${params.subject}`);
@@ -389,7 +415,7 @@ export class EmailService {
 
     try {
       const result = await this.resend.emails.send({
-        from: this.from,
+        from: this.fromWithName(params.fromName),
         to: params.to,
         subject: params.subject,
         html: params.html,
@@ -466,7 +492,11 @@ export class EmailService {
               ${restaurant.phone ? `<br />${this.escape(restaurant.phone)}` : ''}
               ${this.legalIdentity(restaurant)}
             </p>
-            <p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">Powered by DineDirect</p>
+            ${
+              restaurant.planTier && planAllows(restaurant.planTier, 'REMOVE_BRANDING')
+                ? ''
+                : `<p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">Powered by DineDirect</p>`
+            }
           </td></tr>
         </table>
       </td></tr>

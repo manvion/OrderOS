@@ -338,6 +338,10 @@ export class RestaurantsService {
       ...restaurant,
       deliveryEnabled: restaurant.deliveryEnabled && planAllows(tier, 'DELIVERY'),
       loyaltyEnabled: restaurant.loyaltyEnabled && planAllows(tier, 'LOYALTY'),
+      // Pro removes the platform footer, so the storefront is entirely the
+      // restaurant's own brand. Derived here, never a stored flag, so it can't drift
+      // from the plan.
+      removeBranding: planAllows(tier, 'REMOVE_BRANDING'),
       isOpen: isOpenAt(hours, restaurant.timezone),
       /** Can this restaurant actually take money right now? */
       acceptingOrders: isOpenAt(hours, restaurant.timezone),
