@@ -415,8 +415,8 @@ export class MenuImportService {
       language === 'FR'
         ? ' Write exactly ONE sentence, under 120 characters, in French (français).'
         : language === 'BOTH'
-          ? ' Respond with EXACTLY TWO lines and nothing else: line 1 is one English sentence ' +
-            'under 120 characters; line 2 is its French (français) equivalent, one sentence under ' +
+          ? ' Respond with EXACTLY TWO lines and nothing else: line 1 is one French (français) ' +
+            'sentence under 120 characters; line 2 is its English equivalent, one sentence under ' +
             '120 characters. No labels, no blank line between them.'
           : ' Write exactly ONE sentence, under 120 characters, in English.';
     const system = base + langRule;
@@ -439,10 +439,107 @@ export class MenuImportService {
 
     throw new BadRequestException('Could not write a description right now -- try again in a minute.');
   }
+
+  /**
+   * A few restaurant brand ideas from a one-line brief — a name, a tagline, and a
+   * simple monogram spec (initials + colours + font family) the web turns into an
+   * SVG lettermark. Free text models only: they can't draw a logo, but they are
+   * good at naming and at picking a tasteful two-colour palette, and a clean
+   * monogram from that is a real, usable logo for a small restaurant.
+   */
+  async generateBrandIdeas(brief: string): Promise<BrandIdea[]> {
+    if (!this.available) {
+      throw new ServiceUnavailableException('AI brand ideas are not configured on this server.');
+    }
+
+    const system =
+      'You are a naming and branding assistant for independent restaurants. From the brief, ' +
+      'return FIVE distinct ideas as STRICT JSON: an array of objects, each with keys: ' +
+      'name (the restaurant name, 1-3 words), tagline (at most 6 words), initials (1-2 UPPERCASE ' +
+      'letters drawn from the name), bg (background hex like "#1F2937"), fg (foreground hex with ' +
+      'strong contrast against bg), font (exactly one of "serif", "sans", "script"). Vary the ' +
+      'style and palette across the five. Respond with ONLY the JSON array — no markdown, no prose.';
+    const prompt = `Brief: ${brief.trim() || 'a modern independent neighbourhood restaurant'}. Generate the ideas.`;
+
+    for (const model of this.openRouterModels) {
+      try {
+        const text = await this.callOpenRouter(model, system, { prompt });
+        const ideas = parseBrandIdeas(text);
+        if (ideas.length) return ideas.slice(0, 6);
+      } catch (err) {
+        this.logger.warn(
+          `${model} failed brand-idea generation (${(err as Error).message}) -- trying the next model`,
+        );
+      }
+    }
+
+    throw new BadRequestException('Could not generate brand ideas right now -- try again in a minute.');
+  }
 }
 
 /** Which language(s) the AI writes a menu description in. */
 export type MenuDescriptionLanguage = 'EN' | 'FR' | 'BOTH';
+
+/** One AI-suggested brand: a name plus a monogram spec the web renders as SVG. */
+export interface BrandIdea {
+  name: string;
+  tagline: string;
+  initials: string;
+  bg: string;
+  fg: string;
+  font: 'serif' | 'sans' | 'script';
+}
+
+/** A #RGB / #RRGGBB hex, or null. Guards the SVG against a model's stray value. */
+function safeHex(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())
+    ? value.trim()
+    : fallback;
+}
+
+/**
+ * Pull the brand ideas out of a model's reply. Text models wrap JSON in prose or
+ * code fences and invent fields, so this extracts the first JSON array and rebuilds
+ * each idea from scratch — every field validated, clamped and defaulted — rather
+ * than trusting the shape. A malformed entry is dropped, not thrown.
+ */
+function parseBrandIdeas(text: string): BrandIdea[] {
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start === -1 || end <= start) return [];
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(raw)) return [];
+
+  const ideas: BrandIdea[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const name = typeof o.name === 'string' ? o.name.trim().slice(0, 60) : '';
+    if (!name) continue;
+
+    const initialsRaw = typeof o.initials === 'string' ? o.initials : name;
+    const initials = initialsRaw.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase() ||
+      name.replace(/[^a-z]/gi, '').charAt(0).toUpperCase() ||
+      '?';
+    const font = o.font === 'serif' || o.font === 'script' ? o.font : 'sans';
+
+    ideas.push({
+      name,
+      tagline: typeof o.tagline === 'string' ? o.tagline.trim().slice(0, 60) : '',
+      initials,
+      bg: safeHex(o.bg, '#1F2937'),
+      fg: safeHex(o.fg, '#FFFFFF'),
+      font,
+    });
+  }
+  return ideas;
+}
 
 /** First non-empty line, de-quoted and capped — the single-language shape. */
 function cleanOneLine(text: string): string {

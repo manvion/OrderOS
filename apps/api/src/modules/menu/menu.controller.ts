@@ -32,6 +32,10 @@ const aiDescriptionSchema = z.object({
   /** English, French, or both (two lines). Defaults to English. */
   language: z.enum(['EN', 'FR', 'BOTH']).default('EN'),
 });
+const aiBrandSchema = z.object({
+  /** A one-line brief: cuisine, vibe, neighbourhood. Optional — the model can wing it. */
+  brief: z.string().max(200).optional(),
+});
 
 /** Staff-only menu management. Storefront reads live in StorefrontController. */
 @ApiTags('menu')
@@ -212,6 +216,17 @@ export class MenuController {
       body.language,
     );
     return { description };
+  }
+
+  /**
+   * A few AI brand ideas (name + monogram spec) from a one-line brief, for the
+   * branding editor. Free OpenRouter text models; the web renders each as an SVG.
+   */
+  @Post('ai-brand')
+  @Roles('MANAGER')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  async aiBrand(@Body(new ZodValidationPipe(aiBrandSchema)) body: z.infer<typeof aiBrandSchema>) {
+    return { ideas: await this.menuImport.generateBrandIdeas(body.brief ?? '') };
   }
 
   @Post('products/:id/image')

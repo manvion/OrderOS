@@ -214,6 +214,16 @@ export const storefrontApi = {
     }),
 };
 
+/** An AI-suggested brand: a name plus a monogram spec the UI renders as SVG. */
+export interface BrandIdea {
+  name: string;
+  tagline: string;
+  initials: string;
+  bg: string;
+  fg: string;
+  font: 'serif' | 'sans' | 'script';
+}
+
 export interface DriverContext {
   orderNumber: string;
   restaurantName: string;
@@ -397,6 +407,13 @@ export function createDashboardApi(
       call<{ description: string }>('/menu/ai-description', {
         method: 'POST',
         body: JSON.stringify({ name, categoryName, language }),
+      }),
+
+    /** A few AI brand ideas (name + monogram spec) from a one-line brief. */
+    generateBrandIdeas: (brief?: string) =>
+      call<{ ideas: BrandIdea[] }>('/menu/ai-brand', {
+        method: 'POST',
+        body: JSON.stringify({ brief }),
       }),
 
     // Orders

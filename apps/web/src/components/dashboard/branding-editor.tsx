@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Lock, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
+import { BrandIdeasGenerator } from './brand-ideas';
 import { ApiRequestError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -243,6 +244,9 @@ export function BrandingEditor() {
             </p>
           </div>
         </div>
+
+        {/* AI helper: suggests a name + monogram for a restaurant that has neither. */}
+        <BrandIdeasGenerator />
 
         {/* ---------- Header style ---------- */}
         <div className="space-y-2">
