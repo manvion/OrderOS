@@ -21,9 +21,15 @@ function normalizeAppDomain(raw: string): string {
     .toLowerCase();
 }
 
-const APP_DOMAIN = normalizeAppDomain(
-  process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'dinedirect.manvion.ca',
-);
+const DEFAULT_APP_DOMAIN = 'dinedirect.manvion.ca';
+// `||` not `??`: an env var saved as an EMPTY string (easy to do in a dashboard)
+// is `''`, not undefined, so `??` would keep the empty value — and then
+// `endsWith('.' + '')` is `endsWith('.')`, which is false for every subdomain, so
+// every storefront falls through to the marketing page. Fall back on empty too, and
+// again if normalising leaves nothing.
+const APP_DOMAIN =
+  normalizeAppDomain(process.env.NEXT_PUBLIC_APP_DOMAIN || DEFAULT_APP_DOMAIN) ||
+  DEFAULT_APP_DOMAIN;
 
 /** Hostnames that are the platform itself, never a restaurant. */
 const RESERVED = new Set(['www', 'app', 'api', 'admin', 'dashboard', 'auth']);
