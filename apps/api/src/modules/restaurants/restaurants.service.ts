@@ -44,6 +44,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { QrService } from '../qr/qr.service';
 import { PaymentsService } from '../payments/payments.service';
+import { VercelClient } from '../domains/vercel.client';
 
 /** How long a new restaurant gets the Starter tier free before it must subscribe. */
 const TRIAL_DAYS = 14;
@@ -65,6 +66,10 @@ export class RestaurantsService {
     // Publishing registers the storefront's domain for Apple Pay.
     @Inject(forwardRef(() => PaymentsService))
     private readonly payments: PaymentsService,
+    // Publishing also registers the storefront's own subdomain with Vercel so it
+    // gets an HTTPS certificate (the wildcard DNS points it at Vercel, but Vercel
+    // only serves + certifies hostnames it knows about).
+    private readonly vercel: VercelClient,
   ) {}
 
   /**
@@ -693,6 +698,11 @@ export class RestaurantsService {
     const domain = new URL(this.storefrontUrl(restaurant.slug)).hostname;
     void this.payments.registerApplePayDomain(domain).catch(() => {});
 
+    // Register the subdomain with Vercel so it is actually served over HTTPS. The
+    // wildcard DNS (`*.APP_DOMAIN`) routes every storefront to Vercel, but Vercel
+    // only answers — and only mints a certificate — for hostnames on the project.
+    void this.registerStorefrontDomain(domain);
+
     void this.qr.ensureStarterCodes(restaurantId).catch((err) => {
       this.logger.warn(`Starter QR codes failed for ${restaurant.slug}: ${err.message}`);
     });
@@ -846,6 +856,29 @@ export class RestaurantsService {
 
   private storefrontUrl(slug: string): string {
     return storefrontBaseUrl(this.config, slug);
+  }
+
+  /**
+   * Attach a storefront's own subdomain to the Vercel project, so Vercel serves it
+   * and issues its HTTPS certificate.
+   *
+   * Best-effort and idempotent (Vercel treats an already-added domain as success),
+   * and never worth failing a publish over — hence the fire-and-forget call site.
+   * Only fires for a real `<slug>.APP_DOMAIN` subdomain: skipped when Vercel isn't
+   * configured (local dev) or when the host isn't under our apex (path-mode tenancy,
+   * localhost), where there is nothing for Vercel to certify.
+   */
+  private async registerStorefrontDomain(domain: string): Promise<void> {
+    if (!this.vercel.isConfigured) return;
+    const appDomain = this.config.get<string>('APP_DOMAIN');
+    if (!appDomain || !domain.endsWith(`.${appDomain}`)) return;
+
+    try {
+      await this.vercel.addDomain(domain);
+      this.logger.log(`Registered storefront subdomain ${domain} with Vercel`);
+    } catch (err) {
+      this.logger.warn(`Could not register ${domain} with Vercel: ${(err as Error).message}`);
+    }
   }
 
   /**
