@@ -394,18 +394,32 @@ export class MenuImportService {
    * writes around the name and category the way a menu copywriter would from
    * a one-line brief.
    */
-  async generateDescription(name: string, categoryName: string | null): Promise<string> {
+  async generateDescription(
+    name: string,
+    categoryName: string | null,
+    language: MenuDescriptionLanguage = 'EN',
+  ): Promise<string> {
     if (!this.available) {
       throw new ServiceUnavailableException(
         'AI description writing is not configured on this server.',
       );
     }
 
-    const system =
-      'You write short, appetizing restaurant menu descriptions. Rules: (1) ONE sentence, ' +
-      'under 120 characters. (2) Plain, appealing language -- no purple prose, no invented ' +
-      "ingredients or allergens you weren't given. (3) No quotation marks, no markdown, no " +
-      'preamble -- respond with ONLY the sentence itself.';
+    const base =
+      'You write short, appetizing restaurant menu descriptions. Rules: plain, appealing ' +
+      "language -- no purple prose, no invented ingredients or allergens you weren't given; " +
+      'no quotation marks, no markdown, no preamble and no labels.';
+    // BOTH returns two lines (English then French) so a bilingual menu can show
+    // both; the single-language modes stay a single sentence, as before.
+    const langRule =
+      language === 'FR'
+        ? ' Write exactly ONE sentence, under 120 characters, in French (français).'
+        : language === 'BOTH'
+          ? ' Respond with EXACTLY TWO lines and nothing else: line 1 is one English sentence ' +
+            'under 120 characters; line 2 is its French (français) equivalent, one sentence under ' +
+            '120 characters. No labels, no blank line between them.'
+          : ' Write exactly ONE sentence, under 120 characters, in English.';
+    const system = base + langRule;
     const prompt = categoryName
       ? `Menu item: "${name}" (category: ${categoryName}). Write the description.`
       : `Menu item: "${name}". Write the description.`;
@@ -413,8 +427,9 @@ export class MenuImportService {
     for (const model of this.openRouterModels) {
       try {
         const text = await this.callOpenRouter(model, system, { prompt });
-        const cleaned = text.trim().replace(/^["']|["']$/g, '').split('\n')[0].trim();
-        if (cleaned) return cleaned.slice(0, 160);
+        const cleaned =
+          language === 'BOTH' ? cleanBilingual(text) : cleanOneLine(text);
+        if (cleaned) return cleaned;
       } catch (err) {
         this.logger.warn(
           `${model} failed description generation (${(err as Error).message}) -- trying the next model`,
@@ -424,6 +439,29 @@ export class MenuImportService {
 
     throw new BadRequestException('Could not write a description right now -- try again in a minute.');
   }
+}
+
+/** Which language(s) the AI writes a menu description in. */
+export type MenuDescriptionLanguage = 'EN' | 'FR' | 'BOTH';
+
+/** First non-empty line, de-quoted and capped — the single-language shape. */
+function cleanOneLine(text: string): string {
+  return text.trim().replace(/^["']|["']$/g, '').split('\n')[0].trim().slice(0, 160);
+}
+
+/**
+ * Two lines (English then French) for a bilingual menu. Keeps the first two
+ * non-empty lines, strips any "English:"/"French:" labels a model may add, and
+ * caps each line — then rejoins with a newline so the field shows both.
+ */
+function cleanBilingual(text: string): string {
+  const lines = text
+    .split('\n')
+    .map((l) => l.replace(/^\s*(english|french|français|en|fr)\s*[:\-]\s*/i, '').replace(/^["']|["']$/g, '').trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((l) => l.slice(0, 160));
+  return lines.join('\n');
 }
 
 /**

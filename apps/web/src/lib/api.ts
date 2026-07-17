@@ -385,11 +385,18 @@ export function createDashboardApi(
       return call<MenuImportDraft>('/menu/import/photo', { method: 'POST', body: form });
     },
 
-    /** One AI-written sentence from just the item's name + category. */
-    generateProductDescription: (name: string, categoryName?: string) =>
+    /**
+     * One AI-written sentence from just the item's name + category. `language`
+     * picks English, French, or both (two lines) — defaults to English.
+     */
+    generateProductDescription: (
+      name: string,
+      categoryName?: string,
+      language: 'EN' | 'FR' | 'BOTH' = 'EN',
+    ) =>
       call<{ description: string }>('/menu/ai-description', {
         method: 'POST',
-        body: JSON.stringify({ name, categoryName }),
+        body: JSON.stringify({ name, categoryName, language }),
       }),
 
     // Orders

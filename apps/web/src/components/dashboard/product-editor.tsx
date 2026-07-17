@@ -110,9 +110,9 @@ export function ProductEditor({
   };
 
   const generateDescription = useMutation({
-    mutationFn: () => {
+    mutationFn: (language: 'EN' | 'FR' | 'BOTH') => {
       const categoryName = categories.find((c) => c.id === categoryId)?.name;
-      return api.generateProductDescription(name.trim(), categoryName);
+      return api.generateProductDescription(name.trim(), categoryName, language);
     },
     onSuccess: ({ description }) => setDescription(description),
     onError: (err) =>
@@ -213,15 +213,31 @@ export function ProductEditor({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="p-description">Description</Label>
-              <button
-                type="button"
-                onClick={() => generateDescription.mutate()}
-                disabled={!name.trim() || generateDescription.isPending}
-                className="flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:opacity-50"
-              >
-                <Sparkles className="h-3 w-3" />
-                {generateDescription.isPending ? 'Writing…' : 'AI fill'}
-              </button>
+              {/* AI fill, with a language choice: English, French, or both (two
+                  lines) for a bilingual menu. */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Sparkles className="h-3 w-3" />
+                  AI fill
+                </span>
+                {([
+                  ['EN', 'English'],
+                  ['FR', 'French'],
+                  ['BOTH', 'Both'],
+                ] as const).map(([code, label]) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => generateDescription.mutate(code)}
+                    disabled={!name.trim() || generateDescription.isPending}
+                    className="font-medium text-brand hover:underline disabled:opacity-50"
+                  >
+                    {generateDescription.isPending && generateDescription.variables === code
+                      ? 'Writing…'
+                      : label}
+                  </button>
+                ))}
+              </div>
             </div>
             <Textarea
               id="p-description"

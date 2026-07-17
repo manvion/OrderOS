@@ -29,6 +29,8 @@ const importUrlSchema = z.object({ url: z.string().min(8).max(500) });
 const aiDescriptionSchema = z.object({
   name: z.string().min(1).max(120),
   categoryName: z.string().max(80).optional(),
+  /** English, French, or both (two lines). Defaults to English. */
+  language: z.enum(['EN', 'FR', 'BOTH']).default('EN'),
 });
 
 /** Staff-only menu management. Storefront reads live in StorefrontController. */
@@ -204,7 +206,11 @@ export class MenuController {
   @Roles('MANAGER')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async aiDescription(@Body(new ZodValidationPipe(aiDescriptionSchema)) body: z.infer<typeof aiDescriptionSchema>) {
-    const description = await this.menuImport.generateDescription(body.name, body.categoryName ?? null);
+    const description = await this.menuImport.generateDescription(
+      body.name,
+      body.categoryName ?? null,
+      body.language,
+    );
     return { description };
   }
 
