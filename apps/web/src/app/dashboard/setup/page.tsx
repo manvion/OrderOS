@@ -38,7 +38,7 @@ import { Skeleton } from '@/components/ui/primitives';
 export default function SetupPage() {
   const api = useApi();
   const queryClient = useQueryClient();
-  const { restaurant, can } = useDashboard();
+  const { restaurant, can, hasFeature } = useDashboard();
   useRequireRole('MANAGER', '/dashboard/kitchen');
 
   const { data: readiness, isLoading } = useQuery({
@@ -105,10 +105,17 @@ export default function SetupPage() {
                 Everything checks out
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Your page goes live at{' '}
-                <span className="font-mono font-medium text-foreground">
-                  {readiness.storefrontUrl?.replace(/^https?:\/\//, '')}
-                </span>
+                {hasFeature('WEBSITE_STOREFRONT') ? (
+                  <>
+                    Your page goes live at{' '}
+                    <span className="font-mono font-medium text-foreground">
+                      {readiness.storefrontUrl?.replace(/^https?:\/\//, '')}
+                    </span>
+                  </>
+                ) : (
+                  // Starter is QR-only — no public URL to advertise.
+                  'Your menu goes live for your QR codes to open.'
+                )}
               </p>
             </div>
             <Button size="lg" onClick={() => publish.mutate()} disabled={publish.isPending}>

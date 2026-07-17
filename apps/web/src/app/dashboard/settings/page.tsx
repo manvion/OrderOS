@@ -22,7 +22,7 @@ import { Label, Skeleton, Switch } from '@/components/ui/primitives';
 export default function SettingsPage() {
   const api = useApi();
   const queryClient = useQueryClient();
-  const { restaurant, can } = useDashboard();
+  const { restaurant, can, hasFeature } = useDashboard();
   useRequireRole('OWNER', '/dashboard');
   const searchParams = useSearchParams();
 
@@ -150,34 +150,58 @@ export default function SettingsPage() {
           {readiness && (
             <>
               <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Your address</p>
-                {restaurant?.isPublished ? (
-                  <a
-                    href={readiness.storefrontUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 font-mono text-sm font-medium hover:underline"
-                  >
-                    {readiness.storefrontUrl}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                {!hasFeature('WEBSITE_STOREFRONT') ? (
+                  /* Starter is QR-only: it has no shareable website, so we never
+                     print the public URL — seeing it invites sharing an address the
+                     plan doesn't include, and reveals the domain. Customers reach the
+                     menu by scanning a code; staff can still open a private preview. */
+                  <>
+                    <p className="text-xs text-muted-foreground">Your ordering page</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-3">
+                      <span className="text-sm">Customers order by scanning your QR codes.</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openPreview.mutate()}
+                        disabled={openPreview.isPending}
+                      >
+                        {openPreview.isPending ? 'Opening…' : 'Preview'}
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </>
                 ) : (
-                  /* Before publish, the bare address 404s BY DESIGN (unpublished pages
-                     are invisible to the public). Rendering it as a link taught every
-                     owner to click it and file the 404 as a bug. Instead: the address
-                     as text, and a Preview button that mints a 30-minute staff pass. */
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-mono text-sm font-medium">{readiness.storefrontUrl}</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openPreview.mutate()}
-                      disabled={openPreview.isPending}
-                    >
-                      {openPreview.isPending ? 'Opening…' : 'Preview'}
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <>
+                    <p className="text-xs text-muted-foreground">Your address</p>
+                    {restaurant?.isPublished ? (
+                      <a
+                        href={readiness.storefrontUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 font-mono text-sm font-medium hover:underline"
+                      >
+                        {readiness.storefrontUrl}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      /* Before publish, the bare address 404s BY DESIGN (unpublished pages
+                         are invisible to the public). Rendering it as a link taught every
+                         owner to click it and file the 404 as a bug. Instead: the address
+                         as text, and a Preview button that mints a 30-minute staff pass. */
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="font-mono text-sm font-medium">{readiness.storefrontUrl}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openPreview.mutate()}
+                          disabled={openPreview.isPending}
+                        >
+                          {openPreview.isPending ? 'Opening…' : 'Preview'}
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
