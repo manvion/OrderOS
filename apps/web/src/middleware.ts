@@ -1,7 +1,29 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'dinedirect.manvion.ca';
+/**
+ * The platform apex, tolerant of how it was typed into the env var.
+ *
+ * `NEXT_PUBLIC_APP_DOMAIN` is compared with `endsWith` against a lowercased Host,
+ * so a value pasted as `https://dinedirect.manvion.ca`, `dinedirect.manvion.ca/`,
+ * `  dinedirect.manvion.ca`, or with any capitals would silently never match — and
+ * every storefront subdomain would fall through to the marketing page with no error.
+ * That is a subtle, expensive misconfiguration, so we normalise it here rather than
+ * demand the value be perfect: strip a scheme, surrounding whitespace, leading dots,
+ * trailing dots/slashes, and lowercase it.
+ */
+function normalizeAppDomain(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^\.+/, '')
+    .replace(/[./]+$/, '')
+    .toLowerCase();
+}
+
+const APP_DOMAIN = normalizeAppDomain(
+  process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'dinedirect.manvion.ca',
+);
 
 /** Hostnames that are the platform itself, never a restaurant. */
 const RESERVED = new Set(['www', 'app', 'api', 'admin', 'dashboard', 'auth']);
