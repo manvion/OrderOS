@@ -147,7 +147,10 @@ export function EmbedCheckout({
         sessionId,
       });
 
-      onCreated({ trackingToken: result.trackingToken, checkoutUrl: result.checkoutUrl });
+      // The widget is Stripe-only, so the response always carries a checkout URL.
+      const checkoutUrl =
+        result.payment.provider === 'STRIPE' ? result.payment.checkoutUrl : (result.checkoutUrl ?? '');
+      onCreated({ trackingToken: result.trackingToken, checkoutUrl });
     } catch (err) {
       setSubmitting(false);
       if (err instanceof ApiRequestError) {

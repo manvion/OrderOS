@@ -178,8 +178,14 @@ export class WidgetPublicController {
        * Checkout cannot render inside our iframe — and redirecting the top window
        * would navigate the customer off the restaurant's site, which is the one
        * thing this whole module exists to prevent.
+       *
+       * The widget is Stripe-only: Razorpay's modal can't open cross-origin inside a
+       * third-party iframe, so an India restaurant collects widget orders through its
+       * main storefront instead. (createCheckoutSession already rejects a restaurant
+       * that can't take Stripe, so this fails loudly rather than silently.)
        */
       checkoutUrl,
+      payment: { provider: 'STRIPE' as const, checkoutUrl },
     };
   }
 

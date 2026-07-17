@@ -201,6 +201,17 @@ export const storefrontApi = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: JSON.stringify(body),
     }),
+
+  /** Confirm a Razorpay (India) payment the Checkout modal just completed. */
+  verifyRazorpay: (
+    slug: string,
+    orderId: string,
+    body: { razorpayPaymentId: string; razorpaySignature: string },
+  ) =>
+    storefrontApi.request<{ paid: boolean }>(`/storefront/orders/${orderId}/razorpay/verify`, slug, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };
 
 /**
@@ -880,13 +891,30 @@ export type DeliveryQuote =
       limitMeters?: number;
     };
 
+/** How the customer pays — Stripe (hosted redirect) or Razorpay (Checkout modal). */
+export type OrderPayment =
+  | { provider: 'STRIPE'; checkoutUrl: string }
+  | {
+      provider: 'RAZORPAY';
+      razorpayOrderId: string;
+      keyId: string;
+      amount: number;
+      currency: string;
+      restaurantName: string;
+      orderNumber: string;
+      prefill: { name: string; email: string; contact: string };
+    };
+
 export interface CreateOrderResponse {
   orderId: string;
   orderNumber: string;
   trackingToken: string;
   totalCents: number;
   currency: string;
-  checkoutUrl: string;
+  /** Present for Stripe orders (kept for backward compatibility). */
+  checkoutUrl?: string;
+  /** The provider-tagged payment instructions the client should branch on. */
+  payment: OrderPayment;
 }
 
 export interface StatusBoardEntry {

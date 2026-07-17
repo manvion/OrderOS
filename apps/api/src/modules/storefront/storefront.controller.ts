@@ -12,7 +12,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { addressSchema, createOrderSchema, planAllows, type CreateOrderInput } from '@dinedirect/shared';
+import {
+  addressSchema,
+  createOrderSchema,
+  planAllows,
+  usesRazorpay,
+  type CreateOrderInput,
+} from '@dinedirect/shared';
 import { z } from 'zod';
 import { isMissingPlanColumn } from '../../common/plan/plan.util';
 import { Public, TenantId } from '../../common/auth/decorators';
@@ -23,6 +29,12 @@ import {
 } from '../../common/auth/optional-customer.guard';
 import { PublicTenantGuard } from '../../common/auth/public-tenant.guard';
 import { CustomerAccountService } from '../customers/customer-account.service';
+
+/** The signed result Razorpay Checkout hands back to the browser on success. */
+const razorpayVerifySchema = z.object({
+  razorpayPaymentId: z.string().min(3).max(120),
+  razorpaySignature: z.string().min(3).max(256),
+});
 
 /** Order number + the phone that placed it. Both, or nothing. */
 const lookupSchema = z.object({
@@ -44,6 +56,7 @@ import { DeliveryService } from '../delivery/delivery.service';
 import { MenuService } from '../menu/menu.service';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
+import { RazorpayService } from '../payments/razorpay.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
 
@@ -93,6 +106,7 @@ export class StorefrontController {
     private readonly menu: MenuService,
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
+    private readonly razorpay: RazorpayService,
     private readonly delivery: DeliveryService,
     private readonly addresses: AddressAutocompleteService,
     private readonly prisma: PrismaService,
@@ -271,17 +285,51 @@ export class StorefrontController {
     @Body(new ZodValidationPipe(createOrderSchema)) body: CreateOrderInput,
   ) {
     const order = await this.orders.create(restaurantId, body, req.customerClerkUserId);
-    const { checkoutUrl } = await this.payments.createCheckoutSession(order.id);
 
-    return {
+    const base = {
       orderId: order.id,
       orderNumber: order.orderNumber,
       // The customer's key to the tracking page. Unguessable by design.
       trackingToken: order.trackingToken,
       totalCents: order.totalCents,
       currency: order.currency,
-      checkoutUrl,
     };
+
+    // Which rail collects is decided by the restaurant's country: India pays through
+    // Razorpay's Checkout modal, everyone else through Stripe's hosted redirect. The
+    // browser branches on `payment.provider`.
+    const restaurant = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { country: true },
+    });
+    if (usesRazorpay(restaurant.country)) {
+      const razorpay = await this.razorpay.createRouteOrder(order.id);
+      return { ...base, payment: razorpay };
+    }
+
+    const { checkoutUrl } = await this.payments.createCheckoutSession(order.id);
+    // `checkoutUrl` stays top-level for backward compatibility; `payment` is the new
+    // provider-tagged shape the client should prefer.
+    return { ...base, checkoutUrl, payment: { provider: 'STRIPE' as const, checkoutUrl } };
+  }
+
+  /**
+   * Confirm a Razorpay payment the browser just completed. Razorpay Checkout hands
+   * the signed result back to the page, which posts it here; we verify the signature
+   * and mark the order paid. (For Stripe this happens via webhook; Razorpay's modal
+   * returns to the client, so the client drives confirmation.)
+   */
+  @Post('orders/:orderId/razorpay/verify')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  verifyRazorpay(
+    @Param('orderId') orderId: string,
+    @Body(new ZodValidationPipe(razorpayVerifySchema)) body: z.infer<typeof razorpayVerifySchema>,
+  ) {
+    return this.razorpay.verifyAndCapture({
+      orderId,
+      razorpayPaymentId: body.razorpayPaymentId,
+      razorpaySignature: body.razorpaySignature,
+    });
   }
 
   /**

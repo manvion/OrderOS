@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import type { Prisma } from '@prisma/client';
 import type { RefundInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
@@ -628,23 +629,60 @@ export class PaymentsService {
       }
     }
 
+    await this.markOrderPaid(orderId, {
+      paymentFields: { stripePaymentIntentId: paymentIntentId, stripeChargeId: chargeId },
+      cardBrand,
+      cardLast4,
+      auditMeta: { stripeSessionId: session.id },
+    });
+  }
+
+  /**
+   * The one place an order becomes PAID, whichever provider took the money.
+   *
+   * Stripe's checkout webhook and Razorpay's payment callback both funnel here, so
+   * inventory, loyalty, the audit trail and the "NEW ORDER" notifications happen
+   * identically no matter how the customer paid. Idempotent: a second call (a retried
+   * webhook) sees status PAID and returns. `paymentFields` carries the provider's own
+   * refs (Stripe intent/charge, or Razorpay order/payment ids).
+   */
+  async markOrderPaid(
+    orderId: string,
+    opts: {
+      paymentFields?: Prisma.PaymentUpdateInput;
+      cardBrand?: string | null;
+      cardLast4?: string | null;
+      auditMeta?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        payment: true,
+        restaurant: true,
+        items: { select: { name: true, quantity: true, productId: true } },
+      },
+    });
+    if (!order?.payment) {
+      this.logger.error(`Payment succeeded for an order we don't have: ${orderId}`);
+      return;
+    }
+    if (order.payment.status === 'PAID') return; // already handled (retried webhook)
+
     await this.prisma.payment.update({
       where: { id: order.payment.id },
       data: {
         status: 'PAID',
         paidAt: new Date(),
-        stripePaymentIntentId: paymentIntentId,
-        stripeChargeId: chargeId,
-        cardBrand,
-        cardLast4,
+        cardBrand: opts.cardBrand ?? null,
+        cardLast4: opts.cardLast4 ?? null,
+        ...(opts.paymentFields ?? {}),
       },
     });
 
-    // The order is now real money -- decrement now, not at PENDING creation,
-    // so an abandoned checkout never holds stock hostage from a paying customer.
+    // Real money now -- decrement stock and credit loyalty here, not at PENDING
+    // creation, so an abandoned checkout never holds either hostage.
     await applyInventoryDelta(this.prisma, order.items, -1);
-    // Same reasoning applies to loyalty points -- an abandoned checkout never
-    // should have earned any.
     await applyLoyaltyDelta(this.prisma, order.customerId, order.loyaltyPointsEarned, 1);
 
     await this.audit.log({
@@ -655,22 +693,15 @@ export class PaymentsService {
       metadata: {
         orderNumber: order.orderNumber,
         amountCents: order.payment.amountCents,
-        stripeSessionId: session.id,
+        ...(opts.auditMeta ?? {}),
       },
     });
 
     this.logger.log(`Order ${order.orderNumber} paid (${order.totalCents} ${order.currency})`);
 
-    /**
-     * The order is now real. This is the single most important notification in the
-     * system, and it goes BOTH ways:
-     *   - the customer gets a receipt and a tracking link
-     *   - the RESTAURANT gets "NEW ORDER #0712-001" by SMS and a printable ticket
-     *     by email
-     *
-     * Fired on payment rather than on order creation, because an unpaid order is
-     * not an order and a kitchen must never be woken up for one.
-     */
+    // The single most important notification: the customer gets a receipt + tracking
+    // link, the restaurant gets "NEW ORDER #..." by SMS and a printable ticket. Fired
+    // on payment, never on order creation — an unpaid order isn't an order.
     void this.notifications.onOrderStatus(
       { ...order, items: order.items },
       order.restaurant,

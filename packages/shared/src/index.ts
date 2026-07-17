@@ -9,3 +9,4 @@ export * from './about';
 export * from './countries';
 export * from './handoff';
 export * from './plans';
+export * from './payments-routing';

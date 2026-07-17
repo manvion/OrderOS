@@ -308,6 +308,13 @@ model Restaurant {
   stripeAccountId       String?
   stripeChargesEnabled  Boolean @default(false)
   stripePayoutsEnabled  Boolean @default(false)
+
+  // Razorpay Route — the India equivalent of Stripe Connect. An Indian restaurant
+  // (see paymentProviderForCountry) collects UPI/cards through Razorpay, which splits
+  // each payment to this linked account while we keep our commission. Null/false
+  // until the restaurant has completed Razorpay's KYC onboarding.
+  razorpayAccountId     String?
+  razorpayEnabled       Boolean @default(false)
   /// Platform commission in basis points, taken as a Stripe application fee.
   ///
   /// The EFFECTIVE rate. Normally derived from `planTier` (see plans.ts), but a
@@ -1138,6 +1145,10 @@ model Payment {
   stripeCheckoutSessionId String? @unique
   stripePaymentIntentId   String? @unique
   stripeChargeId          String?
+  /// Razorpay refs for India orders (see paymentProviderForCountry). The payment id
+  /// is what a refund is issued against, the order id is what Checkout was opened with.
+  razorpayOrderId         String? @unique
+  razorpayPaymentId       String? @unique
   /// Card brand + last4, for the dashboard. Never store a PAN.
   cardBrand String?
   cardLast4 String?

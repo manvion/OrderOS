@@ -6,7 +6,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
-import { storefrontApi, ApiRequestError, type Address, type DeliveryQuote } from '@/lib/api';
+import {
+  storefrontApi,
+  ApiRequestError,
+  type Address,
+  type DeliveryQuote,
+  type OrderPayment,
+} from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { AddressAutocomplete } from '@/components/storefront/address-autocomplete';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
@@ -260,7 +266,27 @@ export default function CheckoutPage() {
       // Clear the cart before leaving: if the customer bounces back from Stripe
       // with the back button, a stale cart would let them place the order twice.
       clear();
-      window.location.href = response.checkoutUrl;
+
+      // Where the customer lands once paid — the tracking page for this order,
+      // derived from the current storefront path so it works on a subdomain or /s/slug.
+      const trackUrl = `${window.location.pathname.replace(/\/checkout\/?$/, '')}/track/${response.trackingToken}?paid=1`;
+
+      if (response.payment.provider === 'RAZORPAY') {
+        // India: Razorpay Checkout is a client-side modal, not a redirect.
+        await openRazorpayCheckout(response.payment, {
+          orderId: response.orderId,
+          slug: restaurant.slug,
+          themeColor: restaurant.brandPrimaryColor,
+          onPaid: () => {
+            window.location.href = trackUrl;
+          },
+          onDismiss: () => setSubmitting(false),
+        });
+        return;
+      }
+
+      // Everyone else: Stripe hosted checkout.
+      window.location.href = response.payment.checkoutUrl;
     } catch (err) {
       setSubmitting(false);
 
@@ -705,4 +731,78 @@ function nextSlot(): string {
   const d = new Date(Date.now() + 30 * 60_000);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// --- Razorpay (India) checkout modal ---------------------------------------
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+/** Load Razorpay's Checkout script once; resolves false if it can't be fetched. */
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(false);
+    if (window.Razorpay) return resolve(true);
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
+/**
+ * Open Razorpay Checkout (UPI / cards / netbanking / wallets) for an India order.
+ * On success the modal hands back a signed result, which we post to the API to
+ * verify and mark the order paid; then we send the customer to their tracking page.
+ */
+async function openRazorpayCheckout(
+  payment: Extract<OrderPayment, { provider: 'RAZORPAY' }>,
+  opts: {
+    orderId: string;
+    slug: string;
+    themeColor: string;
+    onPaid: () => void;
+    onDismiss: () => void;
+  },
+) {
+  const ready = await loadRazorpayScript();
+  if (!ready || !window.Razorpay) {
+    toast.error('Could not open the payment window. Check your connection and try again.');
+    opts.onDismiss();
+    return;
+  }
+
+  const rzp = new window.Razorpay({
+    key: payment.keyId,
+    amount: payment.amount,
+    currency: payment.currency,
+    name: payment.restaurantName,
+    order_id: payment.razorpayOrderId,
+    prefill: {
+      name: payment.prefill.name,
+      email: payment.prefill.email,
+      contact: payment.prefill.contact,
+    },
+    theme: { color: opts.themeColor },
+    handler: async (res: { razorpay_payment_id: string; razorpay_signature: string }) => {
+      try {
+        await storefrontApi.verifyRazorpay(opts.slug, opts.orderId, {
+          razorpayPaymentId: res.razorpay_payment_id,
+          razorpaySignature: res.razorpay_signature,
+        });
+        opts.onPaid();
+      } catch {
+        toast.error(
+          'We could not confirm your payment. If money was deducted it will be reflected shortly — contact the restaurant if not.',
+        );
+        opts.onDismiss();
+      }
+    },
+    modal: { ondismiss: opts.onDismiss },
+  });
+  rzp.open();
 }
