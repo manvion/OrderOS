@@ -208,7 +208,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </Badge>
           </div>
 
-          {restaurant.isPublished && (
+          {/* Only a plan with a public website advertises a website URL. A Starter
+              (QR-only) restaurant orders through its printed codes, so we never
+              surface a /s/<slug> link that would reveal — and open — a website they
+              don't have. */}
+          {restaurant.isPublished && hasFeature('WEBSITE_STOREFRONT') && (
             <a
               href={storefrontUrl}
               target="_blank"
