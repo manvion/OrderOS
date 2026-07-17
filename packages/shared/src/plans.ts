@@ -95,11 +95,10 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
     capabilities: [],
     limits: { maxMenuItems: 40, maxStaff: 2 },
     // Built for walk-in / dine-in venues: no delivery, no website — just a fast QR
-    // ordering system. The low $79 subscription is the main revenue, so the order
-    // commission is pitched down to 2% (well under Owner.com's 5% Flex rate and a
-    // small fraction of a marketplace's 15–30% cut). It still steps DOWN as you move
-    // up: 2% here → 1% on Growth → 0% on Pro.
-    commissionBps: 200,
+    // ordering system. The $79 subscription is the main revenue, so the order
+    // commission is a flat 3% (well under Owner.com's 5% Flex rate and a small
+    // fraction of a marketplace's 15–30% cut). Same 3% on Growth; only Pro goes to 0%.
+    commissionBps: 300,
     highlights: [
       'QR ordering for every table & counter',
       'Dine-in and pickup',
@@ -124,7 +123,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'FULL_ANALYTICS',
     ],
     limits: { maxMenuItems: null, maxStaff: 10 },
-    commissionBps: 100,
+    commissionBps: 300,
     highlights: [
       'Everything in Starter, plus:',
       'Branded ordering website',
@@ -133,7 +132,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'Embeddable ordering widget',
       'Full analytics & order history',
       'Unlimited menu items · 10 staff seats',
-      'Commission drops to 1%',
+      'Same low 3% per order — 0% on Pro',
     ],
   },
   PRO: {
