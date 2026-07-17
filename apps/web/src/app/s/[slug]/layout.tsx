@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
@@ -152,15 +151,18 @@ export default async function StorefrontLayout({
                   logo must still show SOMETHING, not a blank header. */}
               {restaurant.logoDisplayMode !== 'NAME_ONLY' &&
                 (restaurant.logoUrl ? (
-                  <Image
+                  // Height-constrained, width auto and never cropped: a square icon
+                  // shows square, a wide wordmark shows wide, both at a readable size.
+                  // This is what makes the logo "adapt to the upload" instead of being
+                  // squashed into a tiny 40px box.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
                     src={restaurant.logoUrl}
                     alt={restaurant.name}
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 rounded-xl border object-cover shadow-soft"
+                    className="h-11 w-auto max-w-[200px] shrink-0 object-contain sm:h-12"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-base font-bold text-brand-foreground shadow-soft">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-lg font-bold text-brand-foreground shadow-soft">
                     {restaurant.name.charAt(0)}
                   </div>
                 ))}

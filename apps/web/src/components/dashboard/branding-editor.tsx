@@ -197,13 +197,15 @@ export function BrandingEditor() {
         {/* ---------- Logo ---------- */}
         <div className="flex flex-wrap items-center gap-5">
           {restaurant.logoUrl ? (
-            <Image
+            // Shown exactly as the storefront header shows it: height-constrained,
+            // width auto, never cropped — so a wide wordmark logo previews as a wide
+            // wordmark here, not a squashed square. The white pad keeps a transparent
+            // PNG visible on any theme.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={restaurant.logoUrl}
               alt=""
-              width={72}
-              height={72}
-              className="rounded-2xl border object-cover"
-              style={{ width: 72, height: 72 }}
+              className="h-16 w-auto max-w-[220px] rounded-2xl border bg-white object-contain p-1.5"
             />
           ) : (
             <div
