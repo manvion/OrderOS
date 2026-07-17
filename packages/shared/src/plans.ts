@@ -91,13 +91,15 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
   STARTER: {
     tier: 'STARTER',
     name: 'Starter',
-    tagline: 'A full QR ordering system, free.',
+    tagline: 'QR ordering for your counter and tables.',
     capabilities: [],
     limits: { maxMenuItems: 40, maxStaff: 2 },
-    // The free tier is real and has no monthly fee, so the order commission is its
-    // ONLY revenue — pitched a little under Owner.com's 5% Flex rate and a small
-    // fraction of a marketplace's 15–30% cut.
-    commissionBps: 500,
+    // Built for walk-in / dine-in venues: no delivery, no website — just a fast QR
+    // ordering system. The low $79 subscription is the main revenue, so the order
+    // commission is pitched down to 2% (well under Owner.com's 5% Flex rate and a
+    // small fraction of a marketplace's 15–30% cut). It still steps DOWN as you move
+    // up: 2% here → 1% on Growth → 0% on Pro.
+    commissionBps: 200,
     highlights: [
       'QR ordering for every table & counter',
       'Dine-in and pickup',
@@ -106,6 +108,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'Up to 40 menu items',
       '2 staff seats',
       "Today's sales at a glance",
+      '14-day free trial, no card required',
     ],
   },
   GROWTH: {
@@ -121,7 +124,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'FULL_ANALYTICS',
     ],
     limits: { maxMenuItems: null, maxStaff: 10 },
-    commissionBps: 200,
+    commissionBps: 100,
     highlights: [
       'Everything in Starter, plus:',
       'Branded ordering website',
@@ -130,7 +133,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'Embeddable ordering widget',
       'Full analytics & order history',
       'Unlimited menu items · 10 staff seats',
-      'Commission drops to 2%',
+      'Commission drops to 1%',
     ],
   },
   PRO: {
@@ -234,15 +237,15 @@ const MONTHLY_PRICE_MINOR: Record<string, Record<PlanTier, number>> = {
   //
   // Every free tier is funded by its 5% order commission; Stripe bills all of these
   // in minor units (cents / pence / paise / fils).
-  USD: { STARTER: 0, GROWTH: 19900, PRO: 39900 },
-  CAD: { STARTER: 0, GROWTH: 26900, PRO: 52900 },
-  GBP: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
-  EUR: { STARTER: 0, GROWTH: 14900, PRO: 29900 },
-  AUD: { STARTER: 0, GROWTH: 27900, PRO: 54900 },
-  NZD: { STARTER: 0, GROWTH: 29900, PRO: 59900 },
-  SGD: { STARTER: 0, GROWTH: 25900, PRO: 51900 },
-  AED: { STARTER: 0, GROWTH: 74900, PRO: 149900 },
-  INR: { STARTER: 0, GROWTH: 199900, PRO: 399900 },
+  USD: { STARTER: 7900, GROWTH: 19900, PRO: 39900 },
+  CAD: { STARTER: 9900, GROWTH: 26900, PRO: 52900 },
+  GBP: { STARTER: 5900, GROWTH: 14900, PRO: 29900 },
+  EUR: { STARTER: 5900, GROWTH: 14900, PRO: 29900 },
+  AUD: { STARTER: 10900, GROWTH: 27900, PRO: 54900 },
+  NZD: { STARTER: 11900, GROWTH: 29900, PRO: 59900 },
+  SGD: { STARTER: 9900, GROWTH: 25900, PRO: 51900 },
+  AED: { STARTER: 29900, GROWTH: 74900, PRO: 149900 },
+  INR: { STARTER: 79900, GROWTH: 199900, PRO: 399900 },
 };
 
 export const PLAN_PRICING_CURRENCY_FALLBACK = 'USD';

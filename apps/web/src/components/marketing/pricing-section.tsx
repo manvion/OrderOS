@@ -68,7 +68,7 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-sm font-semibold uppercase tracking-widest text-brand">Pricing</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-            Start free. Grow into it.
+            Start free for 14 days.
           </h2>
           <p className="mt-4 text-muted-foreground">
             One flat plan for the software, and the lowest per-order fee in the business — all the
@@ -114,9 +114,11 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
           {tiers.map((price) => {
             const plan = getPlan(price.tier);
             const highlighted = price.tier === HIGHLIGHT_TIER;
-            const isFree = price.monthlyMinor === 0;
             const perMonthMinor =
               interval === 'ANNUAL' ? price.annualPerMonthMinor : price.monthlyMinor;
+            const commissionPct = (plan.commissionBps / 100).toFixed(
+              plan.commissionBps % 100 ? 2 : 0,
+            );
 
             return (
               <div
@@ -138,18 +140,14 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
 
                 <div className="mt-5 flex items-baseline gap-1">
                   <span className="text-4xl font-black tracking-tight tabular-nums">
-                    {isFree ? formatMoney(0, currency) : formatMoney(perMonthMinor, currency)}
+                    {formatMoney(perMonthMinor, currency)}
                   </span>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {isFree ? 'forever' : '/mo'}
-                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">/mo</span>
                 </div>
                 <p className="mt-1 h-5 text-xs text-muted-foreground">
-                  {isFree
-                    ? `+ ${(plan.commissionBps / 100).toFixed(plan.commissionBps % 100 ? 2 : 0)}% per order`
-                    : interval === 'ANNUAL'
-                      ? `${formatMoney(price.annualMinor, currency)} billed yearly · ${(plan.commissionBps / 100).toFixed(plan.commissionBps % 100 ? 2 : 0)}% per order`
-                      : `+ ${(plan.commissionBps / 100).toFixed(plan.commissionBps % 100 ? 2 : 0)}% per order`}
+                  {interval === 'ANNUAL'
+                    ? `${formatMoney(price.annualMinor, currency)} billed yearly · ${commissionPct}% per order`
+                    : `+ ${commissionPct}% per order`}
                 </p>
 
                 <Button
@@ -157,9 +155,7 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
                   variant={highlighted ? 'brand' : 'outline'}
                   className="mt-6 w-full"
                 >
-                  <Link href={`/sign-up?plan=${price.tier}`}>
-                    {isFree ? 'Start free' : `Choose ${plan.name}`}
-                  </Link>
+                  <Link href={`/sign-up?plan=${price.tier}`}>Start free trial</Link>
                 </Button>
 
                 <ul className="mt-7 space-y-3 text-sm">
@@ -178,8 +174,8 @@ export function PricingSection({ initialCurrency }: { initialCurrency?: string }
         </div>
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
-          Every plan includes QR ordering, the kitchen board, and secure card payments. Cancel or
-          switch anytime.
+          Every plan starts with a 14-day free trial — no card required. Includes QR ordering, the
+          kitchen board, and secure card payments. Cancel or switch anytime.
         </p>
       </div>
     </section>

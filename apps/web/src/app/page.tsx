@@ -187,7 +187,7 @@ export default async function LandingPage() {
               <div className="rise-4 mt-9 flex flex-wrap items-center gap-3">
                 <Button asChild size="lg" variant="brand">
                   <Link href="/sign-up">
-                    Start free
+                    Start free trial
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -479,7 +479,7 @@ export default async function LandingPage() {
               className="rounded-xl bg-white px-8 text-base font-semibold text-black shadow-floating hover:bg-white/90"
             >
               <Link href="/sign-up">
-                Start free
+                Start free trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

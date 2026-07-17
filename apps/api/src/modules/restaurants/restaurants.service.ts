@@ -45,6 +45,9 @@ import { StorageService } from '../storage/storage.service';
 import { QrService } from '../qr/qr.service';
 import { PaymentsService } from '../payments/payments.service';
 
+/** How long a new restaurant gets the Starter tier free before it must subscribe. */
+const TRIAL_DAYS = 14;
+
 @Injectable()
 export class RestaurantsService {
   private readonly logger = new Logger(RestaurantsService.name);
@@ -130,6 +133,14 @@ export class RestaurantsService {
 
           platformFeeBps: this.config.get<number>('PLATFORM_FEE_BPS') ?? 0,
           onboardingStep: 'BUSINESS_DETAILS',
+
+          // Starter is a paid tier, so a new signup opens on a 14-day free trial of
+          // it (no card required). The billing banner counts this down and nudges
+          // them to subscribe before it lapses. Admin create-on-behalf overwrites
+          // this straight away via adminSetPlan when a plan is assigned.
+          planTier: 'STARTER',
+          subscriptionStatus: 'TRIALING',
+          planCurrentPeriodEnd: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
         },
       });
 

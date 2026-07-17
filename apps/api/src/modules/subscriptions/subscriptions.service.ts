@@ -122,16 +122,17 @@ export class SubscriptionsService {
     tier: PlanTier,
     interval: BillingInterval,
   ): Promise<{ checkoutUrl: string }> {
-    if (tier === 'STARTER') {
-      throw new BadRequestException('The Starter plan is free — there is nothing to check out');
-    }
-
     const restaurant = await this.prisma.restaurant.findUnique({ where: { id: restaurantId } });
     if (!restaurant) throw new NotFoundException('Restaurant not found');
 
     const customerId = await this.ensureCustomer(restaurant);
     const currency = restaurant.currency.toLowerCase();
     const amount = billedAmountMinor(tier, interval, restaurant.currency);
+    // Every tier is paid now, but guard against a mis-configured $0 row rather than
+    // handing Stripe a zero-amount subscription it will reject confusingly.
+    if (amount <= 0) {
+      throw new BadRequestException('This plan has no price configured for your currency');
+    }
     const plan = getPlan(tier);
     const webUrl = this.config.getOrThrow<string>('WEB_URL');
 
@@ -263,7 +264,9 @@ export class SubscriptionsService {
       (subscription.metadata?.interval as BillingInterval) ?? restaurant.billingInterval ?? 'MONTHLY';
     const status = this.mapStatus(subscription.status);
 
-    // A subscription that has fully ended drops the restaurant back to the free tier.
+    // A subscription that has fully ended drops the restaurant back to the base
+    // Starter tier (now the entry plan) with an inactive status, so features gate
+    // off until they re-subscribe.
     if (status === 'CANCELED') {
       await this.downgradeToStarter(restaurant.id, 'subscription_canceled');
       return;
@@ -465,7 +468,9 @@ export class SubscriptionsService {
       where: { id: restaurantId },
       data: {
         planTier: 'STARTER',
-        subscriptionStatus: 'ACTIVE',
+        // Starter is a paid tier now, so a cancelled subscription lands here as
+        // CANCELED (not ACTIVE) — the billing page then shows a re-subscribe CTA.
+        subscriptionStatus: 'CANCELED',
         billingInterval: null,
         planCurrentPeriodEnd: null,
         stripeSubscriptionId: null,

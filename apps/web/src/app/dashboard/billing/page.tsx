@@ -150,7 +150,7 @@ export default function BillingPage() {
           )}
           {plan.currentPeriodEnd && (
             <SummaryStat
-              label="Renews"
+              label={plan.status === 'TRIALING' ? 'Trial ends' : 'Renews'}
               value={new Date(plan.currentPeriodEnd).toLocaleDateString(undefined, {
                 year: 'numeric',
                 month: 'short',
@@ -160,6 +160,17 @@ export default function BillingPage() {
           )}
         </CardContent>
       </Card>
+
+      {plan.status === 'TRIALING' && (
+        <div className="mt-4 rounded-xl border border-brand/40 bg-brand-subtle p-4 text-sm">
+          <span className="font-semibold">
+            {trialDaysLeft(plan.currentPeriodEnd) > 0
+              ? `${trialDaysLeft(plan.currentPeriodEnd)} day${trialDaysLeft(plan.currentPeriodEnd) === 1 ? '' : 's'} left in your free trial.`
+              : 'Your free trial has ended.'}
+          </span>{' '}
+          Subscribe below to keep taking orders — you won’t be charged until you do.
+        </div>
+      )}
 
       {plan.status === 'PAST_DUE' && (
         <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
@@ -206,9 +217,9 @@ export default function BillingPage() {
             interval={interval}
             currency={plan.currency}
             currentRank={currentRank}
+            hasActiveSubscription={plan.status === 'ACTIVE'}
             busy={startCheckout.isPending || openPortal.isPending}
             onChoose={() => startCheckout.mutate(option.tier)}
-            onManage={() => openPortal.mutate()}
           />
         ))}
       </div>
@@ -219,6 +230,13 @@ export default function BillingPage() {
       </p>
     </div>
   );
+}
+
+/** Whole days between now and the trial end date, floored at 0. */
+function trialDaysLeft(end: string | null): number {
+  if (!end) return 0;
+  const ms = new Date(end).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
 
 function SummaryStat({ label, value }: { label: string; value: React.ReactNode }) {
@@ -235,23 +253,23 @@ function PlanCard({
   interval,
   currency,
   currentRank,
+  hasActiveSubscription,
   busy,
   onChoose,
-  onManage,
 }: {
   option: PlanTierOption;
   interval: BillingInterval;
   currency: string;
   currentRank: number;
+  hasActiveSubscription: boolean;
   busy: boolean;
   onChoose: () => void;
-  onManage: () => void;
 }) {
   const { plan, tier, current } = option;
-  const isFree = option.monthlyMinor === 0;
   const perMonthMinor = interval === 'ANNUAL' ? option.annualPerMonthMinor : option.monthlyMinor;
   const rank = TIER_RANK[tier];
   const highlighted = tier === 'GROWTH';
+  const commissionPct = (plan.commissionBps / 100).toFixed(2);
 
   return (
     <Card className={highlighted ? 'border-brand shadow-floating' : ''}>
@@ -265,22 +283,30 @@ function PlanCard({
       <CardContent>
         <div className="flex items-baseline gap-1">
           <span className="text-3xl font-black tracking-tight tabular-nums">
-            {formatMoney(isFree ? 0 : perMonthMinor, currency)}
+            {formatMoney(perMonthMinor, currency)}
           </span>
-          <span className="text-sm font-medium text-muted-foreground">{isFree ? 'forever' : '/mo'}</span>
+          <span className="text-sm font-medium text-muted-foreground">/mo</span>
         </div>
         <p className="mt-1 h-5 text-xs text-muted-foreground">
-          {isFree
-            ? `+ ${(plan.commissionBps / 100).toFixed(plan.commissionBps % 100 ? 2 : 0)}% per order`
-            : interval === 'ANNUAL'
-              ? `${formatMoney(option.annualMinor, currency)}/yr · ${(plan.commissionBps / 100).toFixed(2)}% per order`
-              : `+ ${(plan.commissionBps / 100).toFixed(2)}% per order`}
+          {interval === 'ANNUAL'
+            ? `${formatMoney(option.annualMinor, currency)}/yr · ${commissionPct}% per order`
+            : `+ ${commissionPct}% per order`}
         </p>
 
         <div className="mt-5">
-          {current ? (
+          {current && hasActiveSubscription ? (
             <Button variant="outline" className="w-full" disabled>
               Current plan
+            </Button>
+          ) : current ? (
+            // On this tier but not paying yet (trial / cancelled) — let them subscribe.
+            <Button
+              variant={highlighted ? 'brand' : 'default'}
+              className="w-full"
+              disabled={busy}
+              onClick={onChoose}
+            >
+              Subscribe to {plan.name}
             </Button>
           ) : rank > currentRank ? (
             <Button
@@ -290,11 +316,6 @@ function PlanCard({
               onClick={onChoose}
             >
               Upgrade to {plan.name}
-            </Button>
-          ) : isFree ? (
-            // Returning to free = cancel the paid subscription, which the portal owns.
-            <Button variant="outline" className="w-full" disabled={busy} onClick={onManage}>
-              Cancel & downgrade
             </Button>
           ) : (
             <Button variant="outline" className="w-full" disabled={busy} onClick={onChoose}>
