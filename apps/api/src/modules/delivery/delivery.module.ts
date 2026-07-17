@@ -8,6 +8,7 @@ import { GeocodingService } from './geocoding.service';
 import { AddressAutocompleteService } from './address-autocomplete.service';
 import { CourierRouter } from './courier.router';
 import { DoorDashClient } from './doordash.client';
+import { PorterCourier } from './porter.courier';
 import { UberClient } from './uber.client';
 import { UberCourier } from './uber.courier';
 
@@ -19,6 +20,7 @@ import { UberCourier } from './uber.courier';
     UberClient,
     UberCourier,
     DoorDashClient,
+    PorterCourier,
     CourierRouter,
     GeocodingService,
     AddressAutocompleteService,

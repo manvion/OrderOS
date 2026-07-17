@@ -19,6 +19,7 @@ import { Audit, CurrentUser, Public, Roles, TenantId } from '../../common/auth/d
 import type { AuthUser } from '../../common/auth/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PaymentsService } from './payments.service';
+import { RazorpayService } from './razorpay.service';
 
 /** Express gives us the raw body on this route only — see main.ts. */
 interface RawBodyRequest extends Request {
@@ -29,7 +30,10 @@ interface RawBodyRequest extends Request {
 @Controller('payments')
 @UseGuards(ClerkAuthGuard)
 export class PaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly razorpay: RazorpayService,
+  ) {}
 
   // --- Stripe Connect (dashboard) -------------------------------------------
 
@@ -44,6 +48,22 @@ export class PaymentsController {
   @Roles('MANAGER')
   connectStatus(@TenantId() restaurantId: string) {
     return this.payments.syncConnectStatus(restaurantId);
+  }
+
+  // --- Razorpay Route (India onboarding) ------------------------------------
+
+  /** Create the restaurant's Razorpay Route linked account (the India "connect"). */
+  @Post('razorpay/onboarding')
+  @Roles('OWNER')
+  createRazorpayOnboarding(@TenantId() restaurantId: string, @CurrentUser() user: AuthUser) {
+    return this.razorpay.createLinkedAccount(restaurantId, user.id);
+  }
+
+  /** Re-check the linked account's KYC/activation and flip razorpayEnabled to match. */
+  @Get('razorpay/status')
+  @Roles('MANAGER')
+  razorpayStatus(@TenantId() restaurantId: string) {
+    return this.razorpay.syncStatus(restaurantId);
   }
 
   /** Single-use door into the restaurant's own Stripe Express dashboard. */

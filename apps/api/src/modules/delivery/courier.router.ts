@@ -8,6 +8,7 @@ import {
   type CourierQuoteRequest,
 } from './courier.interface';
 import { DoorDashClient } from './doordash.client';
+import { PorterCourier } from './porter.courier';
 import { UberCourier } from './uber.courier';
 
 /**
@@ -39,19 +40,23 @@ export class CourierRouter {
   constructor(
     private readonly uber: UberCourier,
     private readonly doordash: DoorDashClient,
+    private readonly porter: PorterCourier,
   ) {}
 
   /** Is ANY courier usable at all? False on a deployment with no courier credentials. */
   get anyConfigured(): boolean {
-    return this.uber.isConfigured || this.doordash.isConfigured;
+    return this.uber.isConfigured || this.doordash.isConfigured || this.porter.isConfigured;
   }
 
   /** The couriers this restaurant has switched on AND we have credentials for. */
-  enabledFor(restaurant: Pick<Restaurant, 'uberDirectEnabled' | 'doorDashEnabled'>): Courier[] {
+  enabledFor(
+    restaurant: Pick<Restaurant, 'uberDirectEnabled' | 'doorDashEnabled' | 'porterEnabled'>,
+  ): Courier[] {
     const couriers: Courier[] = [];
 
     if (restaurant.uberDirectEnabled && this.uber.isConfigured) couriers.push(this.uber);
     if (restaurant.doorDashEnabled && this.doordash.isConfigured) couriers.push(this.doordash);
+    if (restaurant.porterEnabled && this.porter.isConfigured) couriers.push(this.porter);
 
     return couriers;
   }
@@ -63,6 +68,8 @@ export class CourierRouter {
         return this.uber;
       case 'DOORDASH':
         return this.doordash;
+      case 'PORTER':
+        return this.porter;
       default:
         // SELF has no API. Reaching here means someone tried to ask a restaurant's own
         // moped rider for a tracking update, which is a bug in the caller, not a
@@ -85,7 +92,7 @@ export class CourierRouter {
    * "we cannot deliver here", never as "it's free".
    */
   async quoteAll(
-    restaurant: Pick<Restaurant, 'uberDirectEnabled' | 'doorDashEnabled'>,
+    restaurant: Pick<Restaurant, 'uberDirectEnabled' | 'doorDashEnabled' | 'porterEnabled'>,
     req: CourierQuoteRequest,
   ): Promise<{ quotes: CourierQuote[]; declineReason: string | null }> {
     const couriers = this.enabledFor(restaurant);
@@ -147,7 +154,7 @@ export class CourierRouter {
    * for our logs, not the customer's checkout page.
    */
   async bestQuote(
-    restaurant: Pick<Restaurant, 'uberDirectEnabled' | 'doorDashEnabled'>,
+    restaurant: Pick<Restaurant, 'uberDirectEnabled' | 'doorDashEnabled' | 'porterEnabled'>,
     req: CourierQuoteRequest,
   ): Promise<{ quote: CourierQuote | null; declineReason: string | null }> {
     const { quotes, declineReason } = await this.quoteAll(restaurant, req);

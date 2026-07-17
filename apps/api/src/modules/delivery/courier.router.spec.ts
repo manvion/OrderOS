@@ -21,10 +21,10 @@ const REQUEST: CourierQuoteRequest = {
 };
 
 /** A restaurant with both couriers switched on. */
-const BOTH = { uberDirectEnabled: true, doorDashEnabled: true };
+const BOTH = { uberDirectEnabled: true, doorDashEnabled: true, porterEnabled: false };
 
 function fakeCourier(
-  provider: 'UBER' | 'DOORDASH',
+  provider: 'UBER' | 'DOORDASH' | 'PORTER',
   behaviour: { feeCents?: number; declines?: string; broken?: string; configured?: boolean },
 ): Courier {
   const quote = jest.fn(async (): Promise<CourierQuote> => {
@@ -54,9 +54,11 @@ function fakeCourier(
 }
 
 function router(uber: Courier, doordash: Courier): CourierRouter {
-  // The router only ever touches the Courier surface of these two, so the concrete
-  // client classes are irrelevant to what is being tested here.
-  return new CourierRouter(uber as never, doordash as never);
+  // The router only ever touches the Courier surface of these, so the concrete client
+  // classes are irrelevant to what is being tested here. Porter is India-only and off
+  // in these Canada scenarios — a disabled mock keeps it out of the quoting.
+  const porter = fakeCourier('PORTER', { configured: false });
+  return new CourierRouter(uber as never, doordash as never, porter as never);
 }
 
 describe('CourierRouter', () => {
@@ -132,7 +134,7 @@ describe('CourierRouter', () => {
     const doordash = fakeCourier('DOORDASH', { feeCents: 100 });
 
     const { quote } = await router(uber, doordash).bestQuote(
-      { uberDirectEnabled: true, doorDashEnabled: false },
+      { uberDirectEnabled: true, doorDashEnabled: false, porterEnabled: false },
       REQUEST,
     );
 
@@ -158,7 +160,7 @@ describe('CourierRouter', () => {
     const doordash = fakeCourier('DOORDASH', { feeCents: 645 });
 
     const { quotes } = await router(uber, doordash).quoteAll(
-      { uberDirectEnabled: false, doorDashEnabled: false },
+      { uberDirectEnabled: false, doorDashEnabled: false, porterEnabled: false },
       REQUEST,
     );
 

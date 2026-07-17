@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Lock, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
-import type { BusinessHours } from '@dinedirect/shared';
+import { usesRazorpay, type BusinessHours } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';
@@ -26,10 +26,35 @@ export default function SettingsPage() {
   useRequireRole('OWNER', '/dashboard');
   const searchParams = useSearchParams();
 
+  // India collects through Razorpay Route, everyone else through Stripe.
+  const isIndia = restaurant ? usesRazorpay(restaurant.country) : false;
+
   const { data: stripe, isLoading: loadingStripe } = useQuery({
     queryKey: ['stripe', 'status', restaurant?.id],
     queryFn: () => api.getStripeStatus(),
-    enabled: Boolean(restaurant),
+    enabled: Boolean(restaurant) && !isIndia,
+  });
+
+  const { data: razorpay, isLoading: loadingRazorpay } = useQuery({
+    queryKey: ['razorpay', 'status', restaurant?.id],
+    queryFn: () => api.getRazorpayStatus(),
+    enabled: Boolean(restaurant) && isIndia,
+  });
+
+  const connectRazorpay = useMutation({
+    mutationFn: () => api.createRazorpayOnboarding(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['razorpay'] });
+      toast.success(
+        'Razorpay account created. Finish your KYC on Razorpay, then Refresh status here.',
+        { duration: 9000 },
+      );
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not start Razorpay onboarding',
+        { duration: 9000 },
+      ),
   });
 
   const { data: readiness } = useQuery({
@@ -208,11 +233,43 @@ export default function SettingsPage() {
             Payments
           </CardTitle>
           <CardDescription>
-            Money goes straight from your customer to your Stripe account. We never hold it.
+            {isIndia
+              ? 'India: money goes straight from your customer to your Razorpay account (UPI, PhonePe, Google Pay, cards). We never hold it.'
+              : 'Money goes straight from your customer to your Stripe account. We never hold it.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loadingStripe ? (
+          {isIndia ? (
+            loadingRazorpay ? (
+              <Skeleton className="h-10 w-full" />
+            ) : razorpay?.enabled ? (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Connected. You can take UPI, PhonePe, Google Pay, cards and more.
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {razorpay?.connected
+                    ? 'Finish your KYC on Razorpay to start taking payments, then Refresh status.'
+                    : 'Connect Razorpay to take UPI (PhonePe, Google Pay, Paytm), cards, netbanking and wallets.'}
+                </p>
+                {can('OWNER') && !razorpay?.connected && (
+                  <Button onClick={() => connectRazorpay.mutate()} disabled={connectRazorpay.isPending}>
+                    {connectRazorpay.isPending ? 'Connecting…' : 'Connect Razorpay'}
+                  </Button>
+                )}
+                {razorpay?.connected && (
+                  <Button
+                    variant="outline"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['razorpay'] })}
+                  >
+                    Refresh status
+                  </Button>
+                )}
+              </>
+            )
+          ) : loadingStripe ? (
             <Skeleton className="h-10 w-full" />
           ) : stripe?.chargesEnabled ? (
             <div className="space-y-3">
@@ -302,6 +359,7 @@ function DeliverySettings() {
     uberDirectEnabled: restaurant?.uberDirectEnabled ?? false,
     doorDashEnabled: restaurant?.doorDashEnabled ?? false,
     selfDeliveryEnabled: restaurant?.selfDeliveryEnabled ?? false,
+    porterEnabled: restaurant?.porterEnabled ?? false,
     deliveryFeeCents: restaurant?.deliveryFeeCents ?? 499,
     deliveryRadiusMeters: restaurant?.deliveryRadiusMeters ?? 8000,
     minOrderCents: restaurant?.minOrderCents ?? 0,
@@ -326,6 +384,9 @@ function DeliverySettings() {
   const readOnly = !can('MANAGER');
   // Courier delivery is a paid capability. Pickup and dine-in stay on every plan.
   const deliveryLocked = !hasFeature('DELIVERY');
+  // India uses Porter for auto-dispatch; Uber Direct / DoorDash Drive don't operate
+  // there, so those toggles are hidden and Porter is shown instead.
+  const isIndia = usesRazorpay(restaurant.country);
 
   return (
     <Card>
@@ -364,23 +425,36 @@ function DeliverySettings() {
             onChange={(scheduledOrdersEnabled) => setForm({ ...form, scheduledOrdersEnabled })}
             disabled={readOnly}
           />
-          <Toggle
-            label="Uber Direct"
-            hint="Dispatch an Uber courier when an order is marked ready"
-            checked={form.uberDirectEnabled && !deliveryLocked}
-            onChange={(uberDirectEnabled) => setForm({ ...form, uberDirectEnabled })}
-            // Dispatching a courier for a restaurant that doesn't do delivery is
-            // nonsense, so the toggle is only meaningful once delivery is on — and
-            // delivery itself needs a plan that includes it.
-            disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
-          />
-          <Toggle
-            label="DoorDash Drive"
-            hint="Dispatch a DoorDash courier when an order is marked ready"
-            checked={form.doorDashEnabled && !deliveryLocked}
-            onChange={(doorDashEnabled) => setForm({ ...form, doorDashEnabled })}
-            disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
-          />
+          {!isIndia && (
+            <>
+              <Toggle
+                label="Uber Direct"
+                hint="Dispatch an Uber courier when an order is marked ready"
+                checked={form.uberDirectEnabled && !deliveryLocked}
+                onChange={(uberDirectEnabled) => setForm({ ...form, uberDirectEnabled })}
+                // Dispatching a courier for a restaurant that doesn't do delivery is
+                // nonsense, so the toggle is only meaningful once delivery is on — and
+                // delivery itself needs a plan that includes it.
+                disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
+              />
+              <Toggle
+                label="DoorDash Drive"
+                hint="Dispatch a DoorDash courier when an order is marked ready"
+                checked={form.doorDashEnabled && !deliveryLocked}
+                onChange={(doorDashEnabled) => setForm({ ...form, doorDashEnabled })}
+                disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
+              />
+            </>
+          )}
+          {isIndia && (
+            <Toggle
+              label="Porter"
+              hint="Dispatch a Porter courier when an order is marked ready (India)"
+              checked={form.porterEnabled && !deliveryLocked}
+              onChange={(porterEnabled) => setForm({ ...form, porterEnabled })}
+              disabled={readOnly || !form.deliveryEnabled || deliveryLocked}
+            />
+          )}
           <Toggle
             label="We have our own driver"
             hint="Deliver it yourself instead of paying for a courier"

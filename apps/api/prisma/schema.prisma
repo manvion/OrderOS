@@ -163,6 +163,9 @@ enum QRCodeType {
 enum DeliveryProvider {
   UBER
   DOORDASH
+  /// India intracity courier (Porter). Uber Direct / DoorDash Drive don't operate
+  /// in India, so this is the auto-dispatch option there.
+  PORTER
   SELF
 }
 
@@ -282,6 +285,9 @@ model Restaurant {
   /// rather than guessing — which is right, because the answer genuinely depends
   /// on how far away the customer is and whether the moped kid is on shift.
   selfDeliveryEnabled     Boolean @default(false)
+  /// Dispatch a Porter courier (India). The India-market counterpart to Uber
+  /// Direct / DoorDash Drive, which don't operate there. See paymentProviderForCountry.
+  porterEnabled           Boolean @default(false)
   deliveryFeeCents        Int     @default(499)
   deliveryRadiusMeters    Int     @default(8000)
   minOrderCents           Int     @default(0)

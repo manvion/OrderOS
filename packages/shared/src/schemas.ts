@@ -256,6 +256,8 @@ export const deliverySettingsSchema = z.object({
    * shift, which is knowledge the person at the pass has and we don't.
    */
   selfDeliveryEnabled: z.boolean().default(false),
+  /** Dispatch a Porter courier (India). See paymentProviderForCountry. */
+  porterEnabled: z.boolean().default(false),
 });
 export type DeliverySettingsInput = z.infer<typeof deliverySettingsSchema>;
 

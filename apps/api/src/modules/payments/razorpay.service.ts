@@ -30,7 +30,8 @@ export class RazorpayService {
   private readonly logger = new Logger(RazorpayService.name);
   private readonly keyId?: string;
   private readonly keySecret?: string;
-  private readonly base = 'https://api.razorpay.com/v1';
+  // Host only — callers pass the versioned path (/v1/orders, /v2/accounts, …).
+  private readonly base = 'https://api.razorpay.com';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -102,7 +103,7 @@ export class RazorpayService {
     const commission = order.payment.platformFeeCents;
     const transferToRestaurant = Math.max(0, amount - commission);
 
-    const rzpOrder = await this.call<{ id: string }>('POST', '/orders', {
+    const rzpOrder = await this.call<{ id: string }>('POST', '/v1/orders', {
       amount,
       currency: 'INR',
       receipt: order.orderNumber,
@@ -188,9 +189,124 @@ export class RazorpayService {
     this.assertConfigured();
     const refund = await this.call<{ id: string }>(
       'POST',
-      `/payments/${paymentId}/refund`,
+      `/v1/payments/${paymentId}/refund`,
       amountCents ? { amount: amountCents } : {},
     );
     return { refundId: refund.id };
+  }
+
+  // --- Onboarding (Razorpay Route linked account) ----------------------------
+
+  /**
+   * The India equivalent of "Connect Stripe": create the restaurant's Route linked
+   * account and turn on the Route product, seeded from what we already know about
+   * them (name, contact, address, GST). Razorpay then collects the rest of KYC —
+   * PAN, bank account, documents — before the account can settle; the owner
+   * finishes that on Razorpay's side and we pick up the result in `syncStatus`.
+   *
+   * Idempotent: a second call returns the account we already made rather than a
+   * duplicate. Surfaces Razorpay's own words on failure so "it didn't connect"
+   * carries the actual reason (missing field, unsupported business type, …).
+   */
+  async createLinkedAccount(restaurantId: string, userId?: string) {
+    this.assertConfigured();
+
+    const r = await this.prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId } });
+    if (r.country?.toUpperCase() !== 'IN') {
+      throw new BadRequestException('Razorpay onboarding is only for restaurants in India');
+    }
+    if (r.razorpayAccountId) {
+      return { accountId: r.razorpayAccountId, alreadyConnected: true };
+    }
+
+    let account: { id: string };
+    try {
+      account = await this.call<{ id: string }>('POST', '/v2/accounts', {
+        email: r.email,
+        phone: r.phone.replace(/[^\d]/g, '').slice(-10),
+        type: 'route',
+        legal_business_name: r.legalName || r.name,
+        customer_facing_business_name: r.name,
+        // We don't collect the entity type, so start as a proprietorship — the most
+        // common for an independent restaurant. The owner can correct it during KYC.
+        business_type: 'proprietorship',
+        profile: {
+          category: 'food',
+          subcategory: 'restaurant',
+          addresses: {
+            registered: {
+              street1: r.street,
+              street2: r.city,
+              city: r.city,
+              state: r.state,
+              postal_code: r.postalCode,
+              country: 'IN',
+            },
+          },
+        },
+        ...(r.taxId ? { legal_info: { gst: r.taxId } } : {}),
+      });
+    } catch (err) {
+      throw new BadRequestException(`Could not start Razorpay onboarding: ${(err as Error).message}`);
+    }
+
+    await this.prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { razorpayAccountId: account.id },
+    });
+
+    // Enable the Route product on the account. Non-fatal — the account exists either
+    // way, and this can be retried; we just log if Razorpay wasn't ready for it yet.
+    try {
+      await this.call('POST', `/v2/accounts/${account.id}/products`, {
+        product_name: 'route',
+        tnc_accepted: true,
+      });
+    } catch (err) {
+      this.logger.warn(`Route product not yet enabled for ${account.id}: ${(err as Error).message}`);
+    }
+
+    await this.audit.log({
+      restaurantId,
+      userId,
+      action: 'razorpay.onboarding_started',
+      entityType: 'Restaurant',
+      entityId: restaurantId,
+      metadata: { razorpayAccountId: account.id },
+    });
+
+    return { accountId: account.id, alreadyConnected: false };
+  }
+
+  /**
+   * Ask Razorpay whether the linked account is live yet, and flip `razorpayEnabled`
+   * to match. Called when the owner returns from finishing KYC — we trust Razorpay's
+   * status, not a "done" button. Returns what's still needed so the UI can show it.
+   */
+  async syncStatus(restaurantId: string) {
+    this.assertConfigured();
+
+    const r = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { razorpayAccountId: true },
+    });
+    if (!r.razorpayAccountId) {
+      return { connected: false, enabled: false, status: null as string | null };
+    }
+
+    const account = await this.call<{
+      status?: string;
+      activation_details?: { activation_status?: string };
+    }>('GET', `/v2/accounts/${r.razorpayAccountId}`);
+
+    const status = account.activation_details?.activation_status ?? account.status ?? null;
+    const enabled = status === 'activated';
+
+    await this.prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { razorpayEnabled: enabled },
+    });
+
+    return { connected: true, enabled, status };
   }
 }

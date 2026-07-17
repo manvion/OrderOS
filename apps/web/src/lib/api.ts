@@ -404,6 +404,16 @@ export function createDashboardApi(
     /** Edit bank account, payout schedule, business details — Stripe's own dashboard. */
     createStripeManageLink: () =>
       call<{ url: string }>('/payments/connect/manage-link', { method: 'POST' }),
+
+    // Razorpay Route (India payments)
+    createRazorpayOnboarding: () =>
+      call<{ accountId: string; alreadyConnected: boolean }>('/payments/razorpay/onboarding', {
+        method: 'POST',
+      }),
+    getRazorpayStatus: () =>
+      call<{ connected: boolean; enabled: boolean; status: string | null }>(
+        '/payments/razorpay/status',
+      ),
     refund: (orderId: string, body: { amountCents?: number; reason?: string }) =>
       call<{ refundId: string; amountCents: number; isFullRefund: boolean }>(
         `/payments/orders/${orderId}/refund`,
@@ -1027,6 +1037,8 @@ export interface Restaurant {
   stripeChargesEnabled: boolean;
   uberDirectEnabled: boolean;
   doorDashEnabled: boolean;
+  /** Dispatch a Porter courier (India). */
+  porterEnabled: boolean;
   /** The restaurant has their own driver. Both on = the dashboard asks per order. */
   selfDeliveryEnabled: boolean;
   pickupEnabled: boolean;
