@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge, Label, Skeleton } from '@/components/ui/primitives';
+import { tenantUrl } from '@/lib/tenant-url';
 
 /**
  * "Use my own domain."
@@ -94,6 +95,9 @@ function DomainPageInner() {
 
   if (!restaurant) return null;
   const readOnly = !can('OWNER');
+  // The default storefront host, derived from the configured platform domain
+  // (NEXT_PUBLIC_APP_DOMAIN) — never hardcoded, so it follows a domain change.
+  const defaultHost = tenantUrl(restaurant.slug).replace(/^https?:\/\//, '');
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -101,7 +105,7 @@ function DomainPageInner() {
         <h1 className="text-2xl font-bold tracking-tight">Your own domain</h1>
         <p className="text-sm text-muted-foreground">
           Serve your ordering page at <strong>joesburgers.com</strong> instead of{' '}
-          {restaurant.slug}.dinedirect.manvion.ca.
+          {defaultHost}.
         </p>
       </div>
 
@@ -155,7 +159,7 @@ function DomainPageInner() {
             <p className="mt-4 font-medium">No custom domain yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Your page is live at{' '}
-              <span className="font-mono">{restaurant.slug}.dinedirect.manvion.ca</span> — that works
+              <span className="font-mono">{defaultHost}</span> — that works
               perfectly well. A custom domain is for when you want your own name on it.
             </p>
           </CardContent>

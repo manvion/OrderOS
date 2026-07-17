@@ -86,6 +86,10 @@ export default async function LandingPage() {
     headerList.get('cf-ipcountry');
   const initialCurrency = geoCountry ? currencyForCountry(geoCountry) : undefined;
 
+  // The platform's own apex, so marketing copy never hardcodes a domain the
+  // operator may have changed. Falls back only for a misconfigured deploy.
+  const apexDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'dinedirect.manvion.ca';
+
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
       {/* Dark, permanently -- this header only ever lives on THIS page, and the
@@ -364,7 +368,7 @@ export default async function LandingPage() {
               icon={ChefHat}
               eyebrow="Your ordering page"
               title="A site that's unmistakably yours"
-              body="A branded storefront at yourname.dinedirect.manvion.ca, live the same day you sign up. Pickup, delivery and dine-in, all from one menu you control."
+              body={`A branded storefront at yourname.${apexDomain}, live the same day you sign up. Pickup, delivery and dine-in, all from one menu you control.`}
             />
           </div>
           <div className="animate-rise">
