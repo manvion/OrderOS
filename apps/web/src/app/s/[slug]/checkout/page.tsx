@@ -16,7 +16,7 @@ import {
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { AddressAutocomplete } from '@/components/storefront/address-autocomplete';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
-import { useT } from '@/components/storefront/i18n-provider';
+import { useT, useLocale } from '@/components/storefront/i18n-provider';
 import { useCustomerAuth } from '@/components/storefront/customer-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const restaurant = useTenant();
   const href = useTenantHref();
   const t = useT();
+  const { locale } = useLocale();
   const router = useRouter();
 
   const lines = useCart((s) => s.lines);
@@ -255,6 +256,8 @@ export default function CheckoutPage() {
           ...(tableNumber ? { tableNumber } : {}),
           ...(qrCodeId ? { qrCodeId } : {}),
           ...(promoCode ? { promoCode } : {}),
+          // So their texts and emails come back in the language they ordered in.
+          locale,
         },
         token ?? undefined,
       );

@@ -304,6 +304,7 @@ export class OrdersService {
           customerName: input.customer.name,
           customerPhone: input.customer.phone,
           customerEmail: input.customer.email,
+          locale: input.locale,
 
           ...(input.deliveryAddress
             ? {

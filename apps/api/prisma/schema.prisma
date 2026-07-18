@@ -998,6 +998,10 @@ model Order {
   customerName  String
   customerPhone String
   customerEmail String
+  /// The language the customer ordered in ("en" / "fr"), captured from the
+  /// storefront at checkout so their texts and emails come back in that language.
+  /// Null for orders placed before this existed, or by a single-language storefront.
+  locale        String?
 
   // Delivery destination
   deliveryStreet     String?

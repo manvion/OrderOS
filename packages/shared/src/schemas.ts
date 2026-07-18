@@ -355,6 +355,8 @@ export const createOrderSchema = z
     qrCodeId: z.string().cuid().optional(),
     /** Customer-entered promo code. Re-validated server-side; never trust the discount from the client. */
     promoCode: z.string().max(40).optional(),
+    /** The language the customer is ordering in — their texts/emails come back in it. */
+    locale: z.enum(['en', 'fr']).optional(),
   })
   .refine((o) => o.fulfillment !== 'DELIVERY' || !!o.deliveryAddress, {
     message: 'A delivery address is required for delivery orders',

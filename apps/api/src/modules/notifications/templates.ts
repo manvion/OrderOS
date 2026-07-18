@@ -46,7 +46,18 @@ export interface OrderContext {
  * and the one message that matters (READY / driver on the way) gets lost. So this
  * returns null for the states that don't earn an interruption.
  */
-export function customerSms(status: OrderStatus, ctx: OrderContext): string | null {
+export type MessageLocale = 'en' | 'fr';
+
+/** The customer's SMS, in the language they ordered in. */
+export function customerSms(
+  status: OrderStatus,
+  ctx: OrderContext,
+  locale: MessageLocale = 'en',
+): string | null {
+  return locale === 'fr' ? customerSmsFr(status, ctx) : customerSmsEn(status, ctx);
+}
+
+function customerSmsEn(status: OrderStatus, ctx: OrderContext): string | null {
   switch (status) {
     case 'PENDING':
       // Sent on payment, not on order creation — an unpaid order isn't an order.
@@ -62,19 +73,12 @@ export function customerSms(status: OrderStatus, ctx: OrderContext): string | nu
 
     case 'READY':
       if (ctx.fulfillment === 'PICKUP') {
-        // This text IS the walk to the counter — it's the moment the customer stands
-        // up and leaves. So it carries the code, rather than making them dig the
-        // tracking link back out of an earlier message while a queue forms behind
-        // them. The last 3 digits of the order number, not a separate random code --
-        // the same number is on every message this customer has already gotten
-        // (placed, confirmed, ready), and it's what the counter board shows too.
         const shortId = ctx.orderNumber.slice(-3);
         return `${ctx.restaurantName}: order #${ctx.orderNumber} is READY. Give code ${shortId} at the counter — see you soon!`;
       }
       if (ctx.fulfillment === 'DINE_IN') {
         return `${ctx.restaurantName}: order #${ctx.orderNumber} is on its way to your table.`;
       }
-      // Delivery: don't say "ready", say what it means for them.
       return `${ctx.restaurantName}: order #${ctx.orderNumber} is packed and we're getting a driver now. ${ctx.trackingUrl}`;
 
     case 'DRIVER_ASSIGNED': {
@@ -90,12 +94,9 @@ export function customerSms(status: OrderStatus, ctx: OrderContext): string | nu
     }
 
     case 'DELIVERED':
-      // The thank-you. This is the last thing they hear from us, so it should
-      // sound like a person, and it should ask for the one thing we want: again.
       return `${ctx.restaurantName}: your order has been delivered — enjoy! Thank you for ordering directly with us. ${ctx.trackingUrl}`;
 
     case 'COMPLETED':
-      // Pickup/dine-in terminal. Delivery already got its thank-you above.
       return ctx.fulfillment === 'DELIVERY'
         ? null
         : `${ctx.restaurantName}: thanks for your order! We hope it was great. Order directly with us again any time.`;
@@ -107,6 +108,59 @@ export function customerSms(status: OrderStatus, ctx: OrderContext): string | nu
 
     case 'PREPARING':
       return null; // covered by ACCEPTED; a second text here is noise
+
+    default:
+      return null;
+  }
+}
+
+function customerSmsFr(status: OrderStatus, ctx: OrderContext): string | null {
+  switch (status) {
+    case 'PENDING':
+      return `${ctx.restaurantName} : nous avons votre commande #${ctx.orderNumber} (${formatMoney(
+        ctx.totalCents,
+        ctx.currency,
+      )}). Nous vous écrirons quand la cuisine la confirmera. Suivi : ${ctx.trackingUrl}`;
+
+    case 'ACCEPTED':
+      return ctx.fulfillment === 'DELIVERY'
+        ? `${ctx.restaurantName} : commande #${ctx.orderNumber} confirmée. En préparation — environ ${ctx.prepTimeMinutes} min, puis un livreur la récupère. ${ctx.trackingUrl}`
+        : `${ctx.restaurantName} : commande #${ctx.orderNumber} confirmée et en préparation. Prête dans environ ${ctx.prepTimeMinutes} min. ${ctx.trackingUrl}`;
+
+    case 'READY':
+      if (ctx.fulfillment === 'PICKUP') {
+        const shortId = ctx.orderNumber.slice(-3);
+        return `${ctx.restaurantName} : commande #${ctx.orderNumber} PRÊTE. Donnez le code ${shortId} au comptoir — à bientôt !`;
+      }
+      if (ctx.fulfillment === 'DINE_IN') {
+        return `${ctx.restaurantName} : commande #${ctx.orderNumber} arrive à votre table.`;
+      }
+      return `${ctx.restaurantName} : commande #${ctx.orderNumber} emballée, nous cherchons un livreur. ${ctx.trackingUrl}`;
+
+    case 'DRIVER_ASSIGNED': {
+      const who = ctx.courierName ?? 'Un livreur';
+      const link = ctx.courierTrackingUrl ?? ctx.trackingUrl;
+      return `${ctx.restaurantName} : ${who} récupère la commande #${ctx.orderNumber}. Suivez en direct : ${link}`;
+    }
+
+    case 'OUT_FOR_DELIVERY': {
+      const eta = ctx.etaMinutes ? ` Arrivée dans environ ${ctx.etaMinutes} min.` : '';
+      const link = ctx.courierTrackingUrl ?? ctx.trackingUrl;
+      return `${ctx.restaurantName} : commande #${ctx.orderNumber} en route vers vous !${eta} ${link}`;
+    }
+
+    case 'DELIVERED':
+      return `${ctx.restaurantName} : votre commande a été livrée — bon appétit ! Merci d'avoir commandé directement avec nous. ${ctx.trackingUrl}`;
+
+    case 'COMPLETED':
+      return ctx.fulfillment === 'DELIVERY'
+        ? null
+        : `${ctx.restaurantName} : merci pour votre commande ! Nous espérons qu'elle était excellente. Commandez de nouveau directement quand vous voulez.`;
+
+    case 'CANCELLED':
+      return `${ctx.restaurantName} : commande #${ctx.orderNumber} annulée${
+        ctx.cancelReason ? ` — ${ctx.cancelReason}` : ''
+      }. Tout paiement est remboursé sous 5 à 10 jours ouvrables. Questions : ${ctx.restaurantPhone}`;
 
     default:
       return null;
@@ -128,7 +182,16 @@ export function customerSms(status: OrderStatus, ctx: OrderContext): string | nu
  *  - They do NOT need to be told about their own actions (they pressed Accept;
  *    texting them "you accepted" is absurd).
  */
-export function restaurantSms(status: OrderStatus, ctx: OrderContext): string | null {
+/** What the RESTAURANT gets, in the restaurant's own content language. */
+export function restaurantSms(
+  status: OrderStatus,
+  ctx: OrderContext,
+  locale: MessageLocale = 'en',
+): string | null {
+  return locale === 'fr' ? restaurantSmsFr(status, ctx) : restaurantSmsEn(status, ctx);
+}
+
+function restaurantSmsEn(status: OrderStatus, ctx: OrderContext): string | null {
   switch (status) {
     case 'PENDING':
       // Fired on payment. The one message that must always land.
@@ -140,7 +203,6 @@ export function restaurantSms(status: OrderStatus, ctx: OrderContext): string | 
       return `Order #${ctx.orderNumber}: ${ctx.courierName ?? 'a driver'} is on the way to collect. Have it bagged and ready.`;
 
     case 'DELIVERED':
-      // The "it's complete" the owner asked for — the loop closing on their side.
       return `Order #${ctx.orderNumber} DELIVERED to ${ctx.customerName}. ${formatMoney(
         ctx.totalCents,
         ctx.currency,
@@ -163,6 +225,43 @@ export function restaurantSms(status: OrderStatus, ctx: OrderContext): string | 
     case 'READY':
     case 'OUT_FOR_DELIVERY':
       return null;
+
+    default:
+      return null;
+  }
+}
+
+/** PICKUP / DELIVERY / DINE_IN → the French words the kitchen reads. */
+function fulfillmentFr(fulfillment: OrderContext['fulfillment']): string {
+  return fulfillment === 'DELIVERY' ? 'livraison' : fulfillment === 'DINE_IN' ? 'sur place' : 'à emporter';
+}
+
+function restaurantSmsFr(status: OrderStatus, ctx: OrderContext): string | null {
+  switch (status) {
+    case 'PENDING':
+      return `NOUVELLE COMMANDE #${ctx.orderNumber} — ${fulfillmentFr(ctx.fulfillment)}${
+        ctx.tableNumber ? ` (table ${ctx.tableNumber})` : ''
+      }. ${ctx.itemSummary}. ${formatMoney(ctx.totalCents, ctx.currency)}. Acceptez-la dans votre tableau de bord.`;
+
+    case 'DRIVER_ASSIGNED':
+      return `Commande #${ctx.orderNumber} : ${ctx.courierName ?? 'un livreur'} vient la récupérer. Préparez-la, emballée et prête.`;
+
+    case 'DELIVERED':
+      return `Commande #${ctx.orderNumber} LIVRÉE à ${ctx.customerName}. ${formatMoney(
+        ctx.totalCents,
+        ctx.currency,
+      )} — terminée. Rien de plus à faire.`;
+
+    case 'COMPLETED':
+      return ctx.fulfillment === 'DELIVERY'
+        ? null
+        : `Commande #${ctx.orderNumber} récupérée par ${ctx.customerName}. ${formatMoney(
+            ctx.totalCents,
+            ctx.currency,
+          )} — terminée.`;
+
+    case 'CANCELLED':
+      return `Commande #${ctx.orderNumber} ANNULÉE${ctx.cancelReason ? ` — ${ctx.cancelReason}` : ''}. Remboursez le client s'il a été facturé.`;
 
     default:
       return null;

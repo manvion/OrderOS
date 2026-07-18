@@ -29,6 +29,22 @@ type OrderWithItems = Order & {
 };
 
 /**
+ * The language the CUSTOMER hears back in: what they ordered in (stored on the
+ * order), falling back to the restaurant's own content language for older orders or
+ * a single-language storefront.
+ */
+function customerLocale(order: OrderWithItems, restaurant: Restaurant): 'en' | 'fr' {
+  if (order.locale === 'fr') return 'fr';
+  if (order.locale === 'en') return 'en';
+  return restaurant.menuLanguage === 'FR' ? 'fr' : 'en';
+}
+
+/** The language the RESTAURANT's own alerts go out in — their content language. */
+function restaurantLocale(restaurant: Restaurant): 'en' | 'fr' {
+  return restaurant.menuLanguage === 'FR' ? 'fr' : 'en';
+}
+
+/**
  * The notification engine.
  *
  * Fans every order event out to BOTH audiences — the customer and the restaurant —
@@ -90,7 +106,7 @@ export class NotificationsService {
     status: OrderStatus,
     ctx: OrderContext,
   ): Promise<void> {
-    const body = customerSms(status, ctx);
+    const body = customerSms(status, ctx, customerLocale(order, restaurant));
     if (!body) return; // this status doesn't earn an interruption
 
     const template = `order.${status.toLowerCase()}`;
@@ -163,7 +179,7 @@ export class NotificationsService {
     status: OrderStatus,
     ctx: OrderContext,
   ): Promise<void> {
-    const body = restaurantSms(status, ctx);
+    const body = restaurantSms(status, ctx, restaurantLocale(restaurant));
     if (!body) return;
 
     // The number that gets woken up is the ops number, not the one on the website.
