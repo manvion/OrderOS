@@ -144,7 +144,7 @@ export default async function StorefrontLayout({
           </div>
         )}
         <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-          <div className="container flex h-16 items-center justify-between gap-4">
+          <div className="container flex min-h-16 items-center justify-between gap-4 py-2">
             <Link href={href(isQrOnly ? '/menu' : '/')} className="flex min-w-0 items-center gap-3">
               {/* NAME_ONLY needs no logo at all. LOGO_ONLY is only honored when a logo
                   actually exists -- a restaurant that picked it and then removed their
@@ -153,16 +153,40 @@ export default async function StorefrontLayout({
                 (restaurant.logoUrl ? (
                   // Height-constrained, width auto and never cropped: a square icon
                   // shows square, a wide wordmark shows wide, both at a readable size.
-                  // This is what makes the logo "adapt to the upload" instead of being
-                  // squashed into a tiny 40px box.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={restaurant.logoUrl}
-                    alt={restaurant.name}
-                    className="h-11 w-auto max-w-[200px] shrink-0 object-contain sm:h-12"
-                  />
+                  // The base 44px height and 180px width scale by the restaurant's
+                  // logoScale setting (50–250%), so a wide "logo + name" wordmark can be
+                  // made large instead of being capped small. The header grows with it
+                  // (min-h + padding) rather than clipping.
+                  <span
+                    className={`inline-flex shrink-0 items-center ${
+                      restaurant.logoBackdrop ? 'rounded-xl px-2.5 py-1.5' : ''
+                    }`}
+                    style={
+                      restaurant.logoBackdrop
+                        ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }
+                        : undefined
+                    }
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={restaurant.logoUrl}
+                      alt={restaurant.name}
+                      className="w-auto object-contain"
+                      style={{
+                        height: `${(restaurant.logoScale ?? 100) * 0.44}px`,
+                        maxWidth: `${(restaurant.logoScale ?? 100) * 1.8}px`,
+                      }}
+                    />
+                  </span>
                 ) : (
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-lg font-bold text-brand-foreground shadow-soft">
+                  <div
+                    className="flex shrink-0 items-center justify-center rounded-xl bg-brand font-bold text-brand-foreground shadow-soft"
+                    style={{
+                      height: `${(restaurant.logoScale ?? 100) * 0.44}px`,
+                      width: `${(restaurant.logoScale ?? 100) * 0.44}px`,
+                      fontSize: `${(restaurant.logoScale ?? 100) * 0.18}px`,
+                    }}
+                  >
                     {restaurant.name.charAt(0)}
                   </div>
                 ))}

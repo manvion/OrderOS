@@ -887,6 +887,10 @@ export interface StorefrontRestaurant {
   websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY';
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
+  /** Header logo size as a percentage of default (100 = default). */
+  logoScale: number;
+  /** Soft brand-coloured backdrop behind the header logo. */
+  logoBackdrop: boolean;
   currency: string;
   timezone: string;
   isOpen: boolean;
@@ -1087,6 +1091,10 @@ export interface Restaurant {
   websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY';
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
+  /** Header logo size as a percentage of default (100 = default). */
+  logoScale: number;
+  /** Soft brand-coloured backdrop behind the header logo. */
+  logoBackdrop: boolean;
   /** About page content. Plain text, never HTML. */
   aboutHeadline: string | null;
   aboutBody: string | null;

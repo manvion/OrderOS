@@ -113,6 +113,24 @@ export function BrandingEditor() {
     onError: () => toast.error('Could not update the header style'),
   });
 
+  const saveLogoScale = useMutation({
+    mutationFn: (logoScale: number) => api.updateCurrent({ logoScale }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Logo size updated');
+    },
+    onError: () => toast.error('Could not update the logo size'),
+  });
+
+  const saveLogoBackdrop = useMutation({
+    mutationFn: (logoBackdrop: boolean) => api.updateCurrent({ logoBackdrop }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Logo backdrop updated');
+    },
+    onError: () => toast.error('Could not update the backdrop'),
+  });
+
   if (!restaurant) return null;
   const readOnly = !can('MANAGER');
 
@@ -282,6 +300,73 @@ export function BrandingEditor() {
             <p className="text-xs text-muted-foreground">Upload a logo above to unlock these.</p>
           )}
         </div>
+
+        {/* ---------- Logo size ---------- */}
+        {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+          <div className="space-y-2">
+            <Label>Logo size</Label>
+            <p className="text-xs text-muted-foreground">
+              Make a wide “logo + name” image bigger in your header instead of small.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-4">
+              {(
+                [
+                  { value: 75, label: 'Small' },
+                  { value: 100, label: 'Default' },
+                  { value: 150, label: 'Large' },
+                  { value: 200, label: 'Extra large' },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={readOnly || saveLogoScale.isPending}
+                  onClick={() => saveLogoScale.mutate(value)}
+                  className={`rounded-xl border p-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    (restaurant.logoScale ?? 100) === value
+                      ? 'border-brand-subtle bg-brand-subtle'
+                      : 'hover:bg-accent/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ---------- Logo backdrop ---------- */}
+        {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+          <div className="space-y-2">
+            <Label>Logo backdrop</Label>
+            <p className="text-xs text-muted-foreground">
+              A soft panel behind the logo in your brand colour — helps a transparent logo stand
+              out.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  { value: false, label: 'Off' },
+                  { value: true, label: 'On' },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={readOnly || saveLogoBackdrop.isPending}
+                  onClick={() => saveLogoBackdrop.mutate(value)}
+                  className={`rounded-xl border p-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    Boolean(restaurant.logoBackdrop) === value
+                      ? 'border-brand-subtle bg-brand-subtle'
+                      : 'hover:bg-accent/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ---------- Website template ---------- */}
         <div className="space-y-2">

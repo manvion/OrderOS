@@ -286,6 +286,8 @@ export class RestaurantsService {
         websiteTemplate: true,
         themeMode: true,
         logoDisplayMode: true,
+        logoScale: true,
+        logoBackdrop: true,
 
         // The About page, in their words. Plain text — the storefront renders it as
         // escaped paragraphs and never as HTML.
