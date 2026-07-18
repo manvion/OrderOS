@@ -57,6 +57,7 @@ const CAPABILITY_LABELS: Record<PlanCapability, string> = {
   SHIFTS: 'staff scheduling',
   TAX_REPORTS: 'tax reports',
   REMOVE_BRANDING: 'removing DineDirect branding',
+  CATERING: 'party & catering orders',
 };
 
 /** Just the plan fields the guards need — accept any object that carries them. */

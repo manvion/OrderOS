@@ -398,6 +398,8 @@ model Restaurant {
   galleryImages       GalleryImage[]
   promotions          Promotion[]
   shifts              Shift[]
+  cateringPackages    CateringPackage[]
+  cateringRequests    CateringRequest[]
 
   @@index([isPublished, isActive])
   @@map("restaurants")
@@ -1672,4 +1674,114 @@ model WebhookEvent {
   @@unique([provider, eventId])
   @@index([provider, processedAt])
   @@map("webhook_events")
+}
+
+// ---------------------------------------------------------------------------
+// Catering & parties (Growth/Pro capability CATERING)
+//
+// Two shapes of demand a restaurant gets that ordinary menu ordering doesn't serve:
+//   1. A fixed PACKAGE priced per head — "the taco bar, $18/person, min 15" — which
+//      a customer sizes to their headcount and pays for online, in full, up front.
+//   2. A CUSTOM job that needs a conversation — "wedding, 120 people, dietary
+//      needs" — which is a lead, not a checkout: captured with an event date and
+//      contact details for the restaurant to quote.
+// Both land in the same admin inbox (CateringRequest); only PACKAGE carries a price
+// and a payment.
+// ---------------------------------------------------------------------------
+
+/// A per-head catering package the restaurant offers. The customer multiplies it by
+/// their headcount at checkout; the total is (pricePerPersonCents * people).
+model CateringPackage {
+  id           String  @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  imageUrl    String?
+
+  pricePerPersonCents Int
+  /// The smallest party this package is offered for — catering has a floor below
+  /// which it isn't worth the kitchen's while. Enforced at checkout.
+  minPeople   Int  @default(10)
+  /// Optional ceiling; null = no upper limit.
+  maxPeople   Int?
+
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  requests  CateringRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, isActive, sortOrder])
+  @@map("catering_packages")
+}
+
+enum CateringType {
+  PACKAGE
+  CUSTOM
+}
+
+enum CateringStatus {
+  /// Just came in — needs the restaurant's attention.
+  NEW
+  /// The restaurant has acknowledged / is quoting or preparing it.
+  IN_PROGRESS
+  /// Agreed and (for PACKAGE) paid.
+  CONFIRMED
+  /// Event done.
+  COMPLETED
+  CANCELLED
+}
+
+/// One catering enquiry OR paid package order. The admin inbox for parties.
+model CateringRequest {
+  id           String  @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  type   CateringType
+  status CateringStatus @default(NEW)
+
+  // Who's asking.
+  customerName  String
+  customerEmail String
+  customerPhone String
+
+  // The party.
+  headCount   Int
+  /// The date the food is needed. A date picker on the storefront; time-of-day and
+  /// finer detail go in `message`.
+  eventDate   DateTime
+  fulfillment FulfillmentType @default(PICKUP)
+  /// Free-text delivery address (catering skips the geocoded-address machinery of
+  /// normal delivery — the restaurant reads it and decides). Null for pickup.
+  deliveryAddress String?
+  /// Anything else: dietary needs, timing, the whole custom brief.
+  message     String?
+
+  // PACKAGE only. Frozen at request time so a later price change never rewrites
+  // what the customer agreed to.
+  packageId           String?
+  package             CateringPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  packageName         String?
+  pricePerPersonCents Int?
+  totalCents          Int?
+
+  // Payment (PACKAGE only). Mirrors the light footprint on Payment: which provider,
+  // its reference, and when it cleared. CUSTOM requests carry none of this.
+  paymentStatus     PaymentStatus @default(PENDING)
+  paymentProvider   String?
+  stripeSessionId   String?
+  razorpayOrderId   String?
+  paidAt            DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, status, createdAt])
+  @@index([stripeSessionId])
+  @@map("catering_requests")
 }

@@ -56,7 +56,9 @@ export type PlanCapability =
   /** Multi-jurisdiction tax reports. */
   | 'TAX_REPORTS'
   /** Drop the "Powered by DineDirect" mark from the storefront. */
-  | 'REMOVE_BRANDING';
+  | 'REMOVE_BRANDING'
+  /** Party / catering orders: headcount packages paid online, plus custom quote requests. */
+  | 'CATERING';
 
 export interface PlanLimits {
   /** Max menu items (available or not). null = unlimited. */
@@ -121,6 +123,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'LOYALTY',
       'WIDGET',
       'FULL_ANALYTICS',
+      'CATERING',
     ],
     limits: { maxMenuItems: null, maxStaff: 10 },
     commissionBps: 300,
@@ -130,6 +133,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'Automatic delivery dispatch',
       'Promotions & loyalty program',
       'Embeddable ordering widget',
+      'Party & catering orders',
       'Full analytics & order history',
       'Unlimited menu items · 10 staff seats',
       'Same low 3% per order — 0% on Pro',
@@ -151,6 +155,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       'SHIFTS',
       'TAX_REPORTS',
       'REMOVE_BRANDING',
+      'CATERING',
     ],
     limits: { maxMenuItems: null, maxStaff: null },
     // The premium tier is a TRUE flat plan: 0% commission, like ChowNow / Owner.com

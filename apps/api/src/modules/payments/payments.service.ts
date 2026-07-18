@@ -7,8 +7,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import type { Prisma } from '@prisma/client';
-import type { RefundInput } from '@dinedirect/shared';
+import { usesRazorpay, type RefundInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { effectiveCommissionBps } from '../../common/plan/plan.util';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
 import { applyLoyaltyDelta } from '../../common/loyalty/loyalty.util';
 import { storefrontBaseUrl } from '../../common/tenant-url';
@@ -494,6 +495,10 @@ export class PaymentsService {
           // The mode tells them apart, so an order handler never sees a sub session.
           if (event.data.object.mode === 'subscription') {
             await this.subscriptions.onCheckoutCompleted(event.data.object);
+          } else if (event.data.object.metadata?.kind === 'catering') {
+            // A catering package paid in full up front. No Order behind it — the
+            // money maps to a CateringRequest, marked paid + confirmed here.
+            await this.onCateringCheckoutCompleted(event.data.object);
           } else {
             await this.onCheckoutCompleted(event.data.object);
           }
@@ -571,6 +576,106 @@ export class PaymentsService {
 
     await this.onCheckoutCompleted(session);
     return true;
+  }
+
+  // --- Catering package checkout -------------------------------------------
+  //
+  // A catering package is paid in full, up front, exactly like an order — same
+  // destination charge so the restaurant is the merchant of record and takes the
+  // Stripe fee — but there is no Order behind it, only a CateringRequest. So it gets
+  // its own thin checkout here rather than being forced through the order pipeline.
+
+  /**
+   * Start a Stripe Checkout for a catering package request.
+   *
+   * Returns null (rather than throwing) when the restaurant can't take an online
+   * card here — no connected Stripe account, or an India/Razorpay restaurant. The
+   * caller degrades gracefully to "request received, the restaurant will arrange
+   * payment", so the enquiry is never lost just because online pay isn't wired.
+   */
+  async createCateringCheckout(requestId: string): Promise<{ checkoutUrl: string } | null> {
+    const request = await this.prisma.cateringRequest.findUnique({
+      where: { id: requestId },
+      include: { restaurant: true },
+    });
+    if (!request || request.type !== 'PACKAGE' || !request.totalCents) return null;
+
+    const restaurant = request.restaurant;
+    // Online card payment here is Stripe-only; a Razorpay (India) restaurant has no
+    // connected Stripe account, so we fall back to the request-only path.
+    if (usesRazorpay(restaurant.country) || !restaurant.stripeAccountId) return null;
+
+    const storefront = storefrontBaseUrl(this.config, restaurant.slug);
+    const commissionBps = effectiveCommissionBps(restaurant);
+    const applicationFee = Math.round((request.totalCents * commissionBps) / 10_000);
+
+    const session = await this.stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        customer_email: request.customerEmail,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: restaurant.currency.toLowerCase(),
+              unit_amount: request.totalCents,
+              product_data: {
+                name: `Catering — ${request.packageName}`,
+                description: `${request.headCount} people · ${new Date(request.eventDate).toLocaleDateString()}`,
+              },
+            },
+          },
+        ],
+        payment_intent_data: {
+          on_behalf_of: restaurant.stripeAccountId,
+          transfer_data: { destination: restaurant.stripeAccountId },
+          ...(applicationFee > 0 ? { application_fee_amount: applicationFee } : {}),
+          description: `${restaurant.name} catering — ${request.packageName}`,
+          metadata: { kind: 'catering', cateringRequestId: request.id, restaurantId: restaurant.id },
+        },
+        metadata: { kind: 'catering', cateringRequestId: request.id, restaurantId: restaurant.id },
+        success_url: `${storefront}/catering?paid=1`,
+        cancel_url: `${storefront}/catering?cancelled=1`,
+        expires_at: Math.floor(Date.now() / 1000) + 60 * 60,
+      },
+      { idempotencyKey: `catering:${request.id}` },
+    );
+
+    if (!session.url) return null;
+
+    await this.prisma.cateringRequest.update({
+      where: { id: request.id },
+      data: { stripeSessionId: session.id, paymentProvider: 'STRIPE' },
+    });
+
+    return { checkoutUrl: session.url };
+  }
+
+  private async onCateringCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+    const requestId = session.metadata?.cateringRequestId;
+    if (!requestId) {
+      this.logger.error(`catering checkout with no cateringRequestId (session ${session.id})`);
+      return;
+    }
+    if (session.payment_status !== 'paid') return;
+
+    const request = await this.prisma.cateringRequest.findUnique({ where: { id: requestId } });
+    if (!request || request.paymentStatus === 'PAID') return; // idempotent
+
+    await this.prisma.cateringRequest.update({
+      where: { id: requestId },
+      data: { paymentStatus: 'PAID', status: 'CONFIRMED', paidAt: new Date() },
+    });
+
+    await this.audit.log({
+      restaurantId: request.restaurantId,
+      action: 'catering.paid',
+      entityType: 'CateringRequest',
+      entityId: requestId,
+      metadata: { packageName: request.packageName, totalCents: request.totalCents },
+    });
+
+    this.logger.log(`Catering request ${requestId} paid (${request.packageName})`);
   }
 
   private async onCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
