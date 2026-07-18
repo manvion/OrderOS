@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
@@ -7,6 +7,9 @@ import { previewTokenFor } from '@/lib/preview-token';
 import { AccountButton } from '@/components/storefront/account-button';
 import { CartButton } from '@/components/storefront/cart-button';
 import { TenantProvider } from '@/components/storefront/tenant-provider';
+import { I18nProvider } from '@/components/storefront/i18n-provider';
+import { LanguageToggle } from '@/components/storefront/language-toggle';
+import { getDictionary, LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
 
 /**
  * Title, description, and — the part that matters — whether Google is allowed to
@@ -113,6 +116,18 @@ export default async function StorefrontLayout({
   const isQrOnly = restaurant.orderingMode === 'QR_ONLY';
 
   /**
+   * Locale. The restaurant's content-language setting decides: a single language
+   * pins it; BOTH lets the customer choose (persisted in a cookie) and shows the
+   * toggle. Resolved server-side so the header/footer render in the right language
+   * on first paint, then handed to the client provider for the interactive parts.
+   */
+  const canToggle = restaurant.menuLanguage === 'BOTH';
+  const cookieLocale = (await cookies()).get(LOCALE_COOKIE)?.value;
+  const locale: Locale =
+    restaurant.menuLanguage === 'FR' ? 'fr' : canToggle ? toLocale(cookieLocale) : 'en';
+  const t = getDictionary(locale);
+
+  /**
    * The light/dark toggle the owner picks in Settings -> Branding, alongside
    * the template -- never a customer-facing switch. `.storefront-dark` (see
    * globals.css) flips the shared bg-background/text-foreground/bg-card/
@@ -125,6 +140,7 @@ export default async function StorefrontLayout({
 
   return (
     <TenantProvider restaurant={restaurant} basePath={basePath}>
+      <I18nProvider initialLocale={locale} canToggle={canToggle}>
       <div
         style={
           {
@@ -235,14 +251,14 @@ export default async function StorefrontLayout({
                 href={href('/menu')}
                 className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
               >
-                Menu
+                {t.nav.menu}
               </Link>
               {!isQrOnly && (
                 <Link
                   href={href('/about')}
                   className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
                 >
-                  About
+                  {t.nav.about}
                 </Link>
               )}
               {/* Parties/catering — a paid capability, and a high-value one, so it
@@ -253,7 +269,7 @@ export default async function StorefrontLayout({
                   href={href('/catering')}
                   className="rounded-lg bg-brand-subtle px-3 py-2 text-sm font-semibold text-brand transition-colors hover:bg-brand hover:text-brand-foreground"
                 >
-                  Catering
+                  {t.nav.catering}
                 </Link>
               )}
               {/* The way back to an order after closing the tab or losing the SMS.
@@ -262,8 +278,10 @@ export default async function StorefrontLayout({
                 href={href('/orders')}
                 className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
               >
-                My orders
+                {t.nav.myOrders}
               </Link>
+              {/* EN/FR switch — only rendered for a BOTH restaurant. */}
+              <LanguageToggle />
               {/* Optional, always. Guests never touch this and lose nothing. */}
               <AccountButton />
               <CartButton />
@@ -290,6 +308,7 @@ export default async function StorefrontLayout({
           </div>
         </footer>
       </div>
+      </I18nProvider>
     </TenantProvider>
   );
 }

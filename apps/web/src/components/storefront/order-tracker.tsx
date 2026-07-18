@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/primitives';
 import { useTenantHref } from './tenant-provider';
+import { useT } from './i18n-provider';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 // Leaflet touches `window` on import, so the map can never be server-rendered.
 // The tracking page itself still SSRs — only this island is deferred.
@@ -20,23 +22,25 @@ const CourierMap = dynamic(
   },
 );
 
+type StepKey = keyof Dictionary['tracker'];
+
 const PICKUP_STEPS = [
-  { status: 'PENDING', label: 'Order placed', icon: Check },
-  { status: 'ACCEPTED', label: 'Confirmed by the kitchen', icon: Check },
-  { status: 'PREPARING', label: 'Being prepared', icon: ChefHat },
-  { status: 'READY', label: 'Ready for pickup', icon: Package },
-  { status: 'COMPLETED', label: 'Collected', icon: Check },
-] as const;
+  { status: 'PENDING', labelKey: 'orderPlaced', icon: Check },
+  { status: 'ACCEPTED', labelKey: 'confirmed', icon: Check },
+  { status: 'PREPARING', labelKey: 'preparing', icon: ChefHat },
+  { status: 'READY', labelKey: 'readyForPickup', icon: Package },
+  { status: 'COMPLETED', labelKey: 'collected', icon: Check },
+] as const satisfies ReadonlyArray<{ status: string; labelKey: StepKey; icon: unknown }>;
 
 const DELIVERY_STEPS = [
-  { status: 'PENDING', label: 'Order placed', icon: Check },
-  { status: 'ACCEPTED', label: 'Confirmed by the kitchen', icon: Check },
-  { status: 'PREPARING', label: 'Being prepared', icon: ChefHat },
-  { status: 'READY', label: 'Finding a driver', icon: Package },
-  { status: 'DRIVER_ASSIGNED', label: 'Driver collecting your order', icon: Truck },
-  { status: 'OUT_FOR_DELIVERY', label: 'On its way to you', icon: Truck },
-  { status: 'DELIVERED', label: 'Delivered', icon: Check },
-] as const;
+  { status: 'PENDING', labelKey: 'orderPlaced', icon: Check },
+  { status: 'ACCEPTED', labelKey: 'confirmed', icon: Check },
+  { status: 'PREPARING', labelKey: 'preparing', icon: ChefHat },
+  { status: 'READY', labelKey: 'findingDriver', icon: Package },
+  { status: 'DRIVER_ASSIGNED', labelKey: 'driverCollecting', icon: Truck },
+  { status: 'OUT_FOR_DELIVERY', labelKey: 'onItsWay', icon: Truck },
+  { status: 'DELIVERED', labelKey: 'delivered', icon: Check },
+] as const satisfies ReadonlyArray<{ status: string; labelKey: StepKey; icon: unknown }>;
 
 const TERMINAL = ['COMPLETED', 'DELIVERED', 'CANCELLED'];
 
@@ -51,6 +55,7 @@ export function OrderTracker({
 }) {
   const [order, setOrder] = useState(initialOrder);
   const href = useTenantHref();
+  const t = useT();
 
   /**
    * Poll while the order is live.
@@ -104,14 +109,14 @@ export function OrderTracker({
         <p className="text-sm font-medium text-muted-foreground">Order #{order.orderNumber}</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
           {isCancelled
-            ? 'This order was cancelled'
+            ? t.tracker.cancelled
             : isUnpaid
-              ? 'Waiting for payment'
+              ? t.tracker.waitingPayment
               : isDone
-                ? 'Enjoy your food'
+                ? t.tracker.enjoy
                 : etaMinutes && order.status === 'OUT_FOR_DELIVERY'
-                  ? `Arriving in about ${etaMinutes} min`
-                  : `${order.restaurant.name} is on it`}
+                  ? `${t.tracker.arrivingIn} ${etaMinutes} ${t.tracker.minutes}`
+                  : `${order.restaurant.name} ${t.tracker.isOnIt}`}
         </h1>
       </header>
 
@@ -133,10 +138,10 @@ export function OrderTracker({
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               {order.fulfillment === 'PICKUP'
-                ? 'Give this code at the counter'
+                ? t.tracker.giveCodeCounter
                 : order.fulfillment === 'DINE_IN'
-                  ? 'Your order code'
-                  : 'Your driver will confirm this code'}
+                  ? t.tracker.yourOrderCode
+                  : t.tracker.driverConfirmsCode}
             </p>
             <p className="mt-1.5 font-mono text-4xl font-black tracking-widest">
               {order.orderNumber.slice(-3)}
@@ -146,7 +151,7 @@ export function OrderTracker({
           {order.fulfillment === 'DINE_IN' && order.tableNumber && (
             <div className="shrink-0 text-right">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Table
+                {t.tracker.table}
               </p>
               <p className="mt-1.5 text-4xl font-black">{order.tableNumber}</p>
             </div>
@@ -200,7 +205,7 @@ export function OrderTracker({
                   <p className="font-semibold leading-tight">{delivery.courierName}</p>
                   <p className="text-xs text-muted-foreground">
                     {delivery.courierVehicle ?? 'On the way'}
-                    {etaMinutes ? ` · about ${etaMinutes} min away` : ''}
+                    {etaMinutes ? ` · ${etaMinutes} ${t.tracker.aboutMinAway}` : ''}
                   </p>
                 </div>
               </div>
@@ -224,14 +229,14 @@ export function OrderTracker({
           <CardContent className="p-6 text-center">
             <p className="text-2xl">🎉</p>
             <p className="mt-2 font-semibold text-emerald-900">
-              Thanks for ordering directly with {order.restaurant.name}
+              {t.tracker.thanks} {order.restaurant.name}
             </p>
             <p className="mt-1 text-sm text-emerald-800">
               No marketplace took a cut — more of what you paid stayed with the people who cooked
               your food.
             </p>
             <Button asChild variant="brand" className="mt-4">
-              <a href={href('/menu')}>Order again</a>
+              <a href={href('/menu')}>{t.tracker.orderAgain}</a>
             </Button>
           </CardContent>
         </Card>
@@ -240,7 +245,7 @@ export function OrderTracker({
       {!isCancelled && !isDone && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-base">Progress</CardTitle>
+            <CardTitle className="text-base">{t.tracker.progress}</CardTitle>
           </CardHeader>
           <CardContent>
             <ol className="relative">
@@ -284,7 +289,7 @@ export function OrderTracker({
                         active ? 'font-semibold' : done ? '' : 'text-muted-foreground'
                       }`}
                     >
-                      {step.label}
+                      {t.tracker[step.labelKey]}
                     </span>
                   </li>
                 );
@@ -296,7 +301,7 @@ export function OrderTracker({
 
       <Card className="mb-6">
         <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Your order</CardTitle>
+          <CardTitle className="text-base">{t.tracker.yourOrder}</CardTitle>
           <Badge variant={isCancelled ? 'destructive' : 'secondary'}>
             {order.fulfillment.replace('_', ' ').toLowerCase()}
           </Badge>
@@ -323,19 +328,19 @@ export function OrderTracker({
           </ul>
 
           <div className="space-y-1.5 border-t pt-4 text-sm">
-            <Row label="Subtotal" cents={order.subtotalCents} currency={order.currency} />
+            <Row label={t.checkout.subtotal} cents={order.subtotalCents} currency={order.currency} />
             {order.serviceFeeCents > 0 && (
-              <Row label="Service fee" cents={order.serviceFeeCents} currency={order.currency} />
+              <Row label={t.checkout.serviceFee} cents={order.serviceFeeCents} currency={order.currency} />
             )}
             {order.deliveryFeeCents > 0 && (
-              <Row label="Delivery" cents={order.deliveryFeeCents} currency={order.currency} />
+              <Row label={t.checkout.deliveryFee} cents={order.deliveryFeeCents} currency={order.currency} />
             )}
-            <Row label="Tax" cents={order.taxCents} currency={order.currency} />
+            <Row label={t.checkout.tax} cents={order.taxCents} currency={order.currency} />
             {order.tipCents > 0 && (
-              <Row label="Tip" cents={order.tipCents} currency={order.currency} />
+              <Row label={t.checkout.tip} cents={order.tipCents} currency={order.currency} />
             )}
             <div className="flex justify-between pt-2 text-base font-semibold">
-              <span>Total</span>
+              <span>{t.checkout.total}</span>
               <span className="tabular-nums">{formatMoney(order.totalCents, order.currency)}</span>
             </div>
           </div>
@@ -353,7 +358,7 @@ export function OrderTracker({
           <Button asChild variant="outline" size="sm">
             <a href={`tel:${order.restaurant.phone}`}>
               <Phone className="h-3.5 w-3.5" />
-              Call the restaurant
+              {t.tracker.callRestaurant}
             </a>
           </Button>
         </CardContent>

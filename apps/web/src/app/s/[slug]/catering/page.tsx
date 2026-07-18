@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { formatMoney } from '@dinedirect/shared';
 import { storefrontApi, ApiRequestError, type CateringPackage } from '@/lib/api';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
+import { useT } from '@/components/storefront/i18n-provider';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import {
@@ -27,6 +28,7 @@ function todayIso(): string {
 export default function StorefrontCateringPage() {
   const restaurant = useTenant();
   const href = useTenantHref();
+  const t = useT();
   const params = useSearchParams();
   const [form, setForm] = useState<{ mode: 'custom' | CateringPackage } | null>(null);
 
@@ -64,15 +66,10 @@ export default function StorefrontCateringPage() {
       <header className="text-center">
         <span className="inline-flex items-center gap-2 rounded-full bg-brand-subtle px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand">
           <PartyPopper className="h-3.5 w-3.5" />
-          Catering & parties
+          {t.catering.eyebrow}
         </span>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-          Feeding a crowd? {restaurant.name} has you covered.
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-          Pick a package sized to your headcount and pay online, or tell us about your event and
-          we’ll build something custom.
-        </p>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{t.catering.heading}</h1>
+        <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{t.catering.intro}</p>
       </header>
 
       {/* Packages */}
@@ -95,15 +92,15 @@ export default function StorefrontCateringPage() {
                 <div>
                   <p className="text-2xl font-black tracking-tight">
                     {formatMoney(pkg.pricePerPersonCents, restaurant.currency)}
-                    <span className="text-sm font-medium text-muted-foreground"> / person</span>
+                    <span className="text-sm font-medium text-muted-foreground"> {t.catering.perPerson}</span>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Minimum {pkg.minPeople} people
-                    {pkg.maxPeople ? ` · up to ${pkg.maxPeople}` : ''}
+                    {t.catering.minimum} {pkg.minPeople} {t.catering.people}
+                    {pkg.maxPeople ? ` · ${t.catering.upTo} ${pkg.maxPeople}` : ''}
                   </p>
                 </div>
                 <Button variant="brand" onClick={() => setForm({ mode: pkg })}>
-                  Order this
+                  {t.catering.orderThis}
                 </Button>
               </div>
             </div>
@@ -114,19 +111,16 @@ export default function StorefrontCateringPage() {
       {/* Custom */}
       <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-dashed p-8 text-center">
         <UtensilsCrossed className="h-7 w-7 text-brand" />
-        <h3 className="text-lg font-semibold">Something more custom?</h3>
-        <p className="max-w-md text-sm text-muted-foreground">
-          Dietary needs, a specific menu, a big or unusual event — tell us what you’re planning and
-          we’ll get back to you with a quote.
-        </p>
+        <h3 className="text-lg font-semibold">{t.catering.customTitle}</h3>
+        <p className="max-w-md text-sm text-muted-foreground">{t.catering.customIntro}</p>
         <Button variant="outline" onClick={() => setForm({ mode: 'custom' })}>
-          Request custom catering
+          {t.catering.requestCustom}
         </Button>
       </div>
 
       <div className="mt-8 text-center">
         <Button asChild variant="ghost">
-          <a href={href('/menu')}>← Back to the menu</a>
+          <a href={href('/menu')}>{t.catering.backToMenu}</a>
         </Button>
       </div>
 
@@ -153,6 +147,7 @@ function CateringForm({
   pkg: CateringPackage | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const [headCount, setHeadCount] = useState(String(pkg?.minPeople ?? 20));
   const [eventDate, setEventDate] = useState('');
   const [fulfillment, setFulfillment] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
@@ -207,18 +202,18 @@ function CateringForm({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{pkg ? pkg.name : 'Custom catering'}</DialogTitle>
+          <DialogTitle>{pkg ? pkg.name : t.catering.customTitle}</DialogTitle>
           <DialogDescription>
             {pkg
-              ? `${formatMoney(pkg.pricePerPersonCents, currency)} per person · minimum ${pkg.minPeople}`
-              : 'Tell us about your event and we’ll come back with a quote.'}
+              ? `${formatMoney(pkg.pricePerPersonCents, currency)} ${t.catering.perPerson} · ${t.catering.minimum} ${pkg.minPeople}`
+              : t.catering.customIntro}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="cf-people">Number of people</Label>
+              <Label htmlFor="cf-people">{t.catering.numberOfPeople}</Label>
               <Input
                 id="cf-people"
                 type="number"
@@ -228,7 +223,7 @@ function CateringForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cf-date">Event date</Label>
+              <Label htmlFor="cf-date">{t.catering.eventDate}</Label>
               <Input
                 id="cf-date"
                 type="date"
@@ -240,20 +235,20 @@ function CateringForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cf-fulfil">Pickup or delivery</Label>
+            <Label htmlFor="cf-fulfil">{t.catering.pickupOrDelivery}</Label>
             <Select
               id="cf-fulfil"
               value={fulfillment}
               onChange={(e) => setFulfillment(e.target.value as 'PICKUP' | 'DELIVERY')}
             >
-              <option value="PICKUP">Pickup</option>
-              <option value="DELIVERY">Delivery</option>
+              <option value="PICKUP">{t.common.pickup}</option>
+              <option value="DELIVERY">{t.common.delivery}</option>
             </Select>
           </div>
 
           {fulfillment === 'DELIVERY' && (
             <div className="space-y-1.5">
-              <Label htmlFor="cf-address">Delivery address</Label>
+              <Label htmlFor="cf-address">{t.catering.deliveryAddress}</Label>
               <Textarea
                 id="cf-address"
                 value={deliveryAddress}
@@ -266,21 +261,21 @@ function CateringForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="cf-name">Your name</Label>
+              <Label htmlFor="cf-name">{t.catering.yourName}</Label>
               <Input id="cf-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cf-phone">Phone</Label>
+              <Label htmlFor="cf-phone">{t.catering.phone}</Label>
               <Input id="cf-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cf-email">Email</Label>
+            <Label htmlFor="cf-email">{t.catering.email}</Label>
             <Input id="cf-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cf-msg">{pkg ? 'Notes (optional)' : 'Tell us about your event'}</Label>
+            <Label htmlFor="cf-msg">{pkg ? t.catering.notesOptional : t.catering.tellUsEvent}</Label>
             <Textarea
               id="cf-msg"
               value={message}
@@ -310,15 +305,13 @@ function CateringForm({
             {submit.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : pkg ? (
-              `Pay ${formatMoney(total, currency)}`
+              `${t.catering.pay} ${formatMoney(total, currency)}`
             ) : (
-              'Send request'
+              t.catering.sendRequest
             )}
           </Button>
           {pkg && (
-            <p className="text-center text-xs text-muted-foreground">
-              Secure checkout. You’ll confirm details with the restaurant after paying.
-            </p>
+            <p className="text-center text-xs text-muted-foreground">{t.catering.afterPaying}</p>
           )}
         </div>
       </DialogContent>

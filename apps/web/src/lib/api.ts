@@ -1005,6 +1005,8 @@ export interface StorefrontRestaurant {
   removeBranding: boolean;
   /** Growth/Pro: show the "Catering & Parties" entry and page. */
   cateringEnabled: boolean;
+  /** Content language(s). BOTH shows the customer a French/English toggle. */
+  menuLanguage: 'EN' | 'FR' | 'BOTH';
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
   dineInEnabled: boolean;
