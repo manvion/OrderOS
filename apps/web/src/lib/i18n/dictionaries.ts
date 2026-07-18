@@ -24,13 +24,8 @@ export interface Dictionary {
     catering: string;
   };
   menu: {
-    search: string;
-    empty: string;
-    add: string;
-    soldOut: string;
-    unavailable: string;
-    from: string;
-    popular: string;
+    notReady: string;
+    checkBack: string;
   };
   cart: {
     title: string;
@@ -75,6 +70,34 @@ export interface Dictionary {
     payAndOrder: string;
     securePayment: string;
     minOrder: string;
+    deliveredToYou: string;
+    collectFromUs: string;
+    dineInWithUs: string;
+    orderingForTable: string;
+    mobileNumber: string;
+    willText: string;
+    whereBring: string;
+    savedAddresses: string;
+    city: string;
+    state: string;
+    zip: string;
+    checkingDelivery: string;
+    saveAddress: string;
+    tooFar: string;
+    switchToPickup: string;
+    canDeliverFor: string;
+    arrivingAround: string;
+    when: string;
+    asap: string;
+    scheduleLater: string;
+    addTip: string;
+    tipNone: string;
+    notesForRestaurant: string;
+    summary: string;
+    discount: string;
+    pay: string;
+    takingToPayment: string;
+    redirectNote: string;
   };
   tracker: {
     trackYourOrder: string;
@@ -141,13 +164,8 @@ export interface Dictionary {
 const en: Dictionary = {
   nav: { menu: 'Menu', about: 'About', myOrders: 'My orders', catering: 'Catering' },
   menu: {
-    search: 'Search the menu',
-    empty: 'Nothing on the menu yet.',
-    add: 'Add',
-    soldOut: 'Sold out',
-    unavailable: 'Unavailable',
-    from: 'from',
-    popular: 'Popular',
+    notReady: 'The menu isn’t ready yet',
+    checkBack: 'Please check back shortly.',
   },
   cart: {
     title: 'Your order',
@@ -192,6 +210,34 @@ const en: Dictionary = {
     payAndOrder: 'Pay & order',
     securePayment: 'Secure payment',
     minOrder: 'Minimum order',
+    deliveredToYou: 'Delivered to you',
+    collectFromUs: 'Collect from us',
+    dineInWithUs: 'Dine in with us',
+    orderingForTable: 'Ordering for table',
+    mobileNumber: 'Mobile number',
+    willText: 'We’ll text you when your order is ready.',
+    whereBring: 'Where should we bring it?',
+    savedAddresses: 'Saved addresses',
+    city: 'City',
+    state: 'State',
+    zip: 'ZIP',
+    checkingDelivery: 'Checking delivery…',
+    saveAddress: 'Save this address for next time',
+    tooFar: 'Too far to deliver',
+    switchToPickup: 'Switch to pickup instead',
+    canDeliverFor: 'We can deliver here for',
+    arrivingAround: 'arriving around',
+    when: 'When?',
+    asap: 'As soon as possible',
+    scheduleLater: 'Schedule for later',
+    addTip: 'Add a tip',
+    tipNone: 'None',
+    notesForRestaurant: 'Notes for the restaurant',
+    summary: 'Summary',
+    discount: 'Discount',
+    pay: 'Pay',
+    takingToPayment: 'Taking you to payment…',
+    redirectNote: 'You’ll be redirected to a secure payment page. We never see your card details.',
   },
   tracker: {
     trackYourOrder: 'Track your order',
@@ -255,13 +301,8 @@ const en: Dictionary = {
 const fr: Dictionary = {
   nav: { menu: 'Menu', about: 'À propos', myOrders: 'Mes commandes', catering: 'Traiteur' },
   menu: {
-    search: 'Rechercher au menu',
-    empty: 'Aucun plat au menu pour l’instant.',
-    add: 'Ajouter',
-    soldOut: 'Épuisé',
-    unavailable: 'Indisponible',
-    from: 'à partir de',
-    popular: 'Populaire',
+    notReady: 'Le menu n’est pas encore prêt',
+    checkBack: 'Revenez bientôt.',
   },
   cart: {
     title: 'Votre commande',
@@ -306,6 +347,35 @@ const fr: Dictionary = {
     payAndOrder: 'Payer et commander',
     securePayment: 'Paiement sécurisé',
     minOrder: 'Commande minimum',
+    deliveredToYou: 'Livré chez vous',
+    collectFromUs: 'À récupérer chez nous',
+    dineInWithUs: 'Sur place chez nous',
+    orderingForTable: 'Commande pour la table',
+    mobileNumber: 'Numéro de téléphone',
+    willText: 'Nous vous enverrons un texto quand votre commande sera prête.',
+    whereBring: 'Où devons-nous l’apporter ?',
+    savedAddresses: 'Adresses enregistrées',
+    city: 'Ville',
+    state: 'Province',
+    zip: 'Code postal',
+    checkingDelivery: 'Vérification de la livraison…',
+    saveAddress: 'Enregistrer cette adresse pour la prochaine fois',
+    tooFar: 'Trop loin pour la livraison',
+    switchToPickup: 'Passer à la cueillette',
+    canDeliverFor: 'Nous pouvons livrer ici pour',
+    arrivingAround: 'arrivée vers',
+    when: 'Quand ?',
+    asap: 'Dès que possible',
+    scheduleLater: 'Planifier pour plus tard',
+    addTip: 'Ajouter un pourboire',
+    tipNone: 'Aucun',
+    notesForRestaurant: 'Notes pour le restaurant',
+    summary: 'Récapitulatif',
+    discount: 'Rabais',
+    pay: 'Payer',
+    takingToPayment: 'Redirection vers le paiement…',
+    redirectNote:
+      'Vous serez redirigé vers une page de paiement sécurisée. Nous ne voyons jamais vos informations de carte.',
   },
   tracker: {
     trackYourOrder: 'Suivre votre commande',

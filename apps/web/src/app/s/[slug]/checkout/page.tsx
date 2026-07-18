@@ -16,6 +16,7 @@ import {
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { AddressAutocomplete } from '@/components/storefront/address-autocomplete';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
+import { useT } from '@/components/storefront/i18n-provider';
 import { useCustomerAuth } from '@/components/storefront/customer-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +28,7 @@ const TIP_PRESETS = [0, 10, 15, 20] as const;
 export default function CheckoutPage() {
   const restaurant = useTenant();
   const href = useTenantHref();
+  const t = useT();
   const router = useRouter();
 
   const lines = useCart((s) => s.lines);
@@ -92,11 +94,11 @@ export default function CheckoutPage() {
   const availableFulfillments = useMemo(
     () =>
       [
-        restaurant.pickupEnabled && { value: 'PICKUP' as const, label: 'Pickup', icon: ShoppingBag },
-        restaurant.deliveryEnabled && { value: 'DELIVERY' as const, label: 'Delivery', icon: Truck },
+        restaurant.pickupEnabled && { value: 'PICKUP' as const, label: t.checkout.pickup, icon: ShoppingBag },
+        restaurant.deliveryEnabled && { value: 'DELIVERY' as const, label: t.checkout.delivery, icon: Truck },
         restaurant.dineInEnabled && {
           value: 'DINE_IN' as const,
-          label: 'Dine in',
+          label: t.checkout.dineIn,
           icon: UtensilsCrossed,
         },
       ].filter(Boolean) as Array<{
@@ -104,7 +106,7 @@ export default function CheckoutPage() {
         label: string;
         icon: typeof ShoppingBag;
       }>,
-    [restaurant],
+    [restaurant, t],
   );
 
   /**
@@ -307,7 +309,7 @@ export default function CheckoutPage() {
 
   return (
     <form onSubmit={handleSubmit} className="container max-w-2xl space-y-6 py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>
+      <h1 className="text-2xl font-bold tracking-tight">{t.checkout.title}</h1>
 
       {/* Fulfillment */}
       <Card>
@@ -317,11 +319,11 @@ export default function CheckoutPage() {
                 decision the customer doesn't have, dressed up as one they do. */}
             {availableFulfillments.length === 1
               ? availableFulfillments[0].value === 'DELIVERY'
-                ? 'Delivered to you'
+                ? t.checkout.deliveredToYou
                 : availableFulfillments[0].value === 'PICKUP'
-                  ? 'Collect from us'
-                  : 'Dine in with us'
-              : 'How would you like it?'}
+                  ? t.checkout.collectFromUs
+                  : t.checkout.dineInWithUs
+              : t.checkout.howToGet}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -349,7 +351,7 @@ export default function CheckoutPage() {
 
           {tableNumber && fulfillment === 'DINE_IN' && (
             <p className="mt-3 text-sm text-muted-foreground">
-              Ordering for <strong>table {tableNumber}</strong>.
+              {t.checkout.orderingForTable} <strong>{tableNumber}</strong>.
             </p>
           )}
         </CardContent>
@@ -358,11 +360,11 @@ export default function CheckoutPage() {
       {/* Contact */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Your details</CardTitle>
+          <CardTitle className="text-base">{t.checkout.yourDetails}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t.checkout.name}</Label>
             <Input
               id="name"
               value={customer.name}
@@ -377,7 +379,7 @@ export default function CheckoutPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="phone">Mobile number</Label>
+              <Label htmlFor="phone">{t.checkout.mobileNumber}</Label>
               <Input
                 id="phone"
                 type="tel"
@@ -387,16 +389,14 @@ export default function CheckoutPage() {
                 autoComplete="tel"
                 placeholder="+1 415 555 0123"
               />
-              <p className="text-xs text-muted-foreground">
-                We&apos;ll text you when your order is ready.
-              </p>
+              <p className="text-xs text-muted-foreground">{t.checkout.willText}</p>
               {fieldErrors['customer.phone'] && (
                 <p className="text-sm text-destructive">{fieldErrors['customer.phone']}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t.checkout.email}</Label>
               <Input
                 id="email"
                 type="email"
@@ -417,14 +417,14 @@ export default function CheckoutPage() {
       {fulfillment === 'DELIVERY' && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Where should we bring it?</CardTitle>
+            <CardTitle className="text-base">{t.checkout.whereBring}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Saved addresses. The single reason a customer bothers to have an
                 account: never type your address again. */}
             {profile && profile.addresses.length > 0 && (
               <div className="space-y-2">
-                <Label>Saved addresses</Label>
+                <Label>{t.checkout.savedAddresses}</Label>
                 <div className="grid gap-2">
                   {profile.addresses.map((saved) => (
                     <button
@@ -477,7 +477,7 @@ export default function CheckoutPage() {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
+                <Label htmlFor="city">{t.checkout.city}</Label>
                 <Input
                   id="city"
                   value={address.city}
@@ -486,7 +486,7 @@ export default function CheckoutPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">State</Label>
+                <Label htmlFor="state">{t.checkout.state}</Label>
                 <Input
                   id="state"
                   value={address.state}
@@ -495,7 +495,7 @@ export default function CheckoutPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="postalCode">ZIP</Label>
+                <Label htmlFor="postalCode">{t.checkout.zip}</Label>
                 <Input
                   id="postalCode"
                   value={address.postalCode}
@@ -508,7 +508,7 @@ export default function CheckoutPage() {
             {quoting && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Checking delivery…
+                {t.checkout.checkingDelivery}
               </p>
             )}
 
@@ -521,7 +521,7 @@ export default function CheckoutPage() {
                   checked={saveAddress}
                   onChange={(e) => setSaveAddress(e.target.checked)}
                 />
-                Save this address for next time
+                {t.checkout.saveAddress}
               </label>
             )}
 
@@ -532,7 +532,7 @@ export default function CheckoutPage() {
             */}
             {quote && !quote.deliverable && quote.outOfRange && !quoting && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
-                <p className="text-sm font-semibold text-amber-900">Too far to deliver</p>
+                <p className="text-sm font-semibold text-amber-900">{t.checkout.tooFar}</p>
                 <p className="mt-1 text-sm text-amber-800">{quote.reason}</p>
 
                 {restaurant.pickupEnabled && (
@@ -543,7 +543,7 @@ export default function CheckoutPage() {
                     className="mt-3"
                     onClick={() => setFulfillment('PICKUP')}
                   >
-                    Switch to pickup instead
+                    {t.checkout.switchToPickup}
                   </Button>
                 )}
               </div>
@@ -560,12 +560,12 @@ export default function CheckoutPage() {
               >
                 {quote.deliverable ? (
                   <>
-                    We can deliver here for{' '}
+                    {t.checkout.canDeliverFor}{' '}
                     <strong>{formatMoney(quote.customerFeeCents, restaurant.currency)}</strong>
                     {quote.dropoffEta && (
                       <>
                         {' '}
-                        · arriving around{' '}
+                        · {t.checkout.arrivingAround}{' '}
                         {new Date(quote.dropoffEta).toLocaleTimeString([], {
                           hour: 'numeric',
                           minute: '2-digit',
@@ -586,15 +586,15 @@ export default function CheckoutPage() {
       {restaurant.scheduledOrdersEnabled && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">When?</CardTitle>
+            <CardTitle className="text-base">{t.checkout.when}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <Select
               value={scheduledFor ? 'later' : 'asap'}
               onChange={(e) => setScheduledFor(e.target.value === 'asap' ? '' : nextSlot())}
             >
-              <option value="asap">As soon as possible</option>
-              <option value="later">Schedule for later</option>
+              <option value="asap">{t.checkout.asap}</option>
+              <option value="later">{t.checkout.scheduleLater}</option>
             </Select>
 
             {scheduledFor && (
@@ -612,7 +612,7 @@ export default function CheckoutPage() {
       {/* Tip */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Add a tip</CardTitle>
+          <CardTitle className="text-base">{t.checkout.addTip}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 gap-2">
@@ -628,7 +628,7 @@ export default function CheckoutPage() {
                     active ? 'border-brand bg-brand/5' : 'hover:bg-accent/50'
                   }`}
                 >
-                  {percent === 0 ? 'None' : `${percent}%`}
+                  {percent === 0 ? t.checkout.tipNone : `${percent}%`}
                   {percent > 0 && (
                     <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
                       {formatMoney(cents, restaurant.currency)}
@@ -644,13 +644,13 @@ export default function CheckoutPage() {
       {/* Notes */}
       <Card>
         <CardContent className="space-y-2 p-6">
-          <Label htmlFor="order-notes">Notes for the restaurant</Label>
+          <Label htmlFor="order-notes">{t.checkout.notesForRestaurant}</Label>
           <Textarea
             id="order-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             maxLength={500}
-            placeholder="Buzzer is broken, please call on arrival…"
+            placeholder={t.checkout.notesPlaceholder}
           />
         </CardContent>
       </Card>
@@ -659,13 +659,13 @@ export default function CheckoutPage() {
       {totals && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Summary</CardTitle>
+            <CardTitle className="text-base">{t.checkout.summary}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <Row label="Subtotal" cents={totals.subtotalCents} currency={restaurant.currency} />
+            <Row label={t.checkout.subtotal} cents={totals.subtotalCents} currency={restaurant.currency} />
             {totals.discountCents > 0 && (
               <div className="flex justify-between text-brand">
-                <span className="font-medium">Discount</span>
+                <span className="font-medium">{t.checkout.discount}</span>
                 <span className="tabular-nums">
                   -{formatMoney(totals.discountCents, restaurant.currency)}
                 </span>
@@ -673,24 +673,24 @@ export default function CheckoutPage() {
             )}
             {totals.serviceFeeCents > 0 && (
               <Row
-                label="Service fee"
+                label={t.checkout.serviceFee}
                 cents={totals.serviceFeeCents}
                 currency={restaurant.currency}
               />
             )}
             {totals.deliveryFeeCents > 0 && (
               <Row
-                label="Delivery"
+                label={t.checkout.deliveryFee}
                 cents={totals.deliveryFeeCents}
                 currency={restaurant.currency}
               />
             )}
-            <Row label="Tax" cents={totals.taxCents} currency={restaurant.currency} />
+            <Row label={t.checkout.tax} cents={totals.taxCents} currency={restaurant.currency} />
             {totals.tipCents > 0 && (
-              <Row label="Tip" cents={totals.tipCents} currency={restaurant.currency} />
+              <Row label={t.checkout.tip} cents={totals.tipCents} currency={restaurant.currency} />
             )}
             <div className="flex justify-between border-t pt-3 text-base font-semibold">
-              <span>Total</span>
+              <span>{t.checkout.total}</span>
               <span className="tabular-nums">
                 {formatMoney(totals.totalCents, restaurant.currency)}
               </span>
@@ -703,16 +703,16 @@ export default function CheckoutPage() {
         {submitting ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Taking you to payment…
+            {t.checkout.takingToPayment}
           </>
         ) : (
-          <>Pay {formatMoney(totals?.totalCents ?? 0, restaurant.currency)}</>
+          <>
+            {t.checkout.pay} {formatMoney(totals?.totalCents ?? 0, restaurant.currency)}
+          </>
         )}
       </Button>
 
-      <p className="text-center text-xs text-muted-foreground">
-        You&apos;ll be redirected to a secure payment page. We never see your card details.
-      </p>
+      <p className="text-center text-xs text-muted-foreground">{t.checkout.redirectNote}</p>
     </form>
   );
 }

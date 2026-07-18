@@ -8,6 +8,7 @@ import type { MenuCategory, MenuProduct, StorefrontRestaurant } from '@/lib/api'
 import { ProductDialog } from './product-dialog';
 import { useCart } from '@/lib/cart-store';
 import { useTenantHref } from './tenant-provider';
+import { useT } from './i18n-provider';
 
 /** A synthetic category id for the deals rail pill / scroll target -- never a real category. */
 const DEALS_ID = '__deals__';
@@ -20,6 +21,7 @@ export function MenuBrowser({
   menu: MenuCategory[];
 }) {
   const href = useTenantHref();
+  const t = useT();
   const [selected, setSelected] = useState<MenuProduct | null>(null);
   const [activeCategory, setActiveCategory] = useState(menu[0]?.id ?? '');
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -67,8 +69,8 @@ export function MenuBrowser({
   if (menu.length === 0) {
     return (
       <div className="mx-auto max-w-2xl px-5 py-28 text-center">
-        <h1 className="text-xl font-semibold">The menu isn&apos;t ready yet</h1>
-        <p className="mt-2 text-muted-foreground">Please check back shortly.</p>
+        <h1 className="text-xl font-semibold">{t.menu.notReady}</h1>
+        <p className="mt-2 text-muted-foreground">{t.menu.checkBack}</p>
       </div>
     );
   }
