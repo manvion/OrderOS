@@ -157,21 +157,49 @@ export default async function StorefrontLayout({
                   // logoScale setting (50–250%), so a wide "logo + name" wordmark can be
                   // made large instead of being capped small. The header grows with it
                   // (min-h + padding) rather than clipping.
-                  <span
-                    className={`inline-flex shrink-0 items-center ${
-                      restaurant.logoBackdrop ? 'rounded-xl px-2.5 py-1.5' : ''
-                    }`}
-                    style={
-                      restaurant.logoBackdrop
-                        ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }
-                        : undefined
-                    }
-                  >
+                  <span className="relative inline-flex shrink-0 items-center px-1">
+                    {/* An organic brush-swipe of the brand colour behind the logo —
+                        a hand-painted shade, not a square panel. Stretched across the
+                        logo (fill scales; the streaks keep a constant width via
+                        non-scaling-stroke) and kept faint so the logo stays legible. */}
+                    {restaurant.logoBackdrop && (
+                      <svg
+                        viewBox="0 0 120 44"
+                        preserveAspectRatio="none"
+                        aria-hidden
+                        className="pointer-events-none absolute -inset-x-3 -inset-y-1 z-0"
+                        style={{ color: 'var(--brand)' }}
+                      >
+                        <path
+                          d="M5 24 C 17 10, 39 14, 61 16 C 83 18, 105 8, 116 20 C 109 35, 82 30, 58 29 C 34 28, 13 38, 5 24 Z"
+                          fill="currentColor"
+                          opacity="0.14"
+                        />
+                        <path
+                          d="M9 19 C 42 15, 80 14, 112 19"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          vectorEffect="non-scaling-stroke"
+                          opacity="0.2"
+                        />
+                        <path
+                          d="M11 29 C 45 26, 78 27, 110 28"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          vectorEffect="non-scaling-stroke"
+                          opacity="0.14"
+                        />
+                      </svg>
+                    )}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={restaurant.logoUrl}
                       alt={restaurant.name}
-                      className="w-auto object-contain"
+                      className="relative z-10 w-auto object-contain"
                       style={{
                         height: `${(restaurant.logoScale ?? 100) * 0.44}px`,
                         maxWidth: `${(restaurant.logoScale ?? 100) * 1.8}px`,
