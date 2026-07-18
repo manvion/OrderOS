@@ -156,7 +156,13 @@ export class NotificationsService {
     const template = customerEmailTemplate(status);
     if (!template) return;
 
-    const result = await this.email.sendToCustomer(template, order, restaurant, ctx);
+    const result = await this.email.sendToCustomer(
+      template,
+      order,
+      restaurant,
+      ctx,
+      customerLocale(order, restaurant),
+    );
 
     await this.log({
       restaurantId: restaurant.id,

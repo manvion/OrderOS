@@ -8,6 +8,9 @@ import type { SendResult } from './sms.service';
 
 type OrderWithItems = Order & { items?: Array<{ name: string; quantity: number }> };
 
+/** The language a customer email renders in. */
+type EmailLocale = 'en' | 'fr';
+
 /** The minimum an email needs to look like it came from the restaurant. */
 interface BrandedRestaurant {
   name: string;
@@ -58,8 +61,9 @@ export class EmailService {
     order: OrderWithItems,
     restaurant: Restaurant,
     ctx: OrderContext,
+    locale: EmailLocale = 'en',
   ): Promise<SendResult> {
-    const content = this.customerContent(template, order, restaurant, ctx);
+    const content = this.customerContent(template, order, restaurant, ctx, locale);
     if (!content) return { ok: false, error: `Unknown customer template "${template}"` };
 
     return this.send({
@@ -101,92 +105,124 @@ export class EmailService {
     order: OrderWithItems,
     restaurant: Restaurant,
     ctx: OrderContext,
+    locale: EmailLocale,
   ): { subject: string; body: string } | null {
+    const fr = locale === 'fr';
+    const name = this.escape(restaurant.name);
+    const n = order.orderNumber;
+
     switch (template) {
       case 'receipt':
         return {
-          subject: `Your ${restaurant.name} order #${order.orderNumber}`,
+          subject: fr
+            ? `Votre commande #${n} chez ${restaurant.name}`
+            : `Your ${restaurant.name} order #${n}`,
           body:
-            `<h1 style="margin:0 0 8px;font-size:24px;">Thanks for your order</h1>
-             <p style="margin:0 0 4px;color:#64748b;">Order <strong style="color:#0f172a;">#${order.orderNumber}</strong></p>
-             <p style="margin:0 0 24px;color:#64748b;">${this.fulfillmentLine(order, restaurant)}</p>` +
-            this.receiptTable(order) +
-            this.button(ctx.trackingUrl, 'Track your order', restaurant.brandPrimaryColor),
+            `<h1 style="margin:0 0 8px;font-size:24px;">${fr ? 'Merci pour votre commande' : 'Thanks for your order'}</h1>
+             <p style="margin:0 0 4px;color:#64748b;">${fr ? 'Commande' : 'Order'} <strong style="color:#0f172a;">#${n}</strong></p>
+             <p style="margin:0 0 24px;color:#64748b;">${this.fulfillmentLine(order, restaurant, locale)}</p>` +
+            this.receiptTable(order, locale) +
+            this.button(
+              ctx.trackingUrl,
+              fr ? 'Suivre votre commande' : 'Track your order',
+              restaurant.brandPrimaryColor,
+            ),
         };
 
       case 'confirmed': {
-        const eta =
-          order.fulfillment === 'PICKUP'
-            ? `Ready for pickup in about <strong>${restaurant.prepTimeMinutes} minutes</strong>.`
+        const pickupMin = restaurant.prepTimeMinutes;
+        const deliveryMin = restaurant.prepTimeMinutes + 15;
+        const eta = fr
+          ? order.fulfillment === 'PICKUP'
+            ? `Prête à emporter dans environ <strong>${pickupMin} minutes</strong>.`
             : order.fulfillment === 'DELIVERY'
-              ? `On its way in about <strong>${restaurant.prepTimeMinutes + 15} minutes</strong>.`
-              : `Coming to your table in about <strong>${restaurant.prepTimeMinutes} minutes</strong>.`;
+              ? `En route dans environ <strong>${deliveryMin} minutes</strong>.`
+              : `À votre table dans environ <strong>${pickupMin} minutes</strong>.`
+          : order.fulfillment === 'PICKUP'
+            ? `Ready for pickup in about <strong>${pickupMin} minutes</strong>.`
+            : order.fulfillment === 'DELIVERY'
+              ? `On its way in about <strong>${deliveryMin} minutes</strong>.`
+              : `Coming to your table in about <strong>${pickupMin} minutes</strong>.`;
 
         return {
-          subject: `${restaurant.name} confirmed order #${order.orderNumber}`,
-          body: `<h1 style="margin:0 0 8px;font-size:24px;">Order confirmed</h1>
-                 <p style="margin:0 0 24px;color:#64748b;">${this.escape(restaurant.name)} is cooking order
-                   <strong style="color:#0f172a;">#${order.orderNumber}</strong> now. ${eta}</p>
-                 ${this.button(ctx.trackingUrl, 'Track your order', restaurant.brandPrimaryColor)}`,
+          subject: fr
+            ? `${restaurant.name} a confirmé la commande #${n}`
+            : `${restaurant.name} confirmed order #${n}`,
+          body: `<h1 style="margin:0 0 8px;font-size:24px;">${fr ? 'Commande confirmée' : 'Order confirmed'}</h1>
+                 <p style="margin:0 0 24px;color:#64748b;">${name} ${fr ? 'prépare la commande' : 'is cooking order'}
+                   <strong style="color:#0f172a;">#${n}</strong> ${fr ? 'maintenant' : 'now'}. ${eta}</p>
+                 ${this.button(ctx.trackingUrl, fr ? 'Suivre votre commande' : 'Track your order', restaurant.brandPrimaryColor)}`,
         };
       }
 
-      /**
-       * The thank-you. The last thing this customer hears from us.
-       *
-       * It does three jobs, in order: thank them, remind them the money went to
-       * the restaurant rather than a marketplace, and make ordering again a single
-       * click. That last line is the entire business model of this platform, so it
-       * gets a button rather than a footnote.
-       */
       case 'thank_you': {
         const storefront = ctx.trackingUrl.split('/track/')[0];
         const delivered = order.fulfillment === 'DELIVERY';
+        const first = order.customerName ? this.escape(order.customerName.split(' ')[0]) : '';
 
         return {
-          subject: `Thanks for ordering from ${restaurant.name}`,
-          body: `<h1 style="margin:0 0 8px;font-size:24px;">Thank you${order.customerName ? `, ${this.escape(order.customerName.split(' ')[0])}` : ''}!</h1>
+          subject: fr
+            ? `Merci d'avoir commandé chez ${restaurant.name}`
+            : `Thanks for ordering from ${restaurant.name}`,
+          body: `<h1 style="margin:0 0 8px;font-size:24px;">${fr ? `Merci${first ? `, ${first}` : ''} !` : `Thank you${first ? `, ${first}` : ''}!`}</h1>
                  <p style="margin:0 0 20px;color:#64748b;">
-                   Order <strong style="color:#0f172a;">#${order.orderNumber}</strong> ${
-                     delivered ? 'has been delivered' : 'is all done'
-                   }. We hope it was worth the wait.
+                   ${fr ? 'Commande' : 'Order'} <strong style="color:#0f172a;">#${n}</strong> ${
+                     fr
+                       ? delivered
+                         ? 'a été livrée'
+                         : 'est terminée'
+                       : delivered
+                         ? 'has been delivered'
+                         : 'is all done'
+                   }. ${fr ? 'Nous espérons que ça valait l’attente.' : 'We hope it was worth the wait.'}
                  </p>
 
                  <div style="background:#f8fafc;border-radius:12px;padding:20px;margin:0 0 24px;">
                    <p style="margin:0;font-size:14px;color:#475569;line-height:1.6;">
-                     You ordered <strong style="color:#0f172a;">directly from ${this.escape(restaurant.name)}</strong> —
-                     no marketplace took a cut. That means more of what you paid stayed with the
-                     people who cooked your food. Thank you for that.
+                     ${
+                       fr
+                         ? `Vous avez commandé <strong style="color:#0f172a;">directement chez ${name}</strong> — aucune place de marché n’a pris de commission. Une plus grande part de ce que vous avez payé est restée aux gens qui ont cuisiné. Merci pour ça.`
+                         : `You ordered <strong style="color:#0f172a;">directly from ${name}</strong> — no marketplace took a cut. That means more of what you paid stayed with the people who cooked your food. Thank you for that.`
+                     }
                    </p>
                  </div>
 
-                 ${this.receiptTable(order)}
-                 ${this.button(storefront, 'Order again', restaurant.brandPrimaryColor)}
+                 ${this.receiptTable(order, locale)}
+                 ${this.button(storefront, fr ? 'Commander à nouveau' : 'Order again', restaurant.brandPrimaryColor)}
 
                  <p style="margin:24px 0 0;font-size:13px;color:#94a3b8;">
-                   Something wrong with your order? Call ${this.escape(restaurant.name)} on
-                   <a href="tel:${this.escape(restaurant.phone)}" style="color:#475569;">${this.escape(restaurant.phone)}</a> —
-                   they'll put it right.
+                   ${
+                     fr
+                       ? `Un problème avec votre commande ? Appelez ${name} au <a href="tel:${this.escape(restaurant.phone)}" style="color:#475569;">${this.escape(restaurant.phone)}</a> — ils y verront.`
+                       : `Something wrong with your order? Call ${name} on <a href="tel:${this.escape(restaurant.phone)}" style="color:#475569;">${this.escape(restaurant.phone)}</a> — they'll put it right.`
+                   }
                  </p>`,
         };
       }
 
       case 'cancelled':
         return {
-          subject: `${restaurant.name} order #${order.orderNumber} was cancelled`,
-          body: `<h1 style="margin:0 0 8px;font-size:24px;">Order cancelled</h1>
+          subject: fr
+            ? `Commande #${n} chez ${restaurant.name} annulée`
+            : `${restaurant.name} order #${n} was cancelled`,
+          body: `<h1 style="margin:0 0 8px;font-size:24px;">${fr ? 'Commande annulée' : 'Order cancelled'}</h1>
                  <p style="margin:0 0 12px;color:#64748b;">
-                   Order <strong style="color:#0f172a;">#${order.orderNumber}</strong> has been cancelled${
-                     order.cancelReason ? `: ${this.escape(order.cancelReason)}` : '.'
+                   ${fr ? 'Commande' : 'Order'} <strong style="color:#0f172a;">#${n}</strong> ${
+                     fr
+                       ? `a été annulée${order.cancelReason ? ` : ${this.escape(order.cancelReason)}` : '.'}`
+                       : `has been cancelled${order.cancelReason ? `: ${this.escape(order.cancelReason)}` : '.'}`
                    }
                  </p>
                  <p style="margin:0 0 24px;color:#64748b;">
-                   Any payment of ${formatMoney(order.totalCents, order.currency)} will be refunded to
-                   your original payment method within 5–10 business days.
+                   ${
+                     fr
+                       ? `Tout paiement de ${formatMoney(order.totalCents, order.currency)} sera remboursé sur votre mode de paiement d’origine sous 5 à 10 jours ouvrables.`
+                       : `Any payment of ${formatMoney(order.totalCents, order.currency)} will be refunded to your original payment method within 5–10 business days.`
+                   }
                  </p>
                  <p style="margin:0;color:#64748b;">
-                   Questions? Call ${this.escape(restaurant.name)} on
-                   <a href="tel:${this.escape(restaurant.phone)}">${this.escape(restaurant.phone)}</a>.
+                   ${fr ? 'Des questions ? Appelez' : 'Questions? Call'} ${name}
+                   ${fr ? 'au' : 'on'} <a href="tel:${this.escape(restaurant.phone)}">${this.escape(restaurant.phone)}</a>.
                  </p>`,
         };
 
@@ -313,7 +349,8 @@ export class EmailService {
 
   // --- Rendering helpers -----------------------------------------------------
 
-  private receiptTable(order: OrderWithItems): string {
+  private receiptTable(order: OrderWithItems, locale: EmailLocale = 'en'): string {
+    const fr = locale === 'fr';
     const row = (label: string, cents: number, bold = false) => `
       <tr>
         <td style="padding:4px 0;color:${bold ? '#0f172a' : '#64748b'};font-weight:${bold ? 600 : 400};">${label}</td>
@@ -323,13 +360,13 @@ export class EmailService {
       </tr>`;
 
     return `<table width="100%" style="border-top:1px solid #e2e8f0;margin-top:8px;padding-top:12px;font-size:14px;">
-      ${row('Subtotal', order.subtotalCents)}
-      ${order.discountCents > 0 ? row('Discount', -order.discountCents) : ''}
-      ${order.serviceFeeCents > 0 ? row('Service fee', order.serviceFeeCents) : ''}
-      ${order.deliveryFeeCents > 0 ? row('Delivery', order.deliveryFeeCents) : ''}
-      ${this.taxRows(order, row)}
-      ${order.tipCents > 0 ? row('Tip', order.tipCents) : ''}
-      ${row('Total', order.totalCents, true)}
+      ${row(fr ? 'Sous-total' : 'Subtotal', order.subtotalCents)}
+      ${order.discountCents > 0 ? row(fr ? 'Rabais' : 'Discount', -order.discountCents) : ''}
+      ${order.serviceFeeCents > 0 ? row(fr ? 'Frais de service' : 'Service fee', order.serviceFeeCents) : ''}
+      ${order.deliveryFeeCents > 0 ? row(fr ? 'Livraison' : 'Delivery', order.deliveryFeeCents) : ''}
+      ${this.taxRows(order, row, fr)}
+      ${order.tipCents > 0 ? row(fr ? 'Pourboire' : 'Tip', order.tipCents) : ''}
+      ${row(fr ? 'Total' : 'Total', order.totalCents, true)}
     </table>`;
   }
 
@@ -347,13 +384,15 @@ export class EmailService {
   private taxRows(
     order: OrderWithItems,
     row: (label: string, cents: number, bold?: boolean) => string,
+    fr = false,
   ): string {
     const lines = order.taxLines as Array<{ name: string; amountCents: number }> | null;
 
     if (lines?.length) {
+      // Named tax lines (GST/QST) are legal names — kept as-is in both languages.
       return lines.map((t) => row(this.escape(t.name), t.amountCents)).join('');
     }
-    return row('Tax', order.taxCents);
+    return row(fr ? 'Taxes' : 'Tax', order.taxCents);
   }
 
   /** Big, legible line items for the kitchen ticket. */
@@ -375,14 +414,15 @@ export class EmailService {
     </table>`;
   }
 
-  private fulfillmentLine(order: Order, restaurant: Restaurant): string {
+  private fulfillmentLine(order: Order, restaurant: Restaurant, locale: EmailLocale = 'en'): string {
+    const fr = locale === 'fr';
     if (order.fulfillment === 'DELIVERY') {
-      return `Delivering to ${this.escape(order.deliveryStreet ?? '')}, ${this.escape(order.deliveryCity ?? '')}`;
+      return `${fr ? 'Livraison à' : 'Delivering to'} ${this.escape(order.deliveryStreet ?? '')}, ${this.escape(order.deliveryCity ?? '')}`;
     }
     if (order.fulfillment === 'PICKUP') {
-      return `Pickup from ${this.escape(restaurant.street)}, ${this.escape(restaurant.city)}`;
+      return `${fr ? 'À emporter depuis' : 'Pickup from'} ${this.escape(restaurant.street)}, ${this.escape(restaurant.city)}`;
     }
-    return `Dine in${order.tableNumber ? ` — table ${this.escape(order.tableNumber)}` : ''}`;
+    return `${fr ? 'Sur place' : 'Dine in'}${order.tableNumber ? ` — ${fr ? 'table' : 'table'} ${this.escape(order.tableNumber)}` : ''}`;
   }
 
   /**
