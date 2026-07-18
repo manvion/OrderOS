@@ -9,6 +9,7 @@ import { formatMoney } from '@dinedirect/shared';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
+import { useT } from '@/components/storefront/i18n-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import { Input } from '@/components/ui/input';
 export default function CartPage() {
   const restaurant = useTenant();
   const href = useTenantHref();
+  const t = useT();
   const lines = useCart((s) => s.lines);
   const setQuantity = useCart((s) => s.setQuantity);
   const removeLine = useCart((s) => s.removeLine);
@@ -52,10 +54,10 @@ export default function CartPage() {
     return (
       <div className="container flex flex-col items-center py-24 text-center">
         <ShoppingBag className="h-12 w-12 text-muted-foreground" />
-        <h1 className="mt-6 text-xl font-semibold">Your cart is empty</h1>
-        <p className="mt-2 text-muted-foreground">Add something from the menu to get started.</p>
+        <h1 className="mt-6 text-xl font-semibold">{t.cart.empty}</h1>
+        <p className="mt-2 text-muted-foreground">{t.cart.emptyHint}</p>
         <Button asChild variant="brand" className="mt-6">
-          <Link href={href('/menu')}>Browse the menu</Link>
+          <Link href={href('/menu')}>{t.cart.browseMenu}</Link>
         </Button>
       </div>
     );
@@ -65,7 +67,7 @@ export default function CartPage() {
 
   return (
     <div className="container max-w-2xl py-8 pb-32">
-      <h1 className="text-2xl font-bold tracking-tight">Your order</h1>
+      <h1 className="text-2xl font-bold tracking-tight">{t.cart.title}</h1>
 
       <div className="mt-6 space-y-3">
         {lines.map((line) => {
@@ -149,7 +151,7 @@ export default function CartPage() {
           <CardContent className="space-y-4 p-6 text-sm">
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-muted-foreground">{t.cart.subtotal}</span>
                 <span className="tabular-nums">
                   {formatMoney(totals.subtotalCents, restaurant.currency)}
                 </span>
@@ -157,7 +159,7 @@ export default function CartPage() {
               {promoDiscountCents > 0 && (
                 <div className="flex justify-between text-brand">
                   <span className="font-medium">
-                    Discount{promoCode ? ` · ${promoCode.toUpperCase()}` : ''}
+                    {t.cart.discount}{promoCode ? ` · ${promoCode.toUpperCase()}` : ''}
                   </span>
                   <span className="tabular-nums">
                     -{formatMoney(promoDiscountCents, restaurant.currency)}
@@ -170,7 +172,7 @@ export default function CartPage() {
               <div className="flex items-center justify-between rounded-lg bg-brand-subtle px-3 py-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-brand">
                   <Tag className="h-3.5 w-3.5" />
-                  {promoCode.toUpperCase()} applied
+                  {promoCode.toUpperCase()} {t.cart.applied}
                 </span>
                 <button
                   onClick={() => {
@@ -189,7 +191,7 @@ export default function CartPage() {
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
-                  placeholder="Promo code"
+                  placeholder={t.cart.promoCode}
                   className="uppercase placeholder:normal-case"
                 />
                 <Button
@@ -197,26 +199,20 @@ export default function CartPage() {
                   onClick={applyPromo}
                   disabled={!promoInput.trim() || applyingPromo}
                 >
-                  {applyingPromo ? 'Checking…' : 'Apply'}
+                  {applyingPromo ? t.cart.checking : t.cart.apply}
                 </Button>
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground">
-              Tax, fees and any tip are calculated at checkout.
-            </p>
+            <p className="text-xs text-muted-foreground">{t.cart.feesNote}</p>
           </CardContent>
         </Card>
       )}
 
       {belowMinimum && (
         <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-          Minimum order is {formatMoney(restaurant.minOrderCents, restaurant.currency)} — add{' '}
-          {formatMoney(
-            restaurant.minOrderCents - (totals?.subtotalCents ?? 0),
-            restaurant.currency,
-          )}{' '}
-          more to check out.
+          {t.cart.minPrefix} {formatMoney(restaurant.minOrderCents, restaurant.currency)}{' '}
+          {t.cart.minSuffix}
         </p>
       )}
 
@@ -225,7 +221,7 @@ export default function CartPage() {
       <div className="fixed inset-x-0 bottom-0 border-t bg-background/95 p-4 backdrop-blur">
         <div className="container flex max-w-2xl items-center gap-4 px-0">
           <Button asChild variant="outline" className="hidden sm:flex">
-            <Link href={href('/menu')}>Add more</Link>
+            <Link href={href('/menu')}>{t.cart.addMore}</Link>
           </Button>
           <Button
             asChild={!belowMinimum}
@@ -235,10 +231,10 @@ export default function CartPage() {
             disabled={belowMinimum}
           >
             {belowMinimum ? (
-              <span>Minimum not met</span>
+              <span>{t.cart.minimumNotMet}</span>
             ) : (
               <Link href={href('/checkout')}>
-                Checkout ·{' '}
+                {t.cart.checkout} ·{' '}
                 {formatMoney(
                   (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
                   restaurant.currency,

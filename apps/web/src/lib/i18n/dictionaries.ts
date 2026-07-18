@@ -38,10 +38,17 @@ export interface Dictionary {
     emptyHint: string;
     subtotal: string;
     checkout: string;
-    item: string;
-    items: string;
-    remove: string;
     browseMenu: string;
+    discount: string;
+    applied: string;
+    promoCode: string;
+    apply: string;
+    checking: string;
+    feesNote: string;
+    addMore: string;
+    minimumNotMet: string;
+    minPrefix: string;
+    minSuffix: string;
   };
   checkout: {
     title: string;
@@ -148,10 +155,17 @@ const en: Dictionary = {
     emptyHint: 'Add something from the menu to get started.',
     subtotal: 'Subtotal',
     checkout: 'Checkout',
-    item: 'item',
-    items: 'items',
-    remove: 'Remove',
     browseMenu: 'Browse the menu',
+    discount: 'Discount',
+    applied: 'applied',
+    promoCode: 'Promo code',
+    apply: 'Apply',
+    checking: 'Checking…',
+    feesNote: 'Tax, fees and any tip are calculated at checkout.',
+    addMore: 'Add more',
+    minimumNotMet: 'Minimum not met',
+    minPrefix: 'Minimum order is',
+    minSuffix: '— add more to check out.',
   },
   checkout: {
     title: 'Checkout',
@@ -255,10 +269,17 @@ const fr: Dictionary = {
     emptyHint: 'Ajoutez quelque chose au menu pour commencer.',
     subtotal: 'Sous-total',
     checkout: 'Passer à la caisse',
-    item: 'article',
-    items: 'articles',
-    remove: 'Retirer',
     browseMenu: 'Voir le menu',
+    discount: 'Rabais',
+    applied: 'appliqué',
+    promoCode: 'Code promo',
+    apply: 'Appliquer',
+    checking: 'Vérification…',
+    feesNote: 'Les taxes, frais et pourboire sont calculés au paiement.',
+    addMore: 'Ajouter d’autres articles',
+    minimumNotMet: 'Minimum non atteint',
+    minPrefix: 'La commande minimum est de',
+    minSuffix: '— ajoutez-en pour commander.',
   },
   checkout: {
     title: 'Paiement',
