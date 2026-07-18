@@ -75,6 +75,74 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** Customer-facing. Called from the storefront, where there is no session. */
+// --- Catering & parties ------------------------------------------------------
+
+export interface CateringPackage {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  pricePerPersonCents: number;
+  minPeople: number;
+  maxPeople: number | null;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export type CateringType = 'PACKAGE' | 'CUSTOM';
+export type CateringStatus = 'NEW' | 'IN_PROGRESS' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+
+export interface CateringRequest {
+  id: string;
+  type: CateringType;
+  status: CateringStatus;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  headCount: number;
+  eventDate: string;
+  fulfillment: 'PICKUP' | 'DELIVERY';
+  deliveryAddress: string | null;
+  message: string | null;
+  packageId: string | null;
+  packageName: string | null;
+  pricePerPersonCents: number | null;
+  totalCents: number | null;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+  createdAt: string;
+}
+
+export interface CateringOffering {
+  enabled: boolean;
+  packages: CateringPackage[];
+}
+
+/** What the storefront catering form submits. */
+export interface CateringSubmission {
+  type: CateringType;
+  packageId?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  headCount: number;
+  eventDate: string;
+  fulfillment: 'PICKUP' | 'DELIVERY';
+  deliveryAddress?: string;
+  message?: string;
+}
+
+/** What an admin sends when creating/editing a package. */
+export interface CateringPackageInput {
+  name: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  pricePerPersonCents: number;
+  minPeople?: number;
+  maxPeople?: number | null;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
 export const storefrontApi = {
   request: <T>(path: string, slug: string, init: RequestInit = {}) =>
     request<T>(path, {
@@ -212,6 +280,18 @@ export const storefrontApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  /** Whether this restaurant offers catering, and its live packages. */
+  getCatering: (slug: string) =>
+    storefrontApi.request<CateringOffering>('/storefront/catering', slug),
+
+  /** Submit a package order (→ checkoutUrl to pay) or a custom enquiry (→ lead). */
+  submitCatering: (slug: string, body: CateringSubmission) =>
+    storefrontApi.request<{ requestId: string; checkoutUrl: string | null }>(
+      '/storefront/catering/request',
+      slug,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 };
 
 /** An AI-suggested brand: a name plus a monogram spec the UI renders as SVG. */
@@ -414,6 +494,27 @@ export function createDashboardApi(
       call<{ ideas: BrandIdea[] }>('/menu/ai-brand', {
         method: 'POST',
         body: JSON.stringify({ brief }),
+      }),
+
+    // Catering
+    listCateringPackages: () => call<CateringPackage[]>('/catering/packages'),
+    createCateringPackage: (body: CateringPackageInput) =>
+      call<CateringPackage>('/catering/packages', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateCateringPackage: (id: string, body: Partial<CateringPackageInput>) =>
+      call<CateringPackage>(`/catering/packages/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    deleteCateringPackage: (id: string) =>
+      call<{ success: boolean }>(`/catering/packages/${id}`, { method: 'DELETE' }),
+    listCateringRequests: () => call<CateringRequest[]>('/catering/requests'),
+    setCateringRequestStatus: (id: string, status: CateringStatus) =>
+      call<CateringRequest>(`/catering/requests/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
       }),
 
     // Orders
@@ -897,6 +998,8 @@ export interface StorefrontRestaurant {
   acceptingOrders: boolean;
   /** Pro plan: hide the "Powered by DineDirect" footer — fully the restaurant's brand. */
   removeBranding: boolean;
+  /** Growth/Pro: show the "Catering & Parties" entry and page. */
+  cateringEnabled: boolean;
   pickupEnabled: boolean;
   deliveryEnabled: boolean;
   dineInEnabled: boolean;

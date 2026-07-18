@@ -245,6 +245,17 @@ export default async function StorefrontLayout({
                   About
                 </Link>
               )}
+              {/* Parties/catering — a paid capability, and a high-value one, so it
+                  gets a tinted brand pill rather than a plain nav link: it should
+                  pop as an option, not hide among the others. */}
+              {restaurant.cateringEnabled && (
+                <Link
+                  href={href('/catering')}
+                  className="rounded-lg bg-brand-subtle px-3 py-2 text-sm font-semibold text-brand transition-colors hover:bg-brand hover:text-brand-foreground"
+                >
+                  Catering
+                </Link>
+              )}
               {/* The way back to an order after closing the tab or losing the SMS.
                   Without it, the only route is phoning the kitchen that's cooking it. */}
               <Link

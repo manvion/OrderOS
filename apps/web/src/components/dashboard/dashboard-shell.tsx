@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Link2,
   Lock,
+  PartyPopper,
   QrCode,
   Receipt,
   Rocket,
@@ -70,6 +71,13 @@ const NAV: NavItem[] = [
     capability: 'SHIFTS',
   },
   { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' },
+  {
+    href: '/dashboard/catering',
+    label: 'Catering',
+    icon: PartyPopper,
+    minRole: 'MANAGER',
+    capability: 'CATERING',
+  },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' },
   { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' },
   {

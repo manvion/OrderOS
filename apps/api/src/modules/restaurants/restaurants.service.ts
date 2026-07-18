@@ -349,6 +349,9 @@ export class RestaurantsService {
       // restaurant's own brand. Derived here, never a stored flag, so it can't drift
       // from the plan.
       removeBranding: planAllows(tier, 'REMOVE_BRANDING'),
+      // Whether to show the "Catering & Parties" entry. Capability-derived; the
+      // catering page itself always has the custom-quote form, plus any packages.
+      cateringEnabled: planAllows(tier, 'CATERING'),
       isOpen: isOpenAt(hours, restaurant.timezone),
       /** Can this restaurant actually take money right now? */
       acceptingOrders: isOpenAt(hours, restaurant.timezone),
