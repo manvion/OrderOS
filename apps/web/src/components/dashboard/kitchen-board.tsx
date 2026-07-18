@@ -17,6 +17,10 @@ import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { ApiRequestError, type Order } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { useContentLocale } from '@/lib/i18n/use-content-locale';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
+
+type KitchenKey = keyof Dictionary['kitchen'];
 
 /**
  * The kitchen display. This runs on a tablet propped against the pass, and it is the
@@ -49,7 +53,7 @@ const POLL_MS = 5_000;
 
 type Column = {
   key: string;
-  title: string;
+  titleKey: KitchenKey;
   statuses: string[];
   tone: string;
 };
@@ -57,13 +61,13 @@ type Column = {
 const COLUMNS: Column[] = [
   {
     key: 'new',
-    title: 'New',
+    titleKey: 'colNew',
     statuses: ['PENDING'],
     tone: 'border-amber-400',
   },
   {
     key: 'cooking',
-    title: 'Cooking',
+    titleKey: 'colCooking',
     // Two real backend statuses share this one visual bucket. The action button
     // below is keyed off the CARD's own status, not the column, because ACCEPTED
     // and PREPARING are different legal transitions -- ACCEPTED must become
@@ -74,7 +78,7 @@ const COLUMNS: Column[] = [
   },
   {
     key: 'ready',
-    title: 'Ready',
+    titleKey: 'colReady',
     // Ready orders sit here until they physically leave: collected by the customer,
     // carried to a table, or handed to a courier.
     statuses: ['READY', 'DRIVER_ASSIGNED', 'OUT_FOR_DELIVERY'],
@@ -83,34 +87,38 @@ const COLUMNS: Column[] = [
 ];
 
 /** The one legal next step for a card, given its OWN status -- not its column's. */
-function actionFor(status: string, fulfillment: string): { label: string; to: string } | undefined {
+function actionFor(
+  status: string,
+  fulfillment: string,
+): { labelKey: KitchenKey; to: string } | undefined {
   switch (status) {
     case 'PENDING':
-      return { label: 'Accept', to: 'ACCEPTED' };
+      return { labelKey: 'accept', to: 'ACCEPTED' };
     case 'ACCEPTED':
-      return { label: 'Start preparing', to: 'PREPARING' };
+      return { labelKey: 'startPreparing', to: 'PREPARING' };
     case 'PREPARING':
-      return { label: 'Ready', to: 'READY' };
+      return { labelKey: 'ready', to: 'READY' };
     case 'READY':
       // A delivery order at READY is Uber's problem now -- it advances on its own
       // once a courier is assigned, and the kitchen tapping "Picked up" would hide
       // a food-still-waiting order from the board while no driver is actually here.
-      return fulfillment === 'DELIVERY' ? undefined : { label: 'Picked up', to: 'COMPLETED' };
+      return fulfillment === 'DELIVERY' ? undefined : { labelKey: 'pickedUp', to: 'COMPLETED' };
     default:
       return undefined;
   }
 }
 
 const FULFILLMENT = {
-  PICKUP: { icon: ShoppingBag, label: 'Pickup' },
-  DELIVERY: { icon: Truck, label: 'Delivery' },
-  DINE_IN: { icon: UtensilsCrossed, label: 'Dine in' },
+  PICKUP: { icon: ShoppingBag, labelKey: 'pickup' as KitchenKey },
+  DELIVERY: { icon: Truck, labelKey: 'delivery' as KitchenKey },
+  DINE_IN: { icon: UtensilsCrossed, labelKey: 'dineIn' as KitchenKey },
 } as const;
 
 export function KitchenBoard() {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant } = useDashboard();
+  const { t, locale, canToggle, setLocale } = useContentLocale(restaurant?.menuLanguage);
 
   const [soundOn, setSoundOn] = useState(true);
   const seenIds = useRef<Set<string>>(new Set());
@@ -149,9 +157,9 @@ export function KitchenBoard() {
     if (fresh.length > 0 && soundOn) {
       chime();
       // A toast as well as a sound: the extractor fan is louder than a tablet.
-      toast.info(`${fresh.length} new order${fresh.length === 1 ? '' : 's'}`);
+      toast.info(`${fresh.length} ${t.kitchen.newOrders}`);
     }
-  }, [orders, soundOn]);
+  }, [orders, soundOn, t]);
 
   const advance = useMutation({
     mutationFn: ({ id, to }: { id: string; to: string }) => api.setOrderStatus(id, to),
@@ -172,7 +180,7 @@ export function KitchenBoard() {
       if (context?.previous) {
         queryClient.setQueryData(['orders', 'active', restaurant?.id], context.previous);
       }
-      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the order');
+      toast.error(err instanceof ApiRequestError ? err.body.message : t.kitchen.couldNotUpdate);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['orders', 'active'] }),
   });
@@ -182,7 +190,7 @@ export function KitchenBoard() {
       api.setOrderEta(id, minutesFromNow),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders', 'active'] }),
     onError: (err) =>
-      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the ETA'),
+      toast.error(err instanceof ApiRequestError ? err.body.message : t.kitchen.couldNotEta),
   });
 
   const byColumn = useMemo(() => {
@@ -208,14 +216,32 @@ export function KitchenBoard() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <ChefHat className="h-6 w-6" />
-            Kitchen
+            {t.kitchen.title}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {isLoading ? 'Loading…' : `${orders?.length ?? 0} orders on the pass`}
+            {isLoading ? t.kitchen.loading : `${orders?.length ?? 0} ${t.kitchen.ordersOnPass}`}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* EN/FR switch — only when the restaurant is set to both languages. */}
+          {canToggle && (
+            <div className="inline-flex overflow-hidden rounded-lg border text-xs font-semibold">
+              {(['en', 'fr'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLocale(l)}
+                  className={`px-2.5 py-1.5 uppercase transition-colors ${
+                    locale === l ? 'bg-brand text-brand-foreground' : 'text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -224,10 +250,10 @@ export function KitchenBoard() {
               // Play it when switching ON, so they know it works before service.
               if (!soundOn) chime();
             }}
-            title={soundOn ? 'Sound is on' : 'Sound is OFF — new orders will be silent'}
+            title={soundOn ? t.kitchen.soundOnTitle : t.kitchen.soundOffTitle}
           >
             {soundOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4 text-destructive" />}
-            {soundOn ? 'Sound on' : 'Sound off'}
+            {soundOn ? t.kitchen.soundOn : t.kitchen.soundOff}
           </Button>
 
           <Button
@@ -236,14 +262,14 @@ export function KitchenBoard() {
             onClick={() => void document.documentElement.requestFullscreen?.()}
           >
             <Maximize2 className="h-4 w-4" />
-            Full screen
+            {t.kitchen.fullScreen}
           </Button>
         </div>
       </div>
 
       {!soundOn && (
         <p className="mb-3 rounded-lg bg-destructive/10 p-2.5 text-center text-sm font-medium text-destructive">
-          Sound is off. New orders will arrive silently.
+          {t.kitchen.soundOffBanner}
         </p>
       )}
 
@@ -255,7 +281,7 @@ export function KitchenBoard() {
             <div key={col.key} className="flex min-h-0 flex-col rounded-2xl border bg-muted/30 p-3">
               <div className="mb-3 flex items-center justify-between px-1">
                 <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                  {col.title}
+                  {t.kitchen[col.titleKey]}
                 </h2>
                 <span className="shadow-soft rounded-full bg-background px-2.5 py-0.5 text-sm font-bold tabular-nums">
                   {cards.length}
@@ -268,6 +294,7 @@ export function KitchenBoard() {
                     key={order.id}
                     order={order}
                     tone={col.tone}
+                    t={t}
                     action={actionFor(order.status, order.fulfillment)}
                     onAdvance={(to) => advance.mutate({ id: order.id, to })}
                     onSetEta={(minutesFromNow) => setEta.mutate({ id: order.id, minutesFromNow })}
@@ -275,7 +302,9 @@ export function KitchenBoard() {
                 ))}
 
                 {cards.length === 0 && (
-                  <p className="py-10 text-center text-sm text-muted-foreground">Nothing here</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    {t.kitchen.nothingHere}
+                  </p>
                 )}
               </div>
             </div>
@@ -291,13 +320,15 @@ const ETA_PRESETS = [10, 15, 20, 30, 45];
 function OrderCard({
   order,
   tone,
+  t,
   action,
   onAdvance,
   onSetEta,
 }: {
   order: Order;
   tone: string;
-  action?: { label: string; to: string };
+  t: Dictionary;
+  action?: { labelKey: KitchenKey; to: string };
   onAdvance: (to: string) => void;
   onSetEta: (minutesFromNow: number) => void;
 }) {
@@ -344,8 +375,8 @@ function OrderCard({
           <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-semibold">
             <Icon className="h-3.5 w-3.5" />
             {order.fulfillment === 'DINE_IN' && order.tableNumber
-              ? `Table ${order.tableNumber}`
-              : f.label}
+              ? `${t.kitchen.table} ${order.tableNumber}`
+              : t.kitchen[f.labelKey]}
           </span>
           <p
             className={`mt-1.5 flex items-center justify-end gap-1 text-xs font-bold tabular-nums ${
@@ -353,7 +384,7 @@ function OrderCard({
             }`}
           >
             <Clock className="h-3 w-3" />
-            {waited.label}
+            {waited.minutes < 1 ? t.kitchen.justNow : `${waited.minutes}m`}
           </p>
         </div>
       </div>
@@ -385,10 +416,10 @@ function OrderCard({
         <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3">
           <span className="text-xs font-semibold text-muted-foreground">
             {etaMinutes === null
-              ? 'No ETA set'
+              ? t.kitchen.noEta
               : etaMinutes <= 0
-                ? 'Any moment now'
-                : `Ready in ${etaMinutes} min`}
+                ? t.kitchen.anyMoment
+                : `${t.kitchen.readyIn} ${etaMinutes} ${t.kitchen.min}`}
           </span>
           <div className="flex gap-1">
             {ETA_PRESETS.map((m) => (
@@ -418,7 +449,7 @@ function OrderCard({
           onClick={() => onAdvance(action.to)}
         >
           <Check className="h-5 w-5" />
-          {action.label}
+          {t.kitchen[action.labelKey]}
         </Button>
       )}
     </div>
@@ -435,7 +466,9 @@ function useElapsed(iso: string) {
   }, []);
 
   const minutes = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60_000));
-  return { minutes, label: minutes < 1 ? 'just now' : `${minutes}m` };
+  // The "just now" / "Nm" label is formatted at the call site, where the dictionary
+  // is in scope.
+  return { minutes };
 }
 
 /**

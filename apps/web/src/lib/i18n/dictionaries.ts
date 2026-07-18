@@ -153,6 +153,37 @@ export interface Dictionary {
     afterPaying: string;
     people: string;
   };
+  kitchen: {
+    title: string;
+    loading: string;
+    ordersOnPass: string;
+    soundOn: string;
+    soundOff: string;
+    soundOnTitle: string;
+    soundOffTitle: string;
+    fullScreen: string;
+    soundOffBanner: string;
+    nothingHere: string;
+    colNew: string;
+    colCooking: string;
+    colReady: string;
+    accept: string;
+    startPreparing: string;
+    ready: string;
+    pickedUp: string;
+    pickup: string;
+    delivery: string;
+    dineIn: string;
+    table: string;
+    justNow: string;
+    noEta: string;
+    anyMoment: string;
+    readyIn: string;
+    min: string;
+    newOrders: string;
+    couldNotUpdate: string;
+    couldNotEta: string;
+  };
   common: {
     pickup: string;
     delivery: string;
@@ -295,6 +326,37 @@ const en: Dictionary = {
     afterPaying: 'Secure checkout. You’ll confirm details with the restaurant after paying.',
     people: 'people',
   },
+  kitchen: {
+    title: 'Kitchen',
+    loading: 'Loading…',
+    ordersOnPass: 'orders on the pass',
+    soundOn: 'Sound on',
+    soundOff: 'Sound off',
+    soundOnTitle: 'Sound is on',
+    soundOffTitle: 'Sound is OFF — new orders will be silent',
+    fullScreen: 'Full screen',
+    soundOffBanner: 'Sound is off. New orders will arrive silently.',
+    nothingHere: 'Nothing here',
+    colNew: 'New',
+    colCooking: 'Cooking',
+    colReady: 'Ready',
+    accept: 'Accept',
+    startPreparing: 'Start preparing',
+    ready: 'Ready',
+    pickedUp: 'Picked up',
+    pickup: 'Pickup',
+    delivery: 'Delivery',
+    dineIn: 'Dine in',
+    table: 'Table',
+    justNow: 'just now',
+    noEta: 'No ETA set',
+    anyMoment: 'Any moment now',
+    readyIn: 'Ready in',
+    min: 'min',
+    newOrders: 'new order(s)',
+    couldNotUpdate: 'Could not update the order',
+    couldNotEta: 'Could not update the ETA',
+  },
   common: { pickup: 'Pickup', delivery: 'Delivery', dineIn: 'Dine in', language: 'Language' },
 };
 
@@ -433,6 +495,37 @@ const fr: Dictionary = {
     afterPaying:
       'Paiement sécurisé. Vous confirmerez les détails avec le restaurant après le paiement.',
     people: 'personnes',
+  },
+  kitchen: {
+    title: 'Cuisine',
+    loading: 'Chargement…',
+    ordersOnPass: 'commandes au passe',
+    soundOn: 'Son activé',
+    soundOff: 'Son coupé',
+    soundOnTitle: 'Le son est activé',
+    soundOffTitle: 'Le son est COUPÉ — les nouvelles commandes seront silencieuses',
+    fullScreen: 'Plein écran',
+    soundOffBanner: 'Le son est coupé. Les nouvelles commandes arriveront en silence.',
+    nothingHere: 'Rien ici',
+    colNew: 'Nouvelles',
+    colCooking: 'En cuisson',
+    colReady: 'Prêtes',
+    accept: 'Accepter',
+    startPreparing: 'Commencer la préparation',
+    ready: 'Prête',
+    pickedUp: 'Récupérée',
+    pickup: 'À emporter',
+    delivery: 'Livraison',
+    dineIn: 'Sur place',
+    table: 'Table',
+    justNow: 'à l’instant',
+    noEta: 'Aucune estimation',
+    anyMoment: 'D’un instant à l’autre',
+    readyIn: 'Prête dans',
+    min: 'min',
+    newOrders: 'nouvelle(s) commande(s)',
+    couldNotUpdate: 'Impossible de mettre à jour la commande',
+    couldNotEta: 'Impossible de mettre à jour l’estimation',
   },
   common: {
     pickup: 'À emporter',
