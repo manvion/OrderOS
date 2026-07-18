@@ -8,6 +8,6 @@ import { MenuService } from './menu.service';
   imports: [PromotionsModule],
   controllers: [MenuController],
   providers: [MenuService, MenuImportService],
-  exports: [MenuService],
+  exports: [MenuService, MenuImportService],
 })
 export class MenuModule {}

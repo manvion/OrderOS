@@ -44,6 +44,14 @@ enum FulfillmentType {
   DINE_IN
 }
 
+/// The language(s) a restaurant writes its content in. Drives the AI-fill controls:
+/// a single language just writes in it; BOTH offers English / French / both.
+enum MenuLanguage {
+  EN
+  FR
+  BOTH
+}
+
 /// See Restaurant.websiteTemplate.
 enum WebsiteTemplate {
   /// Full-bleed cover photo hero, gallery grid, a facts row, a closing pitch.
@@ -256,6 +264,10 @@ model Restaurant {
   /// Show a soft, brand-coloured backdrop behind the header logo. Off by default;
   /// helps a transparent-PNG logo sit on a subtle tinted panel instead of bare.
   logoBackdrop      Boolean         @default(false)
+  /// Which language(s) this restaurant writes menu & catering content in. Drives
+  /// the AI-fill language options: a single language writes in it; BOTH offers a
+  /// French / English / both choice.
+  menuLanguage      MenuLanguage    @default(EN)
 
   /// Their About page, in their own words.
   ///

@@ -200,6 +200,8 @@ export const updateRestaurantSchema = z.object({
   logoScale: z.number().int().min(50).max(250).optional(),
   /** Show a soft brand-coloured backdrop behind the header logo. */
   logoBackdrop: z.boolean().optional(),
+  /** Which language(s) the restaurant writes content in — drives AI-fill options. */
+  menuLanguage: z.enum(['EN', 'FR', 'BOTH']).optional(),
 
   /**
    * Where the RESTAURANT wants to be alerted. Distinct from `phone`/`email`, which

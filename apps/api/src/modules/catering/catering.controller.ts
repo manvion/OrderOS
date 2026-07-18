@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { CurrentUser, Roles, TenantId } from '../../common/auth/decorators';
@@ -21,6 +22,11 @@ const packageUpdateSchema = packageSchema.partial();
 
 const statusSchema = z.object({
   status: z.enum(['NEW', 'IN_PROGRESS', 'CONFIRMED', 'COMPLETED', 'CANCELLED']),
+});
+
+const aiPackageSchema = z.object({
+  name: z.string().max(120).optional(),
+  language: z.enum(['EN', 'FR', 'BOTH']).default('EN'),
 });
 
 /** Staff-only catering management: packages and the enquiry inbox. */
@@ -65,6 +71,23 @@ export class CateringController {
     @Param('id') id: string,
   ) {
     return this.catering.deletePackage(restaurantId, id, user.id);
+  }
+
+  /** AI-write a package description from the restaurant's own menu. */
+  @Post('ai-package')
+  @Roles('MANAGER')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  async aiPackage(
+    @TenantId() restaurantId: string,
+    @Body(new ZodValidationPipe(aiPackageSchema)) body: z.infer<typeof aiPackageSchema>,
+  ) {
+    return {
+      description: await this.catering.generatePackageDescription(
+        restaurantId,
+        body.name,
+        body.language,
+      ),
+    };
   }
 
   @Get('requests')

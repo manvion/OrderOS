@@ -140,7 +140,9 @@ export function ProductDialog({
               )}
             </div>
             {product.description && (
-              <DialogDescription>{product.description}</DialogDescription>
+              <DialogDescription className="whitespace-pre-line">
+                {product.description}
+              </DialogDescription>
             )}
           </DialogHeader>
 

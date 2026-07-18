@@ -510,6 +510,11 @@ export function createDashboardApi(
       }),
     deleteCateringPackage: (id: string) =>
       call<{ success: boolean }>(`/catering/packages/${id}`, { method: 'DELETE' }),
+    generateCateringPackageDescription: (name?: string, language: 'EN' | 'FR' | 'BOTH' = 'EN') =>
+      call<{ description: string }>('/catering/ai-package', {
+        method: 'POST',
+        body: JSON.stringify({ name, language }),
+      }),
     listCateringRequests: () => call<CateringRequest[]>('/catering/requests'),
     setCateringRequestStatus: (id: string, status: CateringStatus) =>
       call<CateringRequest>(`/catering/requests/${id}/status`, {
@@ -1198,6 +1203,8 @@ export interface Restaurant {
   logoScale: number;
   /** Soft brand-coloured backdrop behind the header logo. */
   logoBackdrop: boolean;
+  /** Content language(s) — drives the AI-fill language options. */
+  menuLanguage: 'EN' | 'FR' | 'BOTH';
   /** About page content. Plain text, never HTML. */
   aboutHeadline: string | null;
   aboutBody: string | null;

@@ -87,7 +87,9 @@ export default function StorefrontCateringPage() {
             <div key={pkg.id} className="flex flex-col rounded-2xl border bg-card p-6 shadow-soft">
               <h3 className="text-lg font-bold">{pkg.name}</h3>
               {pkg.description && (
-                <p className="mt-1.5 flex-1 text-sm text-muted-foreground">{pkg.description}</p>
+                <p className="mt-1.5 flex-1 whitespace-pre-line text-sm text-muted-foreground">
+                  {pkg.description}
+                </p>
               )}
               <div className="mt-4 flex items-end justify-between">
                 <div>

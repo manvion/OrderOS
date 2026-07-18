@@ -6,6 +6,7 @@ import { CalendarDays, Check, Loader2, Mail, Phone, Plus, Trash2, Users } from '
 import { toast } from 'sonner';
 import { formatMoney } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
+import { AiFill } from '@/components/dashboard/ai-fill';
 import { PlanGate } from '@/components/dashboard/plan-gate';
 import {
   ApiRequestError,
@@ -197,11 +198,21 @@ function RequestCard({ request, currency }: { request: CateringRequest; currency
 function AddPackage({ currency }: { currency: string }) {
   const queryClient = useQueryClient();
   const api = useApi();
+  const { restaurant } = useDashboard();
+  const menuLanguage = restaurant?.menuLanguage ?? 'EN';
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [minPeople, setMinPeople] = useState('10');
+
+  const aiFill = useMutation({
+    mutationFn: (language: 'EN' | 'FR' | 'BOTH') =>
+      api.generateCateringPackageDescription(name.trim() || undefined, language),
+    onSuccess: ({ description }) => setDescription(description),
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not write a description'),
+  });
 
   const create = useMutation({
     mutationFn: () =>
@@ -247,13 +258,23 @@ function AddPackage({ currency }: { currency: string }) {
           <Input id="cp-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Taco bar" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="cp-desc">What's included (optional)</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="cp-desc">What's included (optional)</Label>
+            {/* AI writes it from the restaurant's real menu, in the language(s) the
+                restaurant is set up for. */}
+            <AiFill
+              language={menuLanguage}
+              pending={aiFill.isPending}
+              activeVariant={aiFill.variables}
+              onFill={(lang) => aiFill.mutate(lang)}
+            />
+          </div>
           <Textarea
             id="cp-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Build-your-own tacos, three proteins, sides, salsas."
-            className="min-h-[60px]"
+            className="min-h-[60px] whitespace-pre-line"
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

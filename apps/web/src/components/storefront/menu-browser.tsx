@@ -268,7 +268,10 @@ function ProductRow({
         <h3 className="font-semibold leading-snug">{product.name}</h3>
 
         {product.description && (
-          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+          // whitespace-pre-line so a bilingual description (French line + English
+          // line) shows as two lines instead of running together; clamp lifted to 3
+          // to fit both.
+          <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
             {product.description}
           </p>
         )}

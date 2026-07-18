@@ -405,21 +405,36 @@ export class MenuImportService {
       );
     }
 
+    // BOTH is two SEPARATE generations — French first, then English — joined by a
+    // blank line. Asking one model call for "two lines" was unreliable (models
+    // returned both on one line, so the languages ran together); two clean calls
+    // guarantee the split, and the blank line makes it obvious in the field and on
+    // the menu (which renders it with `white-space: pre-line`).
+    if (language === 'BOTH') {
+      const [fr, en] = await Promise.all([
+        this.generateOneDescription(name, categoryName, 'FR'),
+        this.generateOneDescription(name, categoryName, 'EN'),
+      ]);
+      const both = [fr, en].filter(Boolean).join('\n');
+      if (both) return both;
+      throw new BadRequestException('Could not write a description right now -- try again in a minute.');
+    }
+
+    return this.generateOneDescription(name, categoryName, language);
+  }
+
+  /** One sentence in a single language. The building block for the bilingual mode. */
+  private async generateOneDescription(
+    name: string,
+    categoryName: string | null,
+    language: 'EN' | 'FR',
+  ): Promise<string> {
     const base =
       'You write short, appetizing restaurant menu descriptions. Rules: plain, appealing ' +
       "language -- no purple prose, no invented ingredients or allergens you weren't given; " +
-      'no quotation marks, no markdown, no preamble and no labels.';
-    // BOTH returns two lines (English then French) so a bilingual menu can show
-    // both; the single-language modes stay a single sentence, as before.
-    const langRule =
-      language === 'FR'
-        ? ' Write exactly ONE sentence, under 120 characters, in French (français).'
-        : language === 'BOTH'
-          ? ' Respond with EXACTLY TWO lines and nothing else: line 1 is one French (français) ' +
-            'sentence under 120 characters; line 2 is its English equivalent, one sentence under ' +
-            '120 characters. No labels, no blank line between them.'
-          : ' Write exactly ONE sentence, under 120 characters, in English.';
-    const system = base + langRule;
+      'no quotation marks, no markdown, no preamble and no labels. Write exactly ONE sentence, ' +
+      'under 120 characters, ';
+    const system = base + (language === 'FR' ? 'in French (français).' : 'in English.');
     const prompt = categoryName
       ? `Menu item: "${name}" (category: ${categoryName}). Write the description.`
       : `Menu item: "${name}". Write the description.`;
@@ -427,8 +442,7 @@ export class MenuImportService {
     for (const model of this.openRouterModels) {
       try {
         const text = await this.callOpenRouter(model, system, { prompt });
-        const cleaned =
-          language === 'BOTH' ? cleanBilingual(text) : cleanOneLine(text);
+        const cleaned = cleanOneLine(text);
         if (cleaned) return cleaned;
       } catch (err) {
         this.logger.warn(
@@ -474,6 +488,65 @@ export class MenuImportService {
     }
 
     throw new BadRequestException('Could not generate brand ideas right now -- try again in a minute.');
+  }
+
+  /**
+   * A catering-package description built from the restaurant's OWN menu — so "the
+   * taco bar" reads back the actual dishes they serve, not invented ones. The
+   * caller passes the item names; the model may only draw on those. Language picks
+   * English, French, or both (French line then English), same as menu items.
+   */
+  async generateCateringDescription(
+    itemNames: string[],
+    packageName?: string,
+    language: MenuDescriptionLanguage = 'EN',
+  ): Promise<string> {
+    if (!this.available) {
+      throw new ServiceUnavailableException('AI description writing is not configured on this server.');
+    }
+
+    if (language === 'BOTH') {
+      const [fr, en] = await Promise.all([
+        this.generateOneCatering(itemNames, packageName, 'FR'),
+        this.generateOneCatering(itemNames, packageName, 'EN'),
+      ]);
+      const both = [fr, en].filter(Boolean).join('\n');
+      if (both) return both;
+      throw new BadRequestException('Could not write a description right now -- try again in a minute.');
+    }
+
+    return this.generateOneCatering(itemNames, packageName, language);
+  }
+
+  private async generateOneCatering(
+    itemNames: string[],
+    packageName: string | undefined,
+    language: 'EN' | 'FR',
+  ): Promise<string> {
+    const items = itemNames.slice(0, 60).join(', ');
+    const system =
+      'You write short, appetizing CATERING package descriptions for a restaurant feeding a ' +
+      'party or event. You may ONLY reference dishes from the menu items provided — never invent ' +
+      'a dish. Rules: 1-2 sentences, under 240 characters, name a few of the dishes, plain ' +
+      'appealing language, no markdown, no quotation marks, no preamble and no labels. Write ' +
+      (language === 'FR' ? 'in French (français).' : 'in English.');
+    const prompt =
+      `${packageName ? `Package name: "${packageName}". ` : ''}` +
+      `Menu items available: ${items || 'a range of dishes'}. Write the catering package description.`;
+
+    for (const model of this.openRouterModels) {
+      try {
+        const text = await this.callOpenRouter(model, system, { prompt });
+        const cleaned = text.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, ' ').slice(0, 300);
+        if (cleaned) return cleaned;
+      } catch (err) {
+        this.logger.warn(
+          `${model} failed catering description (${(err as Error).message}) -- trying the next model`,
+        );
+      }
+    }
+
+    throw new BadRequestException('Could not write a description right now -- try again in a minute.');
   }
 }
 
@@ -544,21 +617,6 @@ function parseBrandIdeas(text: string): BrandIdea[] {
 /** First non-empty line, de-quoted and capped — the single-language shape. */
 function cleanOneLine(text: string): string {
   return text.trim().replace(/^["']|["']$/g, '').split('\n')[0].trim().slice(0, 160);
-}
-
-/**
- * Two lines (English then French) for a bilingual menu. Keeps the first two
- * non-empty lines, strips any "English:"/"French:" labels a model may add, and
- * caps each line — then rejoins with a newline so the field shows both.
- */
-function cleanBilingual(text: string): string {
-  const lines = text
-    .split('\n')
-    .map((l) => l.replace(/^\s*(english|french|français|en|fr)\s*[:\-]\s*/i, '').replace(/^["']|["']$/g, '').trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((l) => l.slice(0, 160));
-  return lines.join('\n');
 }
 
 /**

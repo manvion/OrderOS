@@ -3,7 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, CircleAlert, CreditCard, ExternalLink, Lock, Rocket } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleAlert,
+  CreditCard,
+  ExternalLink,
+  Languages,
+  Lock,
+  Rocket,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { usesRazorpay, type BusinessHours } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
@@ -124,6 +132,15 @@ export default function SettingsPage() {
     },
   });
 
+  const saveLanguage = useMutation({
+    mutationFn: (menuLanguage: 'EN' | 'FR' | 'BOTH') => api.updateCurrent({ menuLanguage }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Content language updated');
+    },
+    onError: () => toast.error('Could not update the language'),
+  });
+
   if (!restaurant) return null;
 
   return (
@@ -237,6 +254,46 @@ export default function SettingsPage() {
               )}
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Content language — sets which language(s) menus & catering are written in,
+          and drives the AI-fill language options everywhere. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Languages className="h-4 w-4" />
+            Content language
+          </CardTitle>
+          <CardDescription>
+            The language(s) you write your menu and catering in. Choosing both turns on a
+            French / English / both option wherever you use AI fill.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(
+              [
+                { value: 'EN', label: 'English' },
+                { value: 'FR', label: 'French' },
+                { value: 'BOTH', label: 'English & French' },
+              ] as const
+            ).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                disabled={!can('OWNER') || saveLanguage.isPending}
+                onClick={() => saveLanguage.mutate(value)}
+                className={`rounded-xl border p-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  (restaurant.menuLanguage ?? 'EN') === value
+                    ? 'border-brand-subtle bg-brand-subtle'
+                    : 'hover:bg-accent/50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

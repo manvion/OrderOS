@@ -8,6 +8,8 @@ import {
   isMissingPlanColumn,
 } from '../../common/plan/plan.util';
 import { PaymentsService } from '../payments/payments.service';
+import { MenuImportService } from '../menu/menu-import.service';
+import { EmailService } from '../notifications/email.service';
 
 export interface CateringPackageInput {
   name: string;
@@ -51,6 +53,8 @@ export class CateringService {
     private readonly prisma: PrismaService,
     private readonly payments: PaymentsService,
     private readonly audit: AuditService,
+    private readonly menuImport: MenuImportService,
+    private readonly email: EmailService,
   ) {}
 
   // --- Storefront (public) -------------------------------------------------
@@ -140,6 +144,8 @@ export class CateringService {
         },
       });
 
+      void this.notifyRestaurant(request.id);
+
       // Try to open an online checkout; null when the restaurant can't take a card
       // here (Razorpay/India, or no connected Stripe account) — the enquiry still
       // stands and the restaurant arranges payment.
@@ -158,7 +164,100 @@ export class CateringService {
     const request = await this.prisma.cateringRequest.create({
       data: { ...base, type: 'CUSTOM' },
     });
+    void this.notifyRestaurant(request.id);
     return { requestId: request.id, checkoutUrl: null };
+  }
+
+  /**
+   * Email the restaurant that a party enquiry landed — a catering lead nobody sees
+   * for a day is a lost booking. Fire-and-forget: never fail the customer's submit
+   * over a notification, and never leak the failure to them.
+   */
+  private async notifyRestaurant(requestId: string): Promise<void> {
+    try {
+      const r = await this.prisma.cateringRequest.findUnique({
+        where: { id: requestId },
+        include: {
+          restaurant: {
+            select: {
+              name: true,
+              email: true,
+              notifyEmail: true,
+              logoUrl: true,
+              brandPrimaryColor: true,
+              street: true,
+              city: true,
+              phone: true,
+              legalName: true,
+              taxId: true,
+              country: true,
+              currency: true,
+              planTier: true,
+            },
+          },
+        },
+      });
+      if (!r) return;
+
+      const to = r.restaurant.notifyEmail ?? r.restaurant.email;
+      const eventDate = new Date(r.eventDate).toLocaleDateString('en-CA', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+      const kind = r.type === 'PACKAGE' ? `Package: ${r.packageName}` : 'Custom catering';
+      const esc = (s: string) => s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]!);
+      const row = (label: string, value: string) =>
+        `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">${label}</td><td style="padding:4px 0;font-weight:600;">${esc(value)}</td></tr>`;
+
+      const body =
+        `<h1 style="margin:0 0 8px;font-size:22px;">New catering enquiry</h1>` +
+        `<p style="margin:0 0 20px;color:#64748b;">${esc(kind)}${r.type === 'PACKAGE' && r.paymentStatus === 'PAID' ? ' · PAID' : ''}</p>` +
+        `<table style="font-size:14px;border-collapse:collapse;">` +
+        row('People', String(r.headCount)) +
+        row('Event date', eventDate) +
+        row('Fulfilment', r.fulfillment === 'DELIVERY' ? 'Delivery' : 'Pickup') +
+        (r.deliveryAddress ? row('Deliver to', r.deliveryAddress) : '') +
+        row('Name', r.customerName) +
+        row('Phone', r.customerPhone) +
+        row('Email', r.customerEmail) +
+        `</table>` +
+        (r.message ? `<p style="margin:16px 0 0;padding:12px;background:#f1f5f9;border-radius:8px;font-size:14px;">${esc(r.message)}</p>` : '') +
+        `<p style="margin:20px 0 0;color:#64748b;font-size:13px;">Open your dashboard → Catering to reply and set a status.</p>`;
+
+      await this.email.sendRaw({
+        to,
+        subject: `Catering enquiry — ${r.headCount} people on ${eventDate}`,
+        body,
+        restaurant: r.restaurant,
+        replyTo: r.customerEmail,
+      });
+    } catch (err) {
+      this.logger.warn(`Could not send catering alert: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Write a package description from the restaurant's real menu — so it reads back
+   * dishes they actually serve. Language: English, French, or both.
+   */
+  async generatePackageDescription(
+    restaurantId: string,
+    packageName?: string,
+    language: 'EN' | 'FR' | 'BOTH' = 'EN',
+  ): Promise<string> {
+    const products = await this.prisma.product.findMany({
+      where: { restaurantId, isAvailable: true },
+      select: { name: true },
+      orderBy: { createdAt: 'asc' },
+      take: 80,
+    });
+    return this.menuImport.generateCateringDescription(
+      products.map((p) => p.name),
+      packageName,
+      language,
+    );
   }
 
   // --- Admin: packages -----------------------------------------------------

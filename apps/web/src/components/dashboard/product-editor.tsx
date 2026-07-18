@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Plus, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Plus, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApi } from './dashboard-provider';
+import { useApi, useDashboard } from './dashboard-provider';
+import { AiFill } from './ai-fill';
 import { ApiRequestError, type Category, type Product } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -52,6 +53,7 @@ export function ProductEditor({
   onSaved: () => void;
 }) {
   const api = useApi();
+  const { restaurant } = useDashboard();
   const isNew = product === null;
 
   const [name, setName] = useState(product?.name ?? '');
@@ -213,31 +215,16 @@ export function ProductEditor({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="p-description">Description</Label>
-              {/* AI fill, with a language choice: English, French, or both (two
-                  lines) for a bilingual menu. */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="flex items-center gap-1 text-muted-foreground">
-                  <Sparkles className="h-3 w-3" />
-                  AI fill
-                </span>
-                {([
-                  ['EN', 'English'],
-                  ['FR', 'French'],
-                  ['BOTH', 'Both'],
-                ] as const).map(([code, label]) => (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() => generateDescription.mutate(code)}
-                    disabled={!name.trim() || generateDescription.isPending}
-                    className="font-medium text-brand hover:underline disabled:opacity-50"
-                  >
-                    {generateDescription.isPending && generateDescription.variables === code
-                      ? 'Writing…'
-                      : label}
-                  </button>
-                ))}
-              </div>
+              {/* AI fill, shaped by the restaurant's content-language setting:
+                  one button for a single-language menu, or English/French/Both for
+                  a bilingual one. */}
+              <AiFill
+                language={restaurant?.menuLanguage ?? 'EN'}
+                pending={generateDescription.isPending}
+                activeVariant={generateDescription.variables}
+                disabled={!name.trim()}
+                onFill={(lang) => generateDescription.mutate(lang)}
+              />
             </div>
             <Textarea
               id="p-description"
