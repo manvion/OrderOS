@@ -237,6 +237,14 @@ export const updateRestaurantSchema = z.object({
   nameTransform: z.enum(['NONE', 'UPPERCASE']).optional(),
   /** The restaurant's own social profiles, shown as an icon row on the storefront. */
   socialLinks: z.array(socialLinkSchema).max(SOCIAL_PLATFORMS.length).nullable().optional(),
+
+  // Table reservations — "simple capacity per slot". See tax.ts-style docs on the model.
+  reservationsEnabled: z.boolean().optional(),
+  reservationCapacityPerSlot: z.number().int().min(0).max(100).optional(),
+  reservationSlotMinutes: z.number().int().min(15).max(240).optional(),
+  reservationMaxPartySize: z.number().int().min(1).max(50).optional(),
+  reservationLeadHours: z.number().int().min(0).max(168).optional(),
+  reservationWindowDays: z.number().int().min(1).max(180).optional(),
   /** Which language(s) the restaurant writes content in — drives AI-fill options. */
   menuLanguage: z.enum(['EN', 'FR', 'BOTH']).optional(),
 
@@ -255,6 +263,36 @@ export const updateRestaurantSchema = z.object({
   loyaltyPointsPerDollar: z.number().int().min(1).max(100).optional(),
 });
 export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
+
+// ---------------------------------------------------------------------------
+// Reservations
+// ---------------------------------------------------------------------------
+
+export const RESERVATION_STATUSES = [
+  'CONFIRMED',
+  'SEATED',
+  'COMPLETED',
+  'CANCELLED',
+  'NO_SHOW',
+] as const;
+export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
+
+/** What the storefront sends to book a table. */
+export const createReservationSchema = z.object({
+  customerName: z.string().min(2).max(120),
+  customerPhone: z.string().min(7).max(20),
+  customerEmail: z.string().email().max(200).optional(),
+  partySize: z.number().int().min(1).max(50),
+  /** The chosen slot start, as an ISO datetime string. Validated against availability. */
+  reservedAt: z.string().datetime(),
+  notes: z.string().max(500).optional(),
+});
+export type CreateReservationInput = z.infer<typeof createReservationSchema>;
+
+/** Admin: move a booking through its lifecycle. */
+export const updateReservationStatusSchema = z.object({
+  status: z.enum(RESERVATION_STATUSES),
+});
 
 export const deliverySettingsSchema = z.object({
   deliveryEnabled: z.boolean(),

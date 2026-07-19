@@ -408,6 +408,23 @@ model Restaurant {
   loyaltyEnabled         Boolean @default(false)
   loyaltyPointsPerDollar Int     @default(1)
 
+  /// Table reservations. "Simple capacity per slot": the restaurant sets how many
+  /// bookings it will take for any one time slot, the slot length, and the booking
+  /// window; availability is that capacity minus the live bookings in a slot. Off by
+  /// default — a restaurant that doesn't take bookings must not appear to.
+  reservationsEnabled        Boolean @default(false)
+  /// Max bookings accepted for a single time slot. 0 with reservations on means
+  /// "unlimited" would be wrong, so the API treats 0 as "not configured" → unavailable.
+  reservationCapacityPerSlot Int     @default(0)
+  /// Slot granularity in minutes (e.g. 30 → 6:00, 6:30, 7:00…). Derived from hours.
+  reservationSlotMinutes     Int     @default(30)
+  /// Largest party a customer can book online; bigger groups are told to call.
+  reservationMaxPartySize    Int     @default(10)
+  /// Minimum notice, in hours — a table at 7pm can't be booked at 6:59.
+  reservationLeadHours       Int     @default(2)
+  /// How many days ahead the calendar opens.
+  reservationWindowDays      Int     @default(30)
+
   users      User[]
   customers  Customer[]
   categories Category[]
@@ -428,6 +445,7 @@ model Restaurant {
   shifts              Shift[]
   cateringPackages    CateringPackage[]
   cateringRequests    CateringRequest[]
+  reservations        Reservation[]
 
   @@index([isPublished, isActive])
   @@map("restaurants")
@@ -1823,4 +1841,49 @@ model CateringRequest {
   @@index([restaurantId, status, createdAt])
   @@index([stripeSessionId])
   @@map("catering_requests")
+}
+
+enum ReservationStatus {
+  /// Booked and holding a slot. Auto-confirmed when capacity allowed it.
+  CONFIRMED
+  /// Party arrived and was seated.
+  SEATED
+  /// Visit finished.
+  COMPLETED
+  /// Called off — by the customer or the restaurant. Frees the slot.
+  CANCELLED
+  /// Booked, never showed. Kept distinct from CANCELLED for the restaurant's own record.
+  NO_SHOW
+}
+
+/// One table booking. "Simple capacity per slot": a slot is available while the count
+/// of live (CONFIRMED/SEATED) reservations at that exact start time is below the
+/// restaurant's reservationCapacityPerSlot. No per-table assignment — that's a
+/// deliberately larger feature the restaurant can grow into later.
+model Reservation {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  status ReservationStatus @default(CONFIRMED)
+
+  // Who's booking.
+  customerName  String
+  customerPhone String
+  customerEmail String?
+
+  partySize Int
+  /// The slot start. Stored in UTC; rendered in the restaurant's timezone.
+  reservedAt DateTime
+  /// Anything else: a birthday, a highchair, a dietary need.
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // The availability query counts live bookings for a restaurant in a time range,
+  // so restaurant + time is the hot index.
+  @@index([restaurantId, reservedAt])
+  @@index([restaurantId, status, reservedAt])
+  @@map("reservations")
 }

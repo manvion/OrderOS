@@ -24,6 +24,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { CateringModule } from './modules/catering/catering.module';
+import { ReservationsModule } from './modules/reservations/reservations.module';
 import { QrModule } from './modules/qr/qr.module';
 import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
@@ -91,6 +92,7 @@ import { WidgetModule } from './modules/widget/widget.module';
     SubscriptionsModule,
     LeadsModule,
     CateringModule,
+    ReservationsModule,
   ],
   controllers: [HealthController],
   providers: [
