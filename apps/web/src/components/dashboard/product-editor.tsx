@@ -57,9 +57,10 @@ export function ProductEditor({
   const isNew = product === null;
 
   const [name, setName] = useState(product?.name ?? '');
-  const [nameFr, setNameFr] = useState(product?.nameFr ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [descriptionFr, setDescriptionFr] = useState(product?.descriptionFr ?? '');
+  // Item NAMES are the same in both languages (a dish is a dish) — only the
+  // description gets a French version.
   const bilingual = restaurant?.menuLanguage === 'BOTH';
   const [price, setPrice] = useState(product ? (product.priceCents / 100).toFixed(2) : '');
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? '');
@@ -130,7 +131,6 @@ export function ProductEditor({
 
       const payload = {
         name: name.trim(),
-        nameFr: nameFr.trim() || null,
         description: description.trim() || null,
         descriptionFr: descriptionFr.trim() || null,
         priceCents,
@@ -200,15 +200,6 @@ export function ProductEditor({
             <div className="space-y-2">
               <Label htmlFor="p-name">Name</Label>
               <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-              {bilingual && (
-                <Input
-                  id="p-name-fr"
-                  value={nameFr}
-                  onChange={(e) => setNameFr(e.target.value)}
-                  placeholder="Nom en français (optional)"
-                  lang="fr"
-                />
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="p-category">Category</Label>

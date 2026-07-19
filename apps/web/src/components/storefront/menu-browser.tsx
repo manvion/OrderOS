@@ -263,7 +263,8 @@ function ProductRow({
   onSelect: () => void;
 }) {
   const { locale } = useLocale();
-  const name = localized(product.name, product.nameFr, locale);
+  // Item names are the same in both languages — only the description localises.
+  const name = product.name;
   const description = locale === 'fr' && product.descriptionFr ? product.descriptionFr : product.description;
 
   return (

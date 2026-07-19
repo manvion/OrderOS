@@ -242,7 +242,7 @@ export interface Dictionary {
 }
 
 const en: Dictionary = {
-  nav: { menu: 'Menu', about: 'About', myOrders: 'My orders', catering: 'Catering' },
+  nav: { menu: 'Menu', about: 'About', myOrders: 'My orders', catering: 'Party orders' },
   menu: {
     notReady: 'The menu isn’t ready yet',
     checkBack: 'Please check back shortly.',
@@ -462,7 +462,7 @@ const en: Dictionary = {
 };
 
 const fr: Dictionary = {
-  nav: { menu: 'Menu', about: 'À propos', myOrders: 'Mes commandes', catering: 'Traiteur' },
+  nav: { menu: 'Menu', about: 'À propos', myOrders: 'Mes commandes', catering: 'Réceptions' },
   menu: {
     notReady: 'Le menu n’est pas encore prêt',
     checkBack: 'Revenez bientôt.',

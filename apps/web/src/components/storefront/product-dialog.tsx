@@ -7,7 +7,6 @@ import { formatMoney } from '@dinedirect/shared';
 import type { MenuProduct } from '@/lib/api';
 import { useCart, type CartLine } from '@/lib/cart-store';
 import { useLocale } from './i18n-provider';
-import { localized } from '@/lib/i18n/dictionaries';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/input';
 import {
@@ -44,7 +43,8 @@ export function ProductDialog({
 }) {
   const addLine = useCart((s) => s.addLine);
   const { locale } = useLocale();
-  const name = localized(product.name, product.nameFr, locale);
+  // Item names stay as entered in both languages; only the description localises.
+  const name = product.name;
   const description =
     locale === 'fr' && product.descriptionFr ? product.descriptionFr : product.description;
 

@@ -261,13 +261,13 @@ export default async function StorefrontLayout({
                   {t.nav.about}
                 </Link>
               )}
-              {/* Parties/catering — a paid capability, and a high-value one, so it
-                  gets a tinted brand pill rather than a plain nav link: it should
-                  pop as an option, not hide among the others. */}
+              {/* Party orders / catering — a paid capability. It sits inline with
+                  the other nav links (no loud brand pill): present as an equal
+                  option, not shouting for attention. */}
               {restaurant.cateringEnabled && (
                 <Link
                   href={href('/catering')}
-                  className="rounded-lg bg-brand-subtle px-3 py-2 text-sm font-semibold text-brand transition-colors hover:bg-brand hover:text-brand-foreground"
+                  className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
                 >
                   {t.nav.catering}
                 </Link>
