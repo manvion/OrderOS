@@ -335,7 +335,15 @@ export function OrderTracker({
             {order.deliveryFeeCents > 0 && (
               <Row label={t.checkout.deliveryFee} cents={order.deliveryFeeCents} currency={order.currency} />
             )}
-            <Row label={t.checkout.tax} cents={order.taxCents} currency={order.currency} />
+            {/* Tax by its legal name(s): GST + QST show as separate lines, never a
+                single "Tax". Legacy orders with no breakdown fall back to one row. */}
+            {order.taxLines && order.taxLines.length > 0 ? (
+              order.taxLines.map((line) => (
+                <Row key={line.name} label={line.name} cents={line.amountCents} currency={order.currency} />
+              ))
+            ) : (
+              <Row label={t.checkout.tax} cents={order.taxCents} currency={order.currency} />
+            )}
             {order.tipCents > 0 && (
               <Row label={t.checkout.tip} cents={order.tipCents} currency={order.currency} />
             )}

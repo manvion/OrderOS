@@ -688,7 +688,19 @@ export default function CheckoutPage() {
                 currency={restaurant.currency}
               />
             )}
-            <Row label={t.checkout.tax} cents={totals.taxCents} currency={restaurant.currency} />
+            {/* GST + QST as separate named lines, matching the final receipt. */}
+            {totals.taxLines.length > 0 ? (
+              totals.taxLines.map((line) => (
+                <Row
+                  key={line.name}
+                  label={line.name}
+                  cents={line.amountCents}
+                  currency={restaurant.currency}
+                />
+              ))
+            ) : (
+              <Row label={t.checkout.tax} cents={totals.taxCents} currency={restaurant.currency} />
+            )}
             {totals.tipCents > 0 && (
               <Row label={t.checkout.tip} cents={totals.tipCents} currency={restaurant.currency} />
             )}

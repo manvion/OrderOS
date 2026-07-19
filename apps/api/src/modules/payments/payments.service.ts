@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import type { Prisma } from '@prisma/client';
-import { usesRazorpay, type RefundInput } from '@dinedirect/shared';
+import { usesRazorpay, type RefundInput, type TaxLine } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { effectiveCommissionBps } from '../../common/plan/plan.util';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
@@ -327,7 +327,16 @@ export class PaymentsService {
     };
     addFee('Service fee', order.serviceFeeCents);
     addFee('Delivery fee', order.deliveryFeeCents);
-    addFee('Tax', order.taxCents);
+    // Tax rides as its OWN named line(s). A Quebec receipt must show GST and QST
+    // separately under the names the law uses — never a single "Tax" line — so we
+    // print each component the order was priced with. Legacy orders that have no
+    // breakdown fall back to one combined "Tax" line.
+    const taxLines = (order.taxLines as unknown as TaxLine[] | null) ?? [];
+    if (taxLines.length > 0) {
+      for (const line of taxLines) addFee(line.name, line.amountCents);
+    } else {
+      addFee('Tax', order.taxCents);
+    }
     addFee('Tip', order.tipCents);
 
     const webUrl = this.config.getOrThrow<string>('WEB_URL');

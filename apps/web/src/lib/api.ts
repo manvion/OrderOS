@@ -1022,6 +1022,8 @@ export interface StorefrontRestaurant {
   minOrderCents: number;
   serviceFeeCents: number;
   taxRateBps: number;
+  /** Named tax components (GST/QST, …). Preferred over taxRateBps when present. */
+  taxComponents: Array<{ name: string; rateBps: number }> | null;
   prepTimeMinutes: number;
   businessHours: unknown;
   loyaltyEnabled: boolean;
@@ -1140,6 +1142,8 @@ export interface TrackedOrder {
   currency: string;
   subtotalCents: number;
   taxCents: number;
+  /** Tax broken out by name (GST, QST, …) exactly as charged. Null on legacy orders. */
+  taxLines: Array<{ name: string; amountCents: number }> | null;
   tipCents: number;
   deliveryFeeCents: number;
   serviceFeeCents: number;

@@ -310,7 +310,13 @@ export function EmbedCheckout({
           {totals.deliveryFeeCents > 0 && (
             <Row label="Delivery" cents={totals.deliveryFeeCents} currency={restaurant.currency} />
           )}
-          <Row label="Tax" cents={totals.taxCents} currency={restaurant.currency} />
+          {totals.taxLines.length > 0 ? (
+            totals.taxLines.map((line) => (
+              <Row key={line.name} label={line.name} cents={line.amountCents} currency={restaurant.currency} />
+            ))
+          ) : (
+            <Row label="Tax" cents={totals.taxCents} currency={restaurant.currency} />
+          )}
           {totals.tipCents > 0 && (
             <Row label="Tip" cents={totals.tipCents} currency={restaurant.currency} />
           )}

@@ -316,6 +316,9 @@ export class RestaurantsService {
         minOrderCents: true,
         serviceFeeCents: true,
         taxRateBps: true,
+        // The named components (GST/QST, CGST/SGST) so the live checkout preview
+        // itemises tax the same way the final receipt does.
+        taxComponents: true,
         prepTimeMinutes: true,
         loyaltyEnabled: true,
         loyaltyPointsPerDollar: true,
