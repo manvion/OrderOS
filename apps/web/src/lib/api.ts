@@ -1036,6 +1036,8 @@ export interface StorefrontRestaurant {
   nameFont: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
   nameColor: string | null;
   nameTransform: 'NONE' | 'UPPERCASE';
+  /** The restaurant's own social profiles, shown as an icon row on the storefront. */
+  socialLinks: Array<{ platform: string; url: string }> | null;
   currency: string;
   timezone: string;
   isOpen: boolean;
@@ -1256,6 +1258,8 @@ export interface Restaurant {
   nameFont: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
   nameColor: string | null;
   nameTransform: 'NONE' | 'UPPERCASE';
+  /** The restaurant's own social profiles, shown as an icon row on the storefront. */
+  socialLinks: Array<{ platform: string; url: string }> | null;
   /** Content language(s) — drives the AI-fill language options. */
   menuLanguage: 'EN' | 'FR' | 'BOTH';
   /** About page content. Plain text, never HTML. */

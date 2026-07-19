@@ -291,6 +291,7 @@ export class RestaurantsService {
         nameFont: true,
         nameColor: true,
         nameTransform: true,
+        socialLinks: true,
         menuLanguage: true,
 
         // The About page, in their words. Plain text — the storefront renders it as
@@ -368,7 +369,9 @@ export class RestaurantsService {
   }
 
   async update(restaurantId: string, input: UpdateRestaurantInput, userId?: string) {
-    const { address, businessHours, taxComponents, ...rest } = input;
+    // socialLinks is a JSON column, so it can't just ride in `...rest` — Prisma needs
+    // it cast to InputJsonValue. A cleared list arrives as null; we store [] for it.
+    const { address, businessHours, taxComponents, socialLinks, ...rest } = input;
 
     const current = await this.prisma.restaurant.findUniqueOrThrow({
       where: { id: restaurantId },
@@ -454,6 +457,9 @@ export class RestaurantsService {
           : {}),
         ...explicitTax,
         ...(businessHours ? { businessHours: businessHours as unknown as object } : {}),
+        ...(socialLinks !== undefined
+          ? { socialLinks: (socialLinks ?? []) as unknown as Prisma.InputJsonValue }
+          : {}),
       },
     });
 

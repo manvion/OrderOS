@@ -17,6 +17,7 @@ import { usesRazorpay, type BusinessHours } from '@dinedirect/shared';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
 import { AboutEditor } from '@/components/dashboard/about-editor';
 import { BrandingEditor } from '@/components/dashboard/branding-editor';
+import { SocialLinksEditor } from '@/components/dashboard/social-links-editor';
 import { BusinessLocationForm } from '@/components/dashboard/business-location-form';
 import { ContactDetailsForm } from '@/components/dashboard/contact-details-form';
 import { HoursEditor } from '@/components/dashboard/hours-editor';
@@ -411,6 +412,9 @@ export default function SettingsPage() {
           storefront is generated from data they already keep current — but nobody can
           generate "we've ground the beef ourselves since 1998". */}
       <AboutEditor />
+
+      {/* Social profiles — a row of brand icons in the storefront footer. */}
+      <SocialLinksEditor />
 
       {/*
         Opening hours. Load-bearing, not cosmetic: isOpenAt() gates whether the

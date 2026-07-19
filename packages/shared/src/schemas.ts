@@ -124,6 +124,30 @@ export const createRestaurantSchema = z.object({
 });
 export type CreateRestaurantInput = z.infer<typeof createRestaurantSchema>;
 
+/**
+ * The social platforms a restaurant can link from their storefront.
+ *
+ * A closed set, because each maps to a specific icon and the storefront renders an
+ * icon row, not free links — a URL to somewhere we have no icon for would show a
+ * blank. The value is the platform key; the storefront owns the icon and label.
+ */
+export const SOCIAL_PLATFORMS = [
+  'instagram',
+  'facebook',
+  'tiktok',
+  'x',
+  'youtube',
+  'whatsapp',
+] as const;
+export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
+
+export const socialLinkSchema = z.object({
+  platform: z.enum(SOCIAL_PLATFORMS),
+  /** The full profile URL. Validated so a typo can't render a broken link. */
+  url: z.string().url().max(300),
+});
+export type SocialLink = z.infer<typeof socialLinkSchema>;
+
 export const updateRestaurantSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   phone: z.string().min(7).max(20).optional(),
@@ -211,6 +235,8 @@ export const updateRestaurantSchema = z.object({
     .nullable()
     .optional(),
   nameTransform: z.enum(['NONE', 'UPPERCASE']).optional(),
+  /** The restaurant's own social profiles, shown as an icon row on the storefront. */
+  socialLinks: z.array(socialLinkSchema).max(SOCIAL_PLATFORMS.length).nullable().optional(),
   /** Which language(s) the restaurant writes content in — drives AI-fill options. */
   menuLanguage: z.enum(['EN', 'FR', 'BOTH']).optional(),
 

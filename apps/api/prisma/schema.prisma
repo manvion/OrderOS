@@ -272,6 +272,10 @@ model Restaurant {
   nameFont          String          @default("DISPLAY")
   nameColor         String?
   nameTransform     String          @default("NONE")
+  /// The restaurant's own social profiles, shown as an icon row on the storefront.
+  /// Array of { platform, url } — see socialLinksSchema in packages/shared. JSON so
+  /// adding a platform never needs a migration.
+  socialLinks       Json?
   /// Which language(s) this restaurant writes menu & catering content in. Drives
   /// the AI-fill language options: a single language writes in it; BOTH offers a
   /// French / English / both choice.
