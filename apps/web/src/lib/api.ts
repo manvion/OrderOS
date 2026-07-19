@@ -143,6 +143,46 @@ export interface CateringPackageInput {
   sortOrder?: number;
 }
 
+// --- Reservations ------------------------------------------------------------
+
+export interface ReservationSettings {
+  enabled: boolean;
+  maxPartySize: number;
+  leadHours: number;
+  windowDays: number;
+}
+
+export interface ReservationSlot {
+  /** Local wall-clock label, e.g. "19:00". */
+  time: string;
+  /** The exact instant (UTC ISO) — sent back to book. */
+  iso: string;
+  available: boolean;
+}
+
+export interface ReservationBookInput {
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  partySize: number;
+  reservedAt: string;
+  notes?: string;
+}
+
+export type ReservationStatus = 'CONFIRMED' | 'SEATED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export interface Reservation {
+  id: string;
+  status: ReservationStatus;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  partySize: number;
+  reservedAt: string;
+  notes: string | null;
+  createdAt: string;
+}
+
 /**
  * Cache policy for public storefront reads.
  *
@@ -321,6 +361,25 @@ export const storefrontApi = {
   submitCatering: (slug: string, body: CateringSubmission) =>
     storefrontApi.request<{ requestId: string; checkoutUrl: string | null }>(
       '/storefront/catering/request',
+      slug,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /** Whether the restaurant takes reservations, and the booking-form limits. */
+  getReservationSettings: (slug: string) =>
+    storefrontApi.request<ReservationSettings>('/storefront/reservations', slug),
+
+  /** Bookable slots for a given YYYY-MM-DD (restaurant's timezone). */
+  getReservationAvailability: (slug: string, date: string) =>
+    storefrontApi.request<ReservationSlot[]>(
+      `/storefront/reservations/availability?date=${encodeURIComponent(date)}`,
+      slug,
+    ),
+
+  /** Book a table. Returns the confirmed slot. */
+  book: (slug: string, body: ReservationBookInput) =>
+    storefrontApi.request<{ reservationId: string; reservedAt: string }>(
+      '/storefront/reservations',
       slug,
       { method: 'POST', body: JSON.stringify(body) },
     ),
@@ -548,6 +607,14 @@ export function createDashboardApi(
         method: 'POST',
         body: JSON.stringify({ name, language }),
       }),
+    // Reservations
+    listReservations: () => call<Reservation[]>('/reservations'),
+    setReservationStatus: (id: string, status: ReservationStatus) =>
+      call<Reservation>(`/reservations/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+
     listCateringRequests: () => call<CateringRequest[]>('/catering/requests'),
     setCateringRequestStatus: (id: string, status: CateringStatus) =>
       call<CateringRequest>(`/catering/requests/${id}/status`, {
@@ -1046,6 +1113,8 @@ export interface StorefrontRestaurant {
   removeBranding: boolean;
   /** Growth/Pro: show the "Catering & Parties" entry and page. */
   cateringEnabled: boolean;
+  /** Drives the storefront "Reserve" nav entry; slots come from a separate call. */
+  reservationsEnabled: boolean;
   /** Content language(s). BOTH shows the customer a French/English toggle. */
   menuLanguage: 'EN' | 'FR' | 'BOTH';
   pickupEnabled: boolean;
@@ -1260,6 +1329,13 @@ export interface Restaurant {
   nameTransform: 'NONE' | 'UPPERCASE';
   /** The restaurant's own social profiles, shown as an icon row on the storefront. */
   socialLinks: Array<{ platform: string; url: string }> | null;
+  /** Table reservations — "simple capacity per slot". */
+  reservationsEnabled: boolean;
+  reservationCapacityPerSlot: number;
+  reservationSlotMinutes: number;
+  reservationMaxPartySize: number;
+  reservationLeadHours: number;
+  reservationWindowDays: number;
   /** Content language(s) — drives the AI-fill language options. */
   menuLanguage: 'EN' | 'FR' | 'BOTH';
   /** About page content. Plain text, never HTML. */

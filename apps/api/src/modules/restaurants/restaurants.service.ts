@@ -323,6 +323,8 @@ export class RestaurantsService {
         prepTimeMinutes: true,
         loyaltyEnabled: true,
         loyaltyPointsPerDollar: true,
+        // Drives the storefront "Reserve" nav entry; the slots come from a separate call.
+        reservationsEnabled: true,
         // Deliberately NOT selected: stripeAccountId, platformFeeBps, email,
         // onboardingStep. None of that is the customer's business.
       },

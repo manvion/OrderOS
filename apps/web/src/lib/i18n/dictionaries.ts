@@ -22,6 +22,7 @@ export interface Dictionary {
     about: string;
     myOrders: string;
     catering: string;
+    reserve: string;
   };
   menu: {
     notReady: string;
@@ -242,7 +243,7 @@ export interface Dictionary {
 }
 
 const en: Dictionary = {
-  nav: { menu: 'Menu', about: 'About', myOrders: 'My orders', catering: 'Party orders' },
+  nav: { menu: 'Menu', about: 'About', myOrders: 'My orders', catering: 'Party orders', reserve: 'Reserve' },
   menu: {
     notReady: 'The menu isn’t ready yet',
     checkBack: 'Please check back shortly.',
@@ -462,7 +463,7 @@ const en: Dictionary = {
 };
 
 const fr: Dictionary = {
-  nav: { menu: 'Menu', about: 'À propos', myOrders: 'Mes commandes', catering: 'Réceptions' },
+  nav: { menu: 'Menu', about: 'À propos', myOrders: 'Mes commandes', catering: 'Réceptions', reserve: 'Réserver' },
   menu: {
     notReady: 'Le menu n’est pas encore prêt',
     checkBack: 'Revenez bientôt.',

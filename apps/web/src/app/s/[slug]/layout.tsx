@@ -273,6 +273,16 @@ export default async function StorefrontLayout({
                   {t.nav.catering}
                 </Link>
               )}
+              {/* Reserve a table — only when the restaurant takes bookings, and never
+                  on a QR-only ordering terminal (a seated guest isn't booking). */}
+              {!isQrOnly && restaurant.reservationsEnabled && (
+                <Link
+                  href={href('/reserve')}
+                  className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
+                >
+                  {t.nav.reserve}
+                </Link>
+              )}
               {/* The way back to an order after closing the tab or losing the SMS.
                   Without it, the only route is phoning the kitchen that's cooking it. */}
               <Link

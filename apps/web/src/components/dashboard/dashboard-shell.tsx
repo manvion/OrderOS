@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { UserButton } from '@clerk/nextjs';
 import {
   BarChart3,
+  CalendarCheck,
   CalendarDays,
   CreditCard,
   ExternalLink,
@@ -78,6 +79,7 @@ const NAV: NavItem[] = [
     minRole: 'MANAGER',
     capability: 'CATERING',
   },
+  { href: '/dashboard/reservations', label: 'Reservations', icon: CalendarCheck, minRole: 'STAFF' },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' },
   { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' },
   {
