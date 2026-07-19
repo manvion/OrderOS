@@ -248,6 +248,11 @@ model Restaurant {
   // Branding
   logoUrl           String?
   coverImageUrl     String?
+  /// An optional background VIDEO for the immersive hero (a hosted .mp4/.webm URL).
+  /// Plays muted, looped and autoplaying behind the logo; coverImageUrl is its poster
+  /// and the fallback when it's absent. This is what makes the storefront feel modern
+  /// rather than a static page.
+  heroVideoUrl      String?
   brandPrimaryColor String  @default("#EA580C")
   brandAccentColor  String  @default("#0F172A")
   /// Three genuinely different storefront LAYOUTS, not a palette swap -- see

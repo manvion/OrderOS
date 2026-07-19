@@ -43,6 +43,7 @@ export function BrandingEditor() {
 
   const [primary, setPrimary] = useState(restaurant?.brandPrimaryColor ?? '#EA580C');
   const [accent, setAccent] = useState(restaurant?.brandAccentColor ?? '#0F172A');
+  const [heroVideo, setHeroVideo] = useState(restaurant?.heroVideoUrl ?? '');
 
   const uploadLogo = useMutation({
     mutationFn: (file: File) => api.uploadLogo(file),
@@ -131,6 +132,16 @@ export function BrandingEditor() {
       toast.success('Logo backdrop updated');
     },
     onError: () => toast.error('Could not update the backdrop'),
+  });
+
+  const saveHeroVideo = useMutation({
+    mutationFn: (heroVideoUrl: string | null) => api.updateCurrent({ heroVideoUrl }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Background video updated');
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not save the video'),
   });
 
   const saveNameStyle = useMutation({
@@ -510,6 +521,35 @@ export function BrandingEditor() {
             </div>
           </div>
         )}
+
+        {/* ---------- Hero background video ---------- */}
+        <div className="space-y-2">
+          <Label htmlFor="hero-video">Hero background video</Label>
+          <p className="text-xs text-muted-foreground">
+            A hosted <code>.mp4</code>/<code>.webm</code> link plays full-screen behind your
+            logo on the homepage — the most modern look. No video? Your gallery photos play as
+            a slideshow instead, then your cover photo.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              id="hero-video"
+              value={heroVideo}
+              onChange={(e) => setHeroVideo(e.target.value)}
+              placeholder="https://…/hero.mp4"
+              inputMode="url"
+              disabled={readOnly}
+            />
+            {!readOnly && heroVideo.trim() !== (restaurant.heroVideoUrl ?? '') && (
+              <Button
+                size="sm"
+                onClick={() => saveHeroVideo.mutate(heroVideo.trim() || null)}
+                disabled={saveHeroVideo.isPending}
+              >
+                Save
+              </Button>
+            )}
+          </div>
+        </div>
 
         {/* ---------- Website template ---------- */}
         <div className="space-y-2">

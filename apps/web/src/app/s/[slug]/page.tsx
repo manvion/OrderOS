@@ -19,6 +19,7 @@ import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/shared/reveal';
 import { StoryBand } from '@/components/storefront/story-band';
+import { MediaHero } from '@/components/storefront/media-hero';
 import { LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
 
 export const revalidate = 60;
@@ -134,93 +135,9 @@ function fulfillmentOptions(restaurant: StorefrontRestaurant) {
  * restaurant with (or planning to get) real photography.
  */
 function ClassicHome({ restaurant, href }: TemplateProps) {
-  const options = fulfillmentOptions(restaurant);
-
   return (
     <div className="animate-rise">
-      <section className="relative isolate overflow-hidden">
-        {restaurant.coverImageUrl ? (
-          <>
-            <Image
-              src={restaurant.coverImageUrl}
-              alt=""
-              fill
-              priority
-              sizes="100vw"
-              className="kenburns -z-10 object-cover"
-            />
-            <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/30" />
-          </>
-        ) : (
-          // No photo? Don't show a grey box. Wash the hero in the restaurant's own
-          // colours — it reads as deliberate rather than as a missing asset, which
-          // matters because most restaurants will never upload a cover image.
-          <div
-            className="absolute inset-0 -z-10"
-            style={{
-              background: `linear-gradient(140deg, ${restaurant.brandPrimaryColor} 0%, ${restaurant.brandAccentColor} 100%)`,
-            }}
-          />
-        )}
-
-        <div className="mx-auto max-w-5xl px-5 py-24 sm:px-8 sm:py-32">
-          {/* Open/closed as a LIVE dot rather than a static badge. It says "right
-              now", which is the only tense a hungry person cares about. */}
-          <div className="rise-1 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
-            <span
-              className={`pulse-dot h-1.5 w-1.5 rounded-full ${
-                restaurant.isOpen ? 'bg-emerald-400 text-emerald-400' : 'bg-white/60'
-              }`}
-            />
-            {restaurant.isOpen ? 'Open now' : 'Closed'}
-            {restaurant.isOpen && (
-              <>
-                <span className="text-white/40">·</span>
-                ready in ~{restaurant.prepTimeMinutes} min
-              </>
-            )}
-          </div>
-
-          <h1 className="rise-2 mt-6 max-w-2xl font-display text-5xl font-semibold leading-[1.02] tracking-tight text-white sm:text-7xl">
-            {restaurant.name}
-          </h1>
-
-          {restaurant.description && (
-            <p className="rise-3 mt-5 max-w-lg text-lg leading-relaxed text-white/80">
-              {restaurant.description}
-            </p>
-          )}
-
-          <div className="rise-4 mt-9 flex flex-wrap items-center gap-3">
-            <Button
-              asChild
-              size="lg"
-              className="rounded-xl bg-white px-8 text-base font-semibold text-black shadow-floating hover:bg-white/90"
-            >
-              <Link href={href('/menu')} className="group">
-                {restaurant.isOpen ? 'Order now' : 'View the menu'}
-                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-            </Button>
-
-            {options.map(({ icon: Icon, label }) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3.5 py-2.5 text-sm font-medium text-white/90 ring-1 ring-white/20 backdrop-blur-sm"
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </span>
-            ))}
-          </div>
-
-          {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
-            <p className="mt-5 text-sm text-white/70">
-              We&apos;re closed right now — but you can schedule an order for later.
-            </p>
-          )}
-        </div>
-      </section>
+      <MediaHero restaurant={restaurant} href={href} />
 
       {/* The food, before the facts. Photos the owner uploaded in Settings ->
           Gallery become the homepage's centrepiece -- an empty gallery renders

@@ -237,6 +237,8 @@ export const updateRestaurantSchema = z.object({
   nameTransform: z.enum(['NONE', 'UPPERCASE']).optional(),
   /** The restaurant's own social profiles, shown as an icon row on the storefront. */
   socialLinks: z.array(socialLinkSchema).max(SOCIAL_PLATFORMS.length).nullable().optional(),
+  /** A hosted background video (.mp4/.webm) for the immersive hero. */
+  heroVideoUrl: z.string().url().max(600).nullable().optional(),
 
   // Table reservations — "simple capacity per slot". See tax.ts-style docs on the model.
   reservationsEnabled: z.boolean().optional(),

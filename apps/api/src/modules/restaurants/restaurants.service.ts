@@ -281,6 +281,7 @@ export class RestaurantsService {
         currency: true,
         logoUrl: true,
         coverImageUrl: true,
+        heroVideoUrl: true,
         brandPrimaryColor: true,
         brandAccentColor: true,
         websiteTemplate: true,

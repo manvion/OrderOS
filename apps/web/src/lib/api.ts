@@ -1088,6 +1088,8 @@ export interface StorefrontRestaurant {
   country: string;
   logoUrl: string | null;
   coverImageUrl: string | null;
+  /** Optional background video (.mp4/.webm) for the immersive hero. */
+  heroVideoUrl: string | null;
   brandPrimaryColor: string;
   brandAccentColor: string;
   /** Three genuinely different storefront layouts -- see the homepage, which
@@ -1314,6 +1316,8 @@ export interface Restaurant {
   logoUrl: string | null;
   /** The hero image at the top of their page. */
   coverImageUrl: string | null;
+  /** Optional background video (.mp4/.webm) for the immersive hero. */
+  heroVideoUrl: string | null;
   brandPrimaryColor: string;
   brandAccentColor: string;
   websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY' | 'SIGNATURE';
