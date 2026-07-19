@@ -500,6 +500,18 @@ export function createDashboardApi(
     translateMenuToFrench: () =>
       call<{ started: boolean }>('/menu/translate-french', { method: 'POST' }),
 
+    /** Is AI configured on the server, and how much French is actually stored. */
+    getMenuTranslationStatus: () =>
+      call<{
+        aiConfigured: boolean;
+        categoriesTotal: number;
+        categoriesFr: number;
+        productsTotal: number;
+        productsNameFr: number;
+        productsWithDesc: number;
+        productsDescFr: number;
+      }>('/menu/translation-status'),
+
     // Catering
     listCateringPackages: () => call<CateringPackage[]>('/catering/packages'),
     createCateringPackage: (body: CateringPackageInput) =>

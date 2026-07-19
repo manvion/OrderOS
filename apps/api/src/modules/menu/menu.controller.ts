@@ -234,6 +234,13 @@ export class MenuController {
     return { started: true };
   }
 
+  /** Is AI configured, and how much of the menu actually has French stored. */
+  @Get('translation-status')
+  @Roles('MANAGER')
+  translationStatus(@TenantId() restaurantId: string) {
+    return this.menu.translationStatus(restaurantId);
+  }
+
   /**
    * A few AI brand ideas (name + monogram spec) from a one-line brief, for the
    * branding editor. Free OpenRouter text models; the web renders each as an SVG.

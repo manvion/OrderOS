@@ -37,6 +37,15 @@ export default function MenuPage() {
     enabled: Boolean(restaurant),
   });
 
+  const isBilingual = restaurant?.menuLanguage === 'BOTH';
+  const { data: translationStatus } = useQuery({
+    queryKey: ['menu-translation-status', restaurant?.id],
+    queryFn: () => api.getMenuTranslationStatus(),
+    enabled: Boolean(restaurant) && isBilingual,
+    // Poll while a background translation is running so the numbers climb live.
+    refetchInterval: 5000,
+  });
+
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['products'] });
     void queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -168,11 +177,11 @@ export default function MenuPage() {
             {/* Bilingual restaurants: (re)fill any missing French across the menu.
                 Idempotent — safe to press again to catch anything a rate limit
                 missed. */}
-            {restaurant?.menuLanguage === 'BOTH' && (
+            {isBilingual && (
               <Button
                 variant="outline"
                 onClick={() => translateMenu.mutate()}
-                disabled={translateMenu.isPending}
+                disabled={translateMenu.isPending || translationStatus?.aiConfigured === false}
               >
                 <Languages className="h-4 w-4" />
                 Translate to French
@@ -200,6 +209,36 @@ export default function MenuPage() {
           </div>
         )}
       </div>
+
+      {/* French translation status — the honest readout, so it's obvious whether AI
+          is on and how much of the menu actually has French stored. */}
+      {isBilingual && translationStatus && (
+        <div
+          className={`rounded-lg border p-3 text-sm ${
+            translationStatus.aiConfigured ? 'bg-muted/40' : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+        >
+          {!translationStatus.aiConfigured ? (
+            <>
+              <strong>AI translation is off.</strong> The server has no{' '}
+              <span className="font-mono">OPENROUTER_API_KEY</span>, so the menu can’t be
+              translated to French. Set it on the API, then press “Translate to French”.
+            </>
+          ) : (
+            <>
+              French menu:{' '}
+              <strong>{translationStatus.productsNameFr}</strong> of{' '}
+              <strong>{translationStatus.productsTotal}</strong> item names,{' '}
+              <strong>{translationStatus.productsDescFr}</strong> of{' '}
+              <strong>{translationStatus.productsWithDesc}</strong> descriptions, and{' '}
+              <strong>{translationStatus.categoriesFr}</strong> of{' '}
+              <strong>{translationStatus.categoriesTotal}</strong> categories translated.
+              {translationStatus.productsNameFr < translationStatus.productsTotal &&
+                ' Press “Translate to French” to fill the rest.'}
+            </>
+          )}
+        </div>
+      )}
 
       <div className="inline-flex rounded-lg border bg-muted/40 p-1">
         {(['items', 'promotions'] as const).map((t) => (
