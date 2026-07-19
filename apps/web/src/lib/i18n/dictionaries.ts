@@ -545,3 +545,16 @@ export function getDictionary(locale: Locale): Dictionary {
 export function toLocale(value: string | null | undefined): Locale {
   return value === 'fr' ? 'fr' : 'en';
 }
+
+/**
+ * Pick the localized version of a piece of menu content: the French field when the
+ * customer is in French AND a French value exists, otherwise the original. So a
+ * missing translation always falls back to something readable, never a blank.
+ */
+export function localized(
+  base: string,
+  fr: string | null | undefined,
+  locale: Locale,
+): string {
+  return locale === 'fr' && fr ? fr : base;
+}

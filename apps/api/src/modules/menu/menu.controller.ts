@@ -218,6 +218,14 @@ export class MenuController {
     return { description };
   }
 
+  /** Translate the whole menu to French (fills any missing French, never overwrites). */
+  @Post('translate-french')
+  @Roles('MANAGER')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  translateFrench(@TenantId() restaurantId: string) {
+    return this.menu.translateMenuToFrench(restaurantId);
+  }
+
   /**
    * A few AI brand ideas (name + monogram spec) from a one-line brief, for the
    * branding editor. Free OpenRouter text models; the web renders each as an SVG.

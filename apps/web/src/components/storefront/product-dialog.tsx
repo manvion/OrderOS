@@ -6,6 +6,8 @@ import { Minus, Plus } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import type { MenuProduct } from '@/lib/api';
 import { useCart, type CartLine } from '@/lib/cart-store';
+import { useLocale } from './i18n-provider';
+import { localized } from '@/lib/i18n/dictionaries';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/input';
 import {
@@ -41,6 +43,10 @@ export function ProductDialog({
   onAdded?: () => void;
 }) {
   const addLine = useCart((s) => s.addLine);
+  const { locale } = useLocale();
+  const name = localized(product.name, product.nameFr, locale);
+  const description =
+    locale === 'fr' && product.descriptionFr ? product.descriptionFr : product.description;
 
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
@@ -110,7 +116,7 @@ export function ProductDialog({
       return;
     }
     addLine(product, selectedModifiers, quantity, notes.trim() || undefined);
-    toast.success(`${quantity} × ${product.name} added`);
+    toast.success(`${quantity} × ${name} added`);
     onAdded?.();
     onOpenChange(false);
   };
@@ -120,7 +126,7 @@ export function ProductDialog({
       <DialogContent className="max-w-md p-0">
         {product.imageUrl && (
           <div className="relative h-52 w-full overflow-hidden rounded-t-xl">
-            <Image src={product.imageUrl} alt={product.name} fill className="object-cover" />
+            <Image src={product.imageUrl} alt={name} fill className="object-cover" />
             {product.promoLabel && (
               <span className="absolute left-3 top-3 rounded-md bg-red-600 px-2 py-1 text-xs font-bold tracking-wide text-white shadow-soft">
                 {product.promoLabel}
@@ -132,16 +138,16 @@ export function ProductDialog({
         <div className="space-y-6 p-6">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <DialogTitle>{product.name}</DialogTitle>
+              <DialogTitle>{name}</DialogTitle>
               {!product.imageUrl && product.promoLabel && (
                 <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white">
                   {product.promoLabel}
                 </span>
               )}
             </div>
-            {product.description && (
+            {description && (
               <DialogDescription className="whitespace-pre-line">
-                {product.description}
+                {description}
               </DialogDescription>
             )}
           </DialogHeader>

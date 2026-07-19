@@ -8,7 +8,8 @@ import type { MenuCategory, MenuProduct, StorefrontRestaurant } from '@/lib/api'
 import { ProductDialog } from './product-dialog';
 import { useCart } from '@/lib/cart-store';
 import { useTenantHref } from './tenant-provider';
-import { useT } from './i18n-provider';
+import { useT, useLocale } from './i18n-provider';
+import { localized } from '@/lib/i18n/dictionaries';
 
 /** A synthetic category id for the deals rail pill / scroll target -- never a real category. */
 const DEALS_ID = '__deals__';
@@ -22,6 +23,7 @@ export function MenuBrowser({
 }) {
   const href = useTenantHref();
   const t = useT();
+  const { locale } = useLocale();
   const [selected, setSelected] = useState<MenuProduct | null>(null);
   const [activeCategory, setActiveCategory] = useState(menu[0]?.id ?? '');
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -137,7 +139,7 @@ export function MenuBrowser({
                   : 'text-muted-foreground hover:-translate-y-px hover:bg-accent hover:text-foreground'
               }`}
             >
-              {category.name}
+              {localized(category.name, category.nameFr, locale)}
             </button>
           ))}
         </div>
@@ -186,7 +188,7 @@ export function MenuBrowser({
             <div className="flex items-baseline gap-3">
               <span className="h-6 w-1.5 rounded-full bg-brand" aria-hidden />
               <h2 className="font-display text-2xl font-semibold tracking-tight">
-                {category.name}
+                {localized(category.name, category.nameFr, locale)}
               </h2>
               <span className="text-sm text-muted-foreground">
                 {category.products.length} item{category.products.length === 1 ? '' : 's'}
@@ -260,6 +262,10 @@ function ProductRow({
   index: number;
   onSelect: () => void;
 }) {
+  const { locale } = useLocale();
+  const name = localized(product.name, product.nameFr, locale);
+  const description = locale === 'fr' && product.descriptionFr ? product.descriptionFr : product.description;
+
   return (
     <button
       onClick={onSelect}
@@ -267,14 +273,11 @@ function ProductRow({
       className="card-interactive animate-rise group flex w-full gap-5 p-5 text-left"
     >
       <div className="min-w-0 flex-1">
-        <h3 className="font-semibold leading-snug">{product.name}</h3>
+        <h3 className="font-semibold leading-snug">{name}</h3>
 
-        {product.description && (
-          // whitespace-pre-line so a bilingual description (French line + English
-          // line) shows as two lines instead of running together; clamp lifted to 3
-          // to fit both.
+        {description && (
           <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-            {product.description}
+            {description}
           </p>
         )}
 
@@ -304,7 +307,7 @@ function ProductRow({
           <div className="img-zoom h-28 w-28 rounded-xl shadow-soft sm:h-32 sm:w-32">
             <Image
               src={product.imageUrl}
-              alt={product.name}
+              alt={name}
               width={128}
               height={128}
               className="h-28 w-28 rounded-xl object-cover sm:h-32 sm:w-32"

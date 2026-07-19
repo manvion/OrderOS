@@ -496,6 +496,10 @@ export function createDashboardApi(
         body: JSON.stringify({ brief }),
       }),
 
+    /** Fill any missing French translations across the whole menu. */
+    translateMenuToFrench: () =>
+      call<{ translated: number }>('/menu/translate-french', { method: 'POST' }),
+
     // Catering
     listCateringPackages: () => call<CateringPackage[]>('/catering/packages'),
     createCateringPackage: (body: CateringPackageInput) =>
@@ -1040,7 +1044,10 @@ export interface MenuModifierGroup {
 export interface MenuProduct {
   id: string;
   name: string;
+  /** French name/description for a bilingual storefront; null falls back to default. */
+  nameFr: string | null;
   description: string | null;
+  descriptionFr: string | null;
   priceCents: number;
   imageUrl: string | null;
   modifierGroups: MenuModifierGroup[];
@@ -1051,6 +1058,7 @@ export interface MenuProduct {
 export interface MenuCategory {
   id: string;
   name: string;
+  nameFr: string | null;
   description: string | null;
   products: MenuProduct[];
 }

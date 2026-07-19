@@ -853,6 +853,9 @@ model CustomerAddress {
 model Category {
   id          String  @id @default(cuid())
   name        String
+  /// French translation of the name, for a bilingual (BOTH) storefront. Auto-filled
+  /// by AI and editable; null falls back to `name`.
+  nameFr      String?
   description String?
   sortOrder   Int     @default(0)
   isActive    Boolean @default(true)
@@ -872,7 +875,11 @@ model Category {
 model Product {
   id          String  @id @default(cuid())
   name        String
+  /// French translations for a bilingual (BOTH) storefront — auto-filled by AI when
+  /// the item is saved, editable, and null-falls-back to the default language.
+  nameFr        String?
   description String?
+  descriptionFr String?
   priceCents  Int
   imageUrl    String?
   sortOrder   Int     @default(0)

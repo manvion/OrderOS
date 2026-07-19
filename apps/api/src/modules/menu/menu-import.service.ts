@@ -423,6 +423,38 @@ export class MenuImportService {
     return this.generateOneDescription(name, categoryName, language);
   }
 
+  /**
+   * Translate a short menu string to Quebec French, for the auto-bilingual menu.
+   *
+   * Returns '' when AI isn't configured or the call fails — the caller then leaves
+   * the French field null and the storefront falls back to the original, so a
+   * missing translation is never a blank on a customer's screen. Proper nouns and
+   * dish names conventionally left untranslated (Poutine, Big Mac) are kept as-is.
+   */
+  async translateToFrench(text: string): Promise<string> {
+    const source = text.trim();
+    if (!source || !this.available) return '';
+
+    const system =
+      'You translate short restaurant menu text into natural Quebec French. Keep proper ' +
+      'nouns, brand names and dish names that are conventionally left untranslated ' +
+      '(e.g. "Poutine", "Big Mac", "Nachos") as they are. Preserve meaning and tone. ' +
+      'Respond with ONLY the translation — no quotation marks, no notes, no preamble.';
+
+    for (const model of this.openRouterModels) {
+      try {
+        const out = await this.callOpenRouter(model, system, { prompt: source });
+        const cleaned = out.trim().replace(/^["']|["']$/g, '').trim().slice(0, 600);
+        if (cleaned) return cleaned;
+      } catch (err) {
+        this.logger.warn(
+          `${model} failed translation (${(err as Error).message}) -- trying the next model`,
+        );
+      }
+    }
+    return '';
+  }
+
   /** One sentence in a single language. The building block for the bilingual mode. */
   private async generateOneDescription(
     name: string,
