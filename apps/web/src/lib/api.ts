@@ -143,6 +143,22 @@ export interface CateringPackageInput {
   sortOrder?: number;
 }
 
+/**
+ * Cache policy for public storefront reads.
+ *
+ * The restaurant profile and menu change on the order of edits per day, not per
+ * request — so caching them in Next's data cache for a short window turns "hit the
+ * API on every page view" into "hit it at most once a minute per restaurant", which
+ * is the difference between a snappy storefront and a slow one when the API is a
+ * network hop away. A staff PREVIEW must always reflect unsaved-a-second-ago edits,
+ * so it opts out entirely.
+ */
+function storefrontCache(previewToken?: string): RequestInit {
+  return previewToken
+    ? { cache: 'no-store' }
+    : ({ next: { revalidate: 60 } } as RequestInit);
+}
+
 export const storefrontApi = {
   request: <T>(path: string, slug: string, init: RequestInit = {}) =>
     request<T>(path, {
@@ -156,14 +172,30 @@ export const storefrontApi = {
    * validates it; an invalid or expired token is simply the public 404.
    */
   getRestaurant: (slug: string, previewToken?: string) =>
-    storefrontApi.request<StorefrontRestaurant>('/storefront/restaurant', slug, {
-      headers: previewToken ? { 'X-Preview-Token': previewToken } : {},
-    }),
+    // The slug rides in the URL (as well as the header the API reads) so Next's data
+    // cache keys per-restaurant and never serves one tenant's data for another —
+    // the cache is URL-keyed, and the header alone would not distinguish them.
+    storefrontApi.request<StorefrontRestaurant>(
+      `/storefront/restaurant?tenant=${encodeURIComponent(slug)}`,
+      slug,
+      {
+        headers: previewToken ? { 'X-Preview-Token': previewToken } : {},
+        // Public loads are cached in Next's data cache so we don't round-trip to the
+        // API on every single page view — the single biggest storefront latency. A
+        // staff PREVIEW must always be live, so it opts out.
+        ...storefrontCache(previewToken),
+      },
+    ),
 
   getMenu: (slug: string, previewToken?: string) =>
-    storefrontApi.request<MenuCategory[]>('/storefront/menu', slug, {
-      headers: previewToken ? { 'X-Preview-Token': previewToken } : {},
-    }),
+    storefrontApi.request<MenuCategory[]>(
+      `/storefront/menu?tenant=${encodeURIComponent(slug)}`,
+      slug,
+      {
+        headers: previewToken ? { 'X-Preview-Token': previewToken } : {},
+        ...storefrontCache(previewToken),
+      },
+    ),
 
   getDeliveryQuote: (slug: string, body: { address: Address; orderValueCents: number }) =>
     storefrontApi.request<DeliveryQuote>('/storefront/delivery-quote', slug, {
