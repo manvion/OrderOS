@@ -202,6 +202,15 @@ export const updateRestaurantSchema = z.object({
   logoScale: z.number().int().min(50).max(250).optional(),
   /** Show a soft brand-coloured backdrop behind the header logo. */
   logoBackdrop: z.boolean().optional(),
+  /** How the restaurant NAME (text wordmark) is styled in the header. */
+  nameFont: z.enum(['DISPLAY', 'SERIF', 'SANS', 'MONO', 'SCRIPT']).optional(),
+  /** null = default text colour; "BRAND" = brand colour; or a #rrggbb hex. */
+  nameColor: z
+    .string()
+    .regex(/^(BRAND|#[0-9a-fA-F]{6})$/, 'Must be "BRAND" or a #rrggbb hex')
+    .nullable()
+    .optional(),
+  nameTransform: z.enum(['NONE', 'UPPERCASE']).optional(),
   /** Which language(s) the restaurant writes content in — drives AI-fill options. */
   menuLanguage: z.enum(['EN', 'FR', 'BOTH']).optional(),
 

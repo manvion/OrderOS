@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { ClerkProvider } from '@clerk/nextjs';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { AccountButton } from '@/components/storefront/account-button';
@@ -10,6 +11,7 @@ import { TenantProvider } from '@/components/storefront/tenant-provider';
 import { I18nProvider } from '@/components/storefront/i18n-provider';
 import { LanguageToggle } from '@/components/storefront/language-toggle';
 import { getDictionary, LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
+import { nameWordmarkStyle } from '@/lib/name-style';
 
 /**
  * Title, description, and — the part that matters — whether Google is allowed to
@@ -138,7 +140,7 @@ export default async function StorefrontLayout({
    */
   const themeClass = restaurant.themeMode === 'DARK' ? 'storefront-dark' : '';
 
-  return (
+  const content = (
     <TenantProvider restaurant={restaurant} basePath={basePath}>
       <I18nProvider initialLocale={locale} canToggle={canToggle}>
       <div
@@ -236,7 +238,10 @@ export default async function StorefrontLayout({
                 ))}
               {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
                 <span className="min-w-0 truncate leading-tight">
-                  <span className="block font-display text-xl font-semibold tracking-tight">
+                  <span
+                    className="block text-xl font-semibold tracking-tight"
+                    style={nameWordmarkStyle(restaurant)}
+                  >
                     {restaurant.name}
                   </span>
                   <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-brand sm:block">
@@ -310,5 +315,35 @@ export default async function StorefrontLayout({
       </div>
       </I18nProvider>
     </TenantProvider>
+  );
+
+  // The customer-facing sign-in / sign-up modals must carry the RESTAURANT's name,
+  // never the platform's Clerk application name ("restro"). A storefront-scoped
+  // ClerkProvider overrides the root one's localization for this subtree. When Clerk
+  // isn't configured, the storefront still renders for guests exactly as before.
+  const clerkEnabled = Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_'),
+  );
+  if (!clerkEnabled) return content;
+
+  return (
+    <ClerkProvider
+      localization={{
+        signIn: {
+          start: {
+            title: `Sign in to ${restaurant.name}`,
+            subtitle: `Welcome back to ${restaurant.name}`,
+          },
+        },
+        signUp: {
+          start: {
+            title: `Create your ${restaurant.name} account`,
+            subtitle: `Order faster next time at ${restaurant.name}`,
+          },
+        },
+      }}
+    >
+      {content}
+    </ClerkProvider>
   );
 }

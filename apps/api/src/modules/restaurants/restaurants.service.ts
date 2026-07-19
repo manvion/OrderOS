@@ -288,6 +288,9 @@ export class RestaurantsService {
         logoDisplayMode: true,
         logoScale: true,
         logoBackdrop: true,
+        nameFont: true,
+        nameColor: true,
+        nameTransform: true,
         menuLanguage: true,
 
         // The About page, in their words. Plain text — the storefront renders it as

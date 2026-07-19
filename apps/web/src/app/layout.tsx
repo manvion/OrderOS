@@ -64,5 +64,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   if (!isClerkConfigured) return body;
 
-  return <ClerkProvider>{body}</ClerkProvider>;
+  // The root provider covers staff/admin auth (/sign-in, /onboarding), where the
+  // specific restaurant isn't known yet — so it carries the platform name, never
+  // Clerk's raw application name ("restro"). The storefront nests its own provider
+  // (see s/[slug]/layout.tsx) to show each restaurant's own name to customers.
+  return (
+    <ClerkProvider
+      localization={{
+        signIn: { start: { title: 'Sign in to DineDirect' } },
+        signUp: { start: { title: 'Create your DineDirect account' } },
+      }}
+    >
+      {body}
+    </ClerkProvider>
+  );
 }

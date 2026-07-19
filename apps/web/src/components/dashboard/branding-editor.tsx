@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { BrandIdeasGenerator } from './brand-ideas';
 import { ApiRequestError } from '@/lib/api';
+import { nameWordmarkStyle } from '@/lib/name-style';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -129,6 +130,19 @@ export function BrandingEditor() {
       toast.success('Logo backdrop updated');
     },
     onError: () => toast.error('Could not update the backdrop'),
+  });
+
+  const saveNameStyle = useMutation({
+    mutationFn: (body: {
+      nameFont?: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
+      nameColor?: string | null;
+      nameTransform?: 'NONE' | 'UPPERCASE';
+    }) => api.updateCurrent(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Name style updated');
+    },
+    onError: () => toast.error('Could not update the name style'),
   });
 
   if (!restaurant) return null;
@@ -357,6 +371,134 @@ export function BrandingEditor() {
                   onClick={() => saveLogoBackdrop.mutate(value)}
                   className={`rounded-xl border p-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     Boolean(restaurant.logoBackdrop) === value
+                      ? 'border-brand-subtle bg-brand-subtle'
+                      : 'hover:bg-accent/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ---------- Name style ---------- */}
+        {restaurant.logoDisplayMode !== 'LOGO_ONLY' && (
+          <div className="space-y-3">
+            <div>
+              <Label>Restaurant name style</Label>
+              <p className="text-xs text-muted-foreground">
+                How your name is set in the header when it&apos;s shown as text.
+              </p>
+            </div>
+
+            {/* Live preview in the restaurant's own name */}
+            <div className="flex min-h-14 items-center rounded-xl border bg-background px-4 py-3">
+              <span
+                className="truncate text-2xl font-semibold tracking-tight"
+                style={nameWordmarkStyle(restaurant)}
+              >
+                {restaurant.name}
+              </span>
+            </div>
+
+            {/* Font */}
+            <div className="grid gap-2 sm:grid-cols-5">
+              {(
+                [
+                  { value: 'DISPLAY', label: 'Display' },
+                  { value: 'SERIF', label: 'Serif' },
+                  { value: 'SANS', label: 'Sans' },
+                  { value: 'MONO', label: 'Mono' },
+                  { value: 'SCRIPT', label: 'Script' },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={readOnly || saveNameStyle.isPending}
+                  onClick={() => saveNameStyle.mutate({ nameFont: value })}
+                  style={nameWordmarkStyle({ nameFont: value })}
+                  className={`rounded-xl border p-3 text-base transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    (restaurant.nameFont ?? 'DISPLAY') === value
+                      ? 'border-brand-subtle bg-brand-subtle'
+                      : 'hover:bg-accent/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Colour + format */}
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  { value: null, label: 'Default' },
+                  { value: 'BRAND', label: 'Brand colour' },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={readOnly || saveNameStyle.isPending}
+                  onClick={() => saveNameStyle.mutate({ nameColor: value })}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    (restaurant.nameColor ?? null) === value
+                      ? 'border-brand-subtle bg-brand-subtle'
+                      : 'hover:bg-accent/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+
+              {/* Custom colour — an all-caps hex like #C0392B. The picker sets it live. */}
+              <label
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  restaurant.nameColor && restaurant.nameColor.startsWith('#')
+                    ? 'border-brand-subtle bg-brand-subtle'
+                    : 'hover:bg-accent/50'
+                } ${readOnly ? 'pointer-events-none opacity-40' : ''}`}
+              >
+                <span
+                  className="h-4 w-4 rounded-full border"
+                  style={{
+                    background:
+                      restaurant.nameColor && restaurant.nameColor.startsWith('#')
+                        ? restaurant.nameColor
+                        : 'conic-gradient(red, orange, yellow, green, blue, violet, red)',
+                  }}
+                />
+                Custom
+                <input
+                  type="color"
+                  className="sr-only"
+                  disabled={readOnly || saveNameStyle.isPending}
+                  value={
+                    restaurant.nameColor && restaurant.nameColor.startsWith('#')
+                      ? restaurant.nameColor
+                      : '#111111'
+                  }
+                  onChange={(e) => saveNameStyle.mutate({ nameColor: e.target.value.toUpperCase() })}
+                />
+              </label>
+
+              <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
+              {(
+                [
+                  { value: 'NONE', label: 'Normal' },
+                  { value: 'UPPERCASE', label: 'UPPERCASE' },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={readOnly || saveNameStyle.isPending}
+                  onClick={() => saveNameStyle.mutate({ nameTransform: value })}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    (restaurant.nameTransform ?? 'NONE') === value
                       ? 'border-brand-subtle bg-brand-subtle'
                       : 'hover:bg-accent/50'
                   }`}

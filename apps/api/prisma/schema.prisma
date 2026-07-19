@@ -264,6 +264,14 @@ model Restaurant {
   /// Show a soft, brand-coloured backdrop behind the header logo. Off by default;
   /// helps a transparent-PNG logo sit on a subtle tinted panel instead of bare.
   logoBackdrop      Boolean         @default(false)
+  /// How the restaurant's NAME is styled in the header wordmark (when shown as text,
+  /// not baked into a logo image). nameFont picks a type feel (DISPLAY/SERIF/SANS/
+  /// MONO/SCRIPT); nameColor is null=default text, "BRAND", or a #hex; nameTransform
+  /// is NONE or UPPERCASE. Plain strings, not enums, so adding a face later needs no
+  /// migration — the web layer maps unknown values back to the default.
+  nameFont          String          @default("DISPLAY")
+  nameColor         String?
+  nameTransform     String          @default("NONE")
   /// Which language(s) this restaurant writes menu & catering content in. Drives
   /// the AI-fill language options: a single language writes in it; BOTH offers a
   /// French / English / both choice.

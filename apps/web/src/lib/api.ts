@@ -1000,6 +1000,10 @@ export interface StorefrontRestaurant {
   logoScale: number;
   /** Soft brand-coloured backdrop behind the header logo. */
   logoBackdrop: boolean;
+  /** Text-wordmark styling for the restaurant name in the header. */
+  nameFont: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
+  nameColor: string | null;
+  nameTransform: 'NONE' | 'UPPERCASE';
   currency: string;
   timezone: string;
   isOpen: boolean;
@@ -1212,6 +1216,10 @@ export interface Restaurant {
   logoScale: number;
   /** Soft brand-coloured backdrop behind the header logo. */
   logoBackdrop: boolean;
+  /** Text-wordmark styling for the restaurant name in the header. */
+  nameFont: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
+  nameColor: string | null;
+  nameTransform: 'NONE' | 'UPPERCASE';
   /** Content language(s) — drives the AI-fill language options. */
   menuLanguage: 'EN' | 'FR' | 'BOTH';
   /** About page content. Plain text, never HTML. */

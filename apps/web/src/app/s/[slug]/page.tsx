@@ -551,10 +551,10 @@ function RusticHome({ restaurant, href }: TemplateProps) {
           style={{ borderColor: dashBorder, background: dashCardBg }}
         >
           <p className="mx-auto max-w-lg font-display text-2xl font-semibold" style={{ color: bodyText }}>
-            Ordering here sends your money to the kitchen, not a marketplace.
+            Hungry?
           </p>
           <p className="mx-auto mt-2 max-w-md text-sm" style={{ color: bodyTextMuted }}>
-            No 30% commission — same food, same people, more stays with them.
+            Order straight from {restaurant.name}.
           </p>
           <Button
             asChild
@@ -822,10 +822,10 @@ function BentoHome({ restaurant, href }: TemplateProps) {
           style={{ background: restaurant.brandAccentColor }}
         >
           <p className="mx-auto max-w-lg font-display text-2xl font-black uppercase leading-tight tracking-tight text-white">
-            Ordering here sends your money to the kitchen, not a marketplace.
+            Hungry?
           </p>
           <p className="mx-auto mt-3 max-w-md text-sm text-white/80">
-            No 30% commission — same food, same people, more stays with them.
+            Order straight from {restaurant.name}.
           </p>
           <Button
             asChild
@@ -1227,21 +1227,20 @@ function FactsRow({ restaurant }: { restaurant: StorefrontRestaurant }) {
 }
 
 /**
- * The closing argument. Shared by CLASSIC and BOLD.
+ * A plain closing call-to-action. Shared by CLASSIC and BOLD.
  *
- * This is the entire pitch of direct ordering, and it belongs in front of the
- * CUSTOMER, not just the restaurant. They are choosing to buy here instead of
- * on an app, and they deserve to know why that's worth doing.
+ * This is the restaurant's own storefront, so it stays about the restaurant — a
+ * simple nudge to the menu, not a pitch for the platform underneath it.
  */
-function ClosingPitch({ href }: TemplateProps) {
+function ClosingPitch({ restaurant, href }: TemplateProps) {
   return (
     <section className="border-t bg-muted/40">
       <div className="mx-auto max-w-5xl px-5 py-14 text-center sm:px-8">
         <p className="mx-auto max-w-lg text-lg font-medium leading-relaxed">
-          Ordering here sends your money to the kitchen, not to a marketplace.
+          Ready when you are.
         </p>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          No 30% commission. Same food, same people — more of what you pay stays with them.
+          Order straight from {restaurant.name}.
         </p>
         <Button asChild variant="brand" size="lg" className="mt-7 rounded-xl px-8">
           <Link href={href('/menu')}>
