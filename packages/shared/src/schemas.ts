@@ -269,6 +269,8 @@ export type DeliverySettingsInput = z.infer<typeof deliverySettingsSchema>;
 
 export const categorySchema = z.object({
   name: z.string().min(1).max(80),
+  /** French name for a bilingual storefront. Null falls back to `name`. */
+  nameFr: z.string().max(80).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
   sortOrder: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
@@ -312,7 +314,10 @@ export type ModifierGroupInput = z.infer<typeof modifierGroupSchema>;
 export const productSchema = z.object({
   categoryId: z.string().cuid(),
   name: z.string().min(1).max(120),
+  /** French name/description for a bilingual storefront. Null falls back to default. */
+  nameFr: z.string().max(120).nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
+  descriptionFr: z.string().max(1000).nullable().optional(),
   priceCents: z.number().int().min(0).max(1000_00),
   imageUrl: z.string().url().nullable().optional(),
   isAvailable: z.boolean().default(true),

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Languages, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
@@ -37,14 +37,6 @@ export default function MenuPage() {
     enabled: Boolean(restaurant),
   });
 
-  const isBilingual = restaurant?.menuLanguage === 'BOTH';
-  const { data: translationStatus } = useQuery({
-    queryKey: ['menu-translation-status', restaurant?.id],
-    queryFn: () => api.getMenuTranslationStatus(),
-    enabled: Boolean(restaurant) && isBilingual,
-    // Poll while a background translation is running so the numbers climb live.
-    refetchInterval: 5000,
-  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -61,15 +53,6 @@ export default function MenuPage() {
    * free-model ladder's throttle. One item's failure (a model having a bad
    * moment) doesn't stop the rest of the sweep.
    */
-  const translateMenu = useMutation({
-    mutationFn: () => api.translateMenuToFrench(),
-    onSuccess: () =>
-      toast('Translating your menu to French — it’ll appear on your storefront shortly.', {
-        duration: 6000,
-      }),
-    onError: () => toast.error('Could not start the translation'),
-  });
-
   const bulkFillDescriptions = useMutation({
     mutationFn: async () => {
       const targets = (products ?? []).filter((p) => !p.description?.trim());
@@ -174,19 +157,6 @@ export default function MenuPage() {
         </div>
         {!readOnly && tab === 'items' && (
           <div className="flex flex-wrap gap-2">
-            {/* Bilingual restaurants: (re)fill any missing French across the menu.
-                Idempotent — safe to press again to catch anything a rate limit
-                missed. */}
-            {isBilingual && (
-              <Button
-                variant="outline"
-                onClick={() => translateMenu.mutate()}
-                disabled={translateMenu.isPending || translationStatus?.aiConfigured === false}
-              >
-                <Languages className="h-4 w-4" />
-                Translate to French
-              </Button>
-            )}
             {/* One photo instead of an hour of typing. Renders nothing when the
                 server has no vision key — see MenuPhotoImport. */}
             <MenuPhotoImport categories={categories ?? []} />
@@ -209,36 +179,6 @@ export default function MenuPage() {
           </div>
         )}
       </div>
-
-      {/* French translation status — the honest readout, so it's obvious whether AI
-          is on and how much of the menu actually has French stored. */}
-      {isBilingual && translationStatus && (
-        <div
-          className={`rounded-lg border p-3 text-sm ${
-            translationStatus.aiConfigured ? 'bg-muted/40' : 'border-amber-300 bg-amber-50 text-amber-900'
-          }`}
-        >
-          {!translationStatus.aiConfigured ? (
-            <>
-              <strong>AI translation is off.</strong> The server has no{' '}
-              <span className="font-mono">OPENROUTER_API_KEY</span>, so the menu can’t be
-              translated to French. Set it on the API, then press “Translate to French”.
-            </>
-          ) : (
-            <>
-              French menu:{' '}
-              <strong>{translationStatus.productsNameFr}</strong> of{' '}
-              <strong>{translationStatus.productsTotal}</strong> item names,{' '}
-              <strong>{translationStatus.productsDescFr}</strong> of{' '}
-              <strong>{translationStatus.productsWithDesc}</strong> descriptions, and{' '}
-              <strong>{translationStatus.categoriesFr}</strong> of{' '}
-              <strong>{translationStatus.categoriesTotal}</strong> categories translated.
-              {translationStatus.productsNameFr < translationStatus.productsTotal &&
-                ' Press “Translate to French” to fill the rest.'}
-            </>
-          )}
-        </div>
-      )}
 
       <div className="inline-flex rounded-lg border bg-muted/40 p-1">
         {(['items', 'promotions'] as const).map((t) => (

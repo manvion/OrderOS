@@ -496,21 +496,6 @@ export function createDashboardApi(
         body: JSON.stringify({ brief }),
       }),
 
-    /** Kick off a background pass filling any missing French across the whole menu. */
-    translateMenuToFrench: () =>
-      call<{ started: boolean }>('/menu/translate-french', { method: 'POST' }),
-
-    /** Is AI configured on the server, and how much French is actually stored. */
-    getMenuTranslationStatus: () =>
-      call<{
-        aiConfigured: boolean;
-        categoriesTotal: number;
-        categoriesFr: number;
-        productsTotal: number;
-        productsNameFr: number;
-        productsWithDesc: number;
-        productsDescFr: number;
-      }>('/menu/translation-status'),
 
     // Catering
     listCateringPackages: () => call<CateringPackage[]>('/catering/packages'),
@@ -1307,7 +1292,10 @@ export interface Category {
 export interface Product {
   id: string;
   name: string;
+  /** Manually-entered French name/description for a bilingual storefront. */
+  nameFr: string | null;
   description: string | null;
+  descriptionFr: string | null;
   priceCents: number;
   imageUrl: string | null;
   isAvailable: boolean;

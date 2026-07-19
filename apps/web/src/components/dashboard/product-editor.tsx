@@ -57,7 +57,10 @@ export function ProductEditor({
   const isNew = product === null;
 
   const [name, setName] = useState(product?.name ?? '');
+  const [nameFr, setNameFr] = useState(product?.nameFr ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
+  const [descriptionFr, setDescriptionFr] = useState(product?.descriptionFr ?? '');
+  const bilingual = restaurant?.menuLanguage === 'BOTH';
   const [price, setPrice] = useState(product ? (product.priceCents / 100).toFixed(2) : '');
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? '');
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
@@ -127,7 +130,9 @@ export function ProductEditor({
 
       const payload = {
         name: name.trim(),
+        nameFr: nameFr.trim() || null,
         description: description.trim() || null,
+        descriptionFr: descriptionFr.trim() || null,
         priceCents,
         categoryId,
         isAvailable,
@@ -195,6 +200,15 @@ export function ProductEditor({
             <div className="space-y-2">
               <Label htmlFor="p-name">Name</Label>
               <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              {bilingual && (
+                <Input
+                  id="p-name-fr"
+                  value={nameFr}
+                  onChange={(e) => setNameFr(e.target.value)}
+                  placeholder="Nom en français (optional)"
+                  lang="fr"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="p-category">Category</Label>
@@ -215,11 +229,11 @@ export function ProductEditor({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="p-description">Description</Label>
-              {/* AI fill, shaped by the restaurant's content-language setting:
-                  one button for a single-language menu, or English/French/Both for
-                  a bilingual one. */}
+              {/* AI fill WRITES a description from the item name (not a translation)
+                  in the restaurant's base language. The French field below is typed
+                  by hand. */}
               <AiFill
-                language={restaurant?.menuLanguage ?? 'EN'}
+                language={restaurant?.menuLanguage === 'FR' ? 'FR' : 'EN'}
                 pending={generateDescription.isPending}
                 activeVariant={generateDescription.variables}
                 disabled={!name.trim()}
@@ -232,6 +246,16 @@ export function ProductEditor({
               onChange={(e) => setDescription(e.target.value)}
               className="min-h-[60px]"
             />
+            {bilingual && (
+              <Textarea
+                id="p-description-fr"
+                value={descriptionFr}
+                onChange={(e) => setDescriptionFr(e.target.value)}
+                placeholder="Description en français (optional)"
+                lang="fr"
+                className="min-h-[60px]"
+              />
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

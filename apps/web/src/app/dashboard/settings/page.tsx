@@ -134,17 +134,9 @@ export default function SettingsPage() {
 
   const saveLanguage = useMutation({
     mutationFn: (menuLanguage: 'EN' | 'FR' | 'BOTH') => api.updateCurrent({ menuLanguage }),
-    onSuccess: (_data, menuLanguage) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries();
       toast.success('Content language updated');
-      // Turning on bilingual auto-translates the existing menu to French in the
-      // background — so a customer switching to FR sees a French menu, not English.
-      if (menuLanguage === 'BOTH') {
-        void api.translateMenuToFrench().catch(() => {});
-        toast('Translating your menu to French — it’ll appear on your storefront shortly.', {
-          duration: 6000,
-        });
-      }
     },
     onError: () => toast.error('Could not update the language'),
   });

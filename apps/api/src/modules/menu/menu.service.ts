@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { CategoryInput, ProductInput } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
@@ -8,25 +8,9 @@ import {
 } from '../../common/plan/plan.util';
 import { StorageService } from '../storage/storage.service';
 import { PromotionsService, type ActivePromotionForMenu } from '../promotions/promotions.service';
-import { MenuImportService } from './menu-import.service';
 
 const MENU_CACHE_TTL_SECONDS = 120;
 
-/** How many menu strings to translate at once. Small enough to respect the free
- *  model's rate limit, big enough that a whole menu finishes in the background. */
-const TRANSLATE_CONCURRENCY = 4;
-
-/** Run `fn` over `items` with at most `limit` in flight at a time. */
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
-      await fn(items[idx]);
-    }
-  });
-  await Promise.all(workers);
-}
 
 export interface MenuProductRow {
   id: string;
@@ -77,15 +61,11 @@ function withPromoBadges(menu: MenuCategoryRow[], promotions: ActivePromotionFor
 
 @Injectable()
 export class MenuService {
-  private readonly logger = new Logger(MenuService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly storage: StorageService,
     private readonly promotions: PromotionsService,
-    // Auto-translates menu content to French for a BOTH-language storefront.
-    private readonly menuImport: MenuImportService,
   ) {}
 
   /** The currency menu prices are in — the photo importer reads numbers against it. */
@@ -111,7 +91,6 @@ export class MenuService {
       data: { ...input, restaurantId },
     });
     await this.invalidate(restaurantId);
-    void this.translateCategory(restaurantId, category.id);
     return category;
   }
 
@@ -123,7 +102,6 @@ export class MenuService {
 
     const category = await this.prisma.category.update({ where: { id }, data: input });
     await this.invalidate(restaurantId);
-    if (input.name !== undefined) void this.translateCategory(restaurantId, id);
     return category;
   }
 
@@ -250,7 +228,6 @@ export class MenuService {
     });
 
     await this.invalidate(restaurantId);
-    void this.translateProduct(restaurantId, product.id);
     return product;
   }
 
@@ -318,7 +295,6 @@ export class MenuService {
     });
 
     await this.invalidate(restaurantId);
-    void this.translateProduct(restaurantId, id);
     return product;
   }
 
@@ -442,158 +418,6 @@ export class MenuService {
 
     await this.redis.set(cacheKey, menu, MENU_CACHE_TTL_SECONDS);
     return menu;
-  }
-
-  // --- Auto-translation (bilingual BOTH storefront) -------------------------
-  //
-  // Fire-and-forget: never block a save on an AI call. Only fills French fields
-  // that are EMPTY — an item that already has a French version (auto or hand-typed)
-  // is left alone, so nothing gets re-translated or overwritten. A translation
-  // identical to the source (a proper noun like "Poutine") is not stored — the
-  // storefront falls back to the original, which is the same text.
-
-  /** Does this restaurant want the French auto-fill at all? Only BOTH does. */
-  private async wantsFrench(restaurantId: string): Promise<boolean> {
-    try {
-      const r = await this.prisma.restaurant.findUnique({
-        where: { id: restaurantId },
-        select: { menuLanguage: true },
-      });
-      return r?.menuLanguage === 'BOTH';
-    } catch {
-      return false;
-    }
-  }
-
-  private async translateProduct(restaurantId: string, id: string): Promise<void> {
-    try {
-      if (!(await this.wantsFrench(restaurantId))) return;
-      const p = await this.prisma.product.findUnique({
-        where: { id },
-        select: { name: true, nameFr: true, description: true, descriptionFr: true },
-      });
-      if (!p) return;
-
-      const data: { nameFr?: string; descriptionFr?: string } = {};
-      if (!p.nameFr) {
-        const fr = await this.menuImport.translateToFrench(p.name);
-        if (fr && fr !== p.name) data.nameFr = fr;
-      }
-      if (p.description && !p.descriptionFr) {
-        const fr = await this.menuImport.translateToFrench(p.description);
-        if (fr && fr !== p.description) data.descriptionFr = fr;
-      }
-
-      if (Object.keys(data).length > 0) {
-        await this.prisma.product.update({ where: { id }, data });
-        await this.invalidate(restaurantId);
-      }
-    } catch (err) {
-      this.logger.warn(`Product translation failed for ${id}: ${(err as Error).message}`);
-    }
-  }
-
-  private async translateCategory(restaurantId: string, id: string): Promise<void> {
-    try {
-      if (!(await this.wantsFrench(restaurantId))) return;
-      const c = await this.prisma.category.findUnique({
-        where: { id },
-        select: { name: true, nameFr: true },
-      });
-      if (!c || c.nameFr) return;
-      const fr = await this.menuImport.translateToFrench(c.name);
-      if (fr && fr !== c.name) {
-        await this.prisma.category.update({ where: { id }, data: { nameFr: fr } });
-        await this.invalidate(restaurantId);
-      }
-    } catch (err) {
-      this.logger.warn(`Category translation failed for ${id}: ${(err as Error).message}`);
-    }
-  }
-
-  /**
-   * Translate the WHOLE menu — every item/category still missing its French. Used by
-   * the "Translate menu to French" button and when a restaurant switches to BOTH.
-   * Sequential on purpose: a burst of parallel AI calls trips rate limits, and this
-   * runs in the background where a few extra seconds cost nothing.
-   */
-  async translateMenuToFrench(restaurantId: string): Promise<{ translated: number }> {
-    if (!this.menuImport.available) {
-      this.logger.warn(
-        `Menu translation requested for ${restaurantId} but AI is not configured ` +
-          `(OPENROUTER_API_KEY missing) — nothing to do.`,
-      );
-      return { translated: 0 };
-    }
-
-    let translated = 0;
-    const one = (text: string) => this.menuImport.translateToFrench(text);
-
-    // Category names.
-    const categories = await this.prisma.category.findMany({
-      where: { restaurantId, nameFr: null },
-      select: { id: true, name: true },
-    });
-    await mapLimit(categories, TRANSLATE_CONCURRENCY, async (c) => {
-      const fr = await one(c.name);
-      if (fr) {
-        await this.prisma.category.update({ where: { id: c.id }, data: { nameFr: fr } });
-        translated++;
-      }
-    });
-
-    // Product names.
-    const nameless = await this.prisma.product.findMany({
-      where: { restaurantId, nameFr: null },
-      select: { id: true, name: true },
-    });
-    await mapLimit(nameless, TRANSLATE_CONCURRENCY, async (p) => {
-      const fr = await one(p.name);
-      if (fr) {
-        await this.prisma.product.update({ where: { id: p.id }, data: { nameFr: fr } });
-        translated++;
-      }
-    });
-
-    // Product descriptions (only those that have one and no French yet).
-    const descless = await this.prisma.product.findMany({
-      where: { restaurantId, description: { not: null }, descriptionFr: null },
-      select: { id: true, description: true },
-    });
-    await mapLimit(descless, TRANSLATE_CONCURRENCY, async (p) => {
-      const fr = await one(p.description ?? '');
-      if (fr) {
-        await this.prisma.product.update({ where: { id: p.id }, data: { descriptionFr: fr } });
-        translated++;
-      }
-    });
-
-    if (translated > 0) await this.invalidate(restaurantId);
-    this.logger.log(`Translated ${translated} menu strings to French for ${restaurantId}`);
-    return { translated };
-  }
-
-  /** What the menu page shows: is AI on, and how much French is actually stored. */
-  async translationStatus(restaurantId: string) {
-    const [categoriesTotal, categoriesFr, productsTotal, productsNameFr, productsWithDesc, productsDescFr] =
-      await Promise.all([
-        this.prisma.category.count({ where: { restaurantId } }),
-        this.prisma.category.count({ where: { restaurantId, nameFr: { not: null } } }),
-        this.prisma.product.count({ where: { restaurantId } }),
-        this.prisma.product.count({ where: { restaurantId, nameFr: { not: null } } }),
-        this.prisma.product.count({ where: { restaurantId, description: { not: null } } }),
-        this.prisma.product.count({ where: { restaurantId, descriptionFr: { not: null } } }),
-      ]);
-
-    return {
-      aiConfigured: this.menuImport.available,
-      categoriesTotal,
-      categoriesFr,
-      productsTotal,
-      productsNameFr,
-      productsWithDesc,
-      productsDescFr,
-    };
   }
 
   private async invalidate(restaurantId: string): Promise<void> {
