@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
   ArrowRight,
@@ -18,6 +18,8 @@ import { storefrontApi, type StorefrontRestaurant } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/shared/reveal';
+import { StoryBand } from '@/components/storefront/story-band';
+import { LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
 
 export const revalidate = 60;
 
@@ -64,25 +66,43 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
   const basePath = (await headers()).get('x-restaurant-slug') ? '' : `/s/${slug}`;
   const href = (path: string) => `${basePath}${path}`;
 
-  switch (restaurant.websiteTemplate) {
-    case 'BOLD':
-      return <BoldHome restaurant={restaurant} href={href} />;
-    case 'MINIMAL':
-      return <MinimalHome restaurant={restaurant} href={href} />;
-    case 'RUSTIC':
-      return <RusticHome restaurant={restaurant} href={href} />;
-    case 'BUILDER':
-      return <BuilderHome restaurant={restaurant} href={href} />;
-    case 'BENTO':
-      return <BentoHome restaurant={restaurant} href={href} />;
-    case 'ELEGANT':
-      return <ElegantHome restaurant={restaurant} href={href} />;
-    case 'PUNCHY':
-      return <PunchyHome restaurant={restaurant} href={href} />;
-    case 'CLASSIC':
-    default:
-      return <ClassicHome restaurant={restaurant} href={href} />;
-  }
+  // Locale, server-side: FR-only pins French, BOTH reads the cookie, else English.
+  const canToggle = restaurant.menuLanguage === 'BOTH';
+  const cookieLocale = (await cookies()).get(LOCALE_COOKIE)?.value;
+  const locale: Locale =
+    restaurant.menuLanguage === 'FR' ? 'fr' : canToggle ? toLocale(cookieLocale) : 'en';
+
+  const template = (() => {
+    switch (restaurant.websiteTemplate) {
+      case 'BOLD':
+        return <BoldHome restaurant={restaurant} href={href} />;
+      case 'MINIMAL':
+        return <MinimalHome restaurant={restaurant} href={href} />;
+      case 'RUSTIC':
+        return <RusticHome restaurant={restaurant} href={href} />;
+      case 'BUILDER':
+        return <BuilderHome restaurant={restaurant} href={href} />;
+      case 'BENTO':
+        return <BentoHome restaurant={restaurant} href={href} />;
+      case 'ELEGANT':
+        return <ElegantHome restaurant={restaurant} href={href} />;
+      case 'PUNCHY':
+        return <PunchyHome restaurant={restaurant} href={href} />;
+      case 'CLASSIC':
+      default:
+        return <ClassicHome restaurant={restaurant} href={href} />;
+    }
+  })();
+
+  // The old standalone About page, folded into every template's homepage: the story,
+  // the full weekly hours, and how to find them — the parts no template renders on
+  // its own. See components/storefront/story-band.tsx.
+  return (
+    <>
+      {template}
+      <StoryBand restaurant={restaurant} locale={locale} href={href} />
+    </>
+  );
 }
 
 type TemplateProps = { restaurant: StorefrontRestaurant; href: (path: string) => string };

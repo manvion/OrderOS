@@ -259,14 +259,9 @@ export default async function StorefrontLayout({
               >
                 {t.nav.menu}
               </Link>
-              {!isQrOnly && (
-                <Link
-                  href={href('/about')}
-                  className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
-                >
-                  {t.nav.about}
-                </Link>
-              )}
+              {/* "About" is no longer a separate page — the story, hours and contact
+                  now live on the homepage itself (see StoryBand). On a real subdomain
+                  the logo links home, so it's one scroll away. */}
               {/* Party orders / catering — a paid capability. It sits inline with
                   the other nav links (no loud brand pill): present as an equal
                   option, not shouting for attention. */}
