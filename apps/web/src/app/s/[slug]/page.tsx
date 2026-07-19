@@ -88,6 +88,8 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
         return <ElegantHome restaurant={restaurant} href={href} />;
       case 'PUNCHY':
         return <PunchyHome restaurant={restaurant} href={href} />;
+      case 'SIGNATURE':
+        return <SignatureHome restaurant={restaurant} href={href} />;
       case 'CLASSIC':
       default:
         return <ClassicHome restaurant={restaurant} href={href} />;
@@ -250,6 +252,126 @@ function ClassicHome({ restaurant, href }: TemplateProps) {
               ))}
             </div>
           </Reveal>
+        </section>
+      )}
+
+      <FactsRow restaurant={restaurant} />
+      <ClosingPitch restaurant={restaurant} href={href} />
+    </div>
+  );
+}
+
+/**
+ * SIGNATURE. The DineDirect house style, brought to the storefront: a DARK hero
+ * washed with a radial gradient in the restaurant's own brand colour, a pill status
+ * badge, a big headline and brand-coloured CTAs — then clean light sections. It
+ * mirrors the marketing landing page's look, so a restaurant that liked the site
+ * they signed up on can have their own in the same register.
+ */
+function SignatureHome({ restaurant, href }: TemplateProps) {
+  const options = fulfillmentOptions(restaurant);
+
+  return (
+    <div className="animate-rise">
+      <section className="relative isolate overflow-hidden bg-foreground text-background">
+        {/* The signature move: an ellipse of the brand colour bleeding from the
+            top-left, exactly like the landing hero. */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse 1000px 600px at 15% 0%, color-mix(in srgb, var(--brand) 40%, transparent), transparent 60%)',
+          }}
+        />
+
+        <div className="container relative py-20 sm:py-28">
+          <div className="max-w-2xl">
+            <span className="rise-1 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm">
+              <span
+                className={`pulse-dot h-1.5 w-1.5 rounded-full ${
+                  restaurant.isOpen ? 'bg-emerald-300 text-emerald-300' : 'bg-white/70'
+                }`}
+              />
+              {restaurant.isOpen ? 'Open now' : 'Closed'}
+              {restaurant.isOpen && (
+                <>
+                  <span className="text-white/40">·</span>
+                  ready in ~{restaurant.prepTimeMinutes} min
+                </>
+              )}
+            </span>
+
+            <h1 className="rise-2 mt-6 font-display text-5xl font-semibold leading-[1.03] tracking-tight sm:text-6xl lg:text-7xl">
+              {restaurant.name}
+            </h1>
+
+            {restaurant.description && (
+              <p className="rise-3 mt-5 max-w-xl text-lg leading-relaxed text-background/75">
+                {restaurant.description}
+              </p>
+            )}
+
+            <div className="rise-4 mt-9 flex flex-wrap items-center gap-3">
+              <Button asChild variant="brand" size="lg" className="rounded-xl px-8 text-base">
+                <Link href={href('/menu')} className="group">
+                  {restaurant.isOpen ? 'Order now' : 'View the menu'}
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="ghost"
+                className="rounded-xl px-6 text-base text-background hover:bg-white/10 hover:text-background"
+              >
+                <Link href={href('/menu')}>See the menu</Link>
+              </Button>
+            </div>
+
+            {options.length > 0 && (
+              <div className="rise-4 mt-8 flex flex-wrap items-center gap-2">
+                {options.map(({ icon: Icon, label }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-background/85"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
+              <p className="mt-5 text-sm text-background/70">
+                We&apos;re closed right now — but you can schedule an order for later.
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* A photo strip when they have one — the landing page pairs its dark hero
+          with a bright product shot; a gallery does the same job here. */}
+      {restaurant.galleryImages.length > 0 && (
+        <section className="border-b bg-muted/20">
+          <div className="container grid grid-cols-2 gap-3 py-10 sm:grid-cols-3 lg:grid-cols-4">
+            {restaurant.galleryImages.slice(0, 4).map((image, i) => (
+              <div
+                key={image.id}
+                className="img-zoom aspect-[4/3] overflow-hidden rounded-2xl shadow-soft"
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <Image
+                  src={image.url}
+                  alt={image.caption ?? restaurant.name}
+                  width={400}
+                  height={300}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

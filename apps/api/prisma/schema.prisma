@@ -84,6 +84,10 @@ enum WebsiteTemplate {
   /// phone-framed product photo, pill-shaped stat badges and CTAs
   /// everywhere. Confident comfort-food energy.
   PUNCHY
+  /// The DineDirect house style: a dark hero washed with a brand-colour radial
+  /// gradient, a pill status badge, a big headline and brand CTAs, then clean
+  /// light sections. Mirrors the marketing landing page — premium and modern.
+  SIGNATURE
 }
 
 /// See Restaurant.logoDisplayMode.

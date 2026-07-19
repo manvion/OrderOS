@@ -86,7 +86,8 @@ export function BrandingEditor() {
         | 'BUILDER'
         | 'BENTO'
         | 'ELEGANT'
-        | 'PUNCHY',
+        | 'PUNCHY'
+        | 'SIGNATURE',
     ) => api.updateCurrent({ websiteTemplate }),
     onSuccess: () => {
       void queryClient.invalidateQueries();
@@ -624,6 +625,15 @@ export function BrandingEditor() {
               disabled={readOnly || saveTemplate.isPending}
               accent={primary}
             />
+            <TemplateOption
+              swatch="signature"
+              title="Signature"
+              description="A dark hero washed with your brand colour and bold type — the DineDirect house style. Premium and modern."
+              active={restaurant.websiteTemplate === 'SIGNATURE'}
+              onSelect={() => saveTemplate.mutate('SIGNATURE')}
+              disabled={readOnly || saveTemplate.isPending}
+              accent={primary}
+            />
           </div>
         </div>
 
@@ -680,7 +690,7 @@ function TemplateOption({
   disabled,
   accent,
 }: {
-  swatch: 'photo' | 'bold' | 'minimal' | 'rustic' | 'builder' | 'bento' | 'elegant' | 'punchy';
+  swatch: 'photo' | 'bold' | 'minimal' | 'rustic' | 'builder' | 'bento' | 'elegant' | 'punchy' | 'signature';
   title: string;
   description: string;
   active: boolean;
@@ -748,6 +758,18 @@ function TemplateOption({
             <div className="h-1.5 w-2/5 rounded-full" style={{ background: accent }} />
             <div className="h-2 w-3/5 rounded-sm bg-white/90" />
             <div className="h-4 w-1/4 rounded-md" style={{ background: '#0c0b0a' }} />
+          </div>
+        )}
+        {swatch === 'signature' && (
+          <div
+            className="flex h-full flex-col justify-center gap-1.5 rounded-md p-2"
+            style={{
+              background: `radial-gradient(ellipse 120% 90% at 15% 0%, ${accent}, transparent 60%), #17171a`,
+            }}
+          >
+            <div className="h-1.5 w-1/4 rounded-full bg-white/25" />
+            <div className="h-2.5 w-4/5 rounded-sm bg-white/90" />
+            <div className="h-3 w-1/3 rounded-md" style={{ background: accent }} />
           </div>
         )}
       </div>

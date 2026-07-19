@@ -1092,7 +1092,7 @@ export interface StorefrontRestaurant {
   brandAccentColor: string;
   /** Three genuinely different storefront layouts -- see the homepage, which
    *  branches its whole render tree on this. */
-  websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY';
+  websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY' | 'SIGNATURE';
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
   /** Header logo size as a percentage of default (100 = default). */
@@ -1316,7 +1316,7 @@ export interface Restaurant {
   coverImageUrl: string | null;
   brandPrimaryColor: string;
   brandAccentColor: string;
-  websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY';
+  websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY' | 'SIGNATURE';
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
   /** Header logo size as a percentage of default (100 = default). */
