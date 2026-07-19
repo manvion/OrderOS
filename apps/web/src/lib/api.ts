@@ -496,9 +496,9 @@ export function createDashboardApi(
         body: JSON.stringify({ brief }),
       }),
 
-    /** Fill any missing French translations across the whole menu. */
+    /** Kick off a background pass filling any missing French across the whole menu. */
     translateMenuToFrench: () =>
-      call<{ translated: number }>('/menu/translate-french', { method: 'POST' }),
+      call<{ started: boolean }>('/menu/translate-french', { method: 'POST' }),
 
     // Catering
     listCateringPackages: () => call<CateringPackage[]>('/catering/packages'),

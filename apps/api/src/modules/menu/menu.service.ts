@@ -12,6 +12,17 @@ import { MenuImportService } from './menu-import.service';
 
 const MENU_CACHE_TTL_SECONDS = 120;
 
+/** How many strings to translate per AI call — enough to be fast, small enough that
+ *  a free model reliably returns a correctly-sized array. */
+const TRANSLATE_BATCH = 12;
+
+/** Split an array into fixed-size chunks. */
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export interface MenuProductRow {
   id: string;
   name: string;
@@ -504,39 +515,68 @@ export class MenuService {
   async translateMenuToFrench(restaurantId: string): Promise<{ translated: number }> {
     let translated = 0;
 
+    // Category names.
     const categories = await this.prisma.category.findMany({
       where: { restaurantId, nameFr: null },
       select: { id: true, name: true },
     });
-    for (const c of categories) {
-      const fr = await this.menuImport.translateToFrench(c.name);
-      if (fr && fr !== c.name) {
-        await this.prisma.category.update({ where: { id: c.id }, data: { nameFr: fr } });
-        translated++;
-      }
+    for (const batch of chunk(categories, TRANSLATE_BATCH)) {
+      const frs = await this.menuImport.translateManyToFrench(batch.map((c) => c.name));
+      await Promise.all(
+        batch.map((c, i) =>
+          frs[i]
+            ? this.prisma.category
+                .update({ where: { id: c.id }, data: { nameFr: frs[i] } })
+                .then(() => {
+                  translated++;
+                })
+            : Promise.resolve(),
+        ),
+      );
     }
 
-    const products = await this.prisma.product.findMany({
-      where: { restaurantId, OR: [{ nameFr: null }, { description: { not: null }, descriptionFr: null }] },
-      select: { id: true, name: true, nameFr: true, description: true, descriptionFr: true },
+    // Product names.
+    const nameless = await this.prisma.product.findMany({
+      where: { restaurantId, nameFr: null },
+      select: { id: true, name: true },
     });
-    for (const p of products) {
-      const data: { nameFr?: string; descriptionFr?: string } = {};
-      if (!p.nameFr) {
-        const fr = await this.menuImport.translateToFrench(p.name);
-        if (fr && fr !== p.name) data.nameFr = fr;
-      }
-      if (p.description && !p.descriptionFr) {
-        const fr = await this.menuImport.translateToFrench(p.description);
-        if (fr && fr !== p.description) data.descriptionFr = fr;
-      }
-      if (Object.keys(data).length > 0) {
-        await this.prisma.product.update({ where: { id: p.id }, data });
-        translated++;
-      }
+    for (const batch of chunk(nameless, TRANSLATE_BATCH)) {
+      const frs = await this.menuImport.translateManyToFrench(batch.map((p) => p.name));
+      await Promise.all(
+        batch.map((p, i) =>
+          frs[i]
+            ? this.prisma.product
+                .update({ where: { id: p.id }, data: { nameFr: frs[i] } })
+                .then(() => {
+                  translated++;
+                })
+            : Promise.resolve(),
+        ),
+      );
+    }
+
+    // Product descriptions (only those that have one and no French yet).
+    const descless = await this.prisma.product.findMany({
+      where: { restaurantId, description: { not: null }, descriptionFr: null },
+      select: { id: true, description: true },
+    });
+    for (const batch of chunk(descless, TRANSLATE_BATCH)) {
+      const frs = await this.menuImport.translateManyToFrench(batch.map((p) => p.description ?? ''));
+      await Promise.all(
+        batch.map((p, i) =>
+          frs[i]
+            ? this.prisma.product
+                .update({ where: { id: p.id }, data: { descriptionFr: frs[i] } })
+                .then(() => {
+                  translated++;
+                })
+            : Promise.resolve(),
+        ),
+      );
     }
 
     if (translated > 0) await this.invalidate(restaurantId);
+    this.logger.log(`Translated ${translated} menu strings to French for ${restaurantId}`);
     return { translated };
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Languages, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard, useRequireRole } from '@/components/dashboard/dashboard-provider';
@@ -52,6 +52,15 @@ export default function MenuPage() {
    * free-model ladder's throttle. One item's failure (a model having a bad
    * moment) doesn't stop the rest of the sweep.
    */
+  const translateMenu = useMutation({
+    mutationFn: () => api.translateMenuToFrench(),
+    onSuccess: () =>
+      toast('Translating your menu to French — it’ll appear on your storefront shortly.', {
+        duration: 6000,
+      }),
+    onError: () => toast.error('Could not start the translation'),
+  });
+
   const bulkFillDescriptions = useMutation({
     mutationFn: async () => {
       const targets = (products ?? []).filter((p) => !p.description?.trim());
@@ -156,6 +165,19 @@ export default function MenuPage() {
         </div>
         {!readOnly && tab === 'items' && (
           <div className="flex flex-wrap gap-2">
+            {/* Bilingual restaurants: (re)fill any missing French across the menu.
+                Idempotent — safe to press again to catch anything a rate limit
+                missed. */}
+            {restaurant?.menuLanguage === 'BOTH' && (
+              <Button
+                variant="outline"
+                onClick={() => translateMenu.mutate()}
+                disabled={translateMenu.isPending}
+              >
+                <Languages className="h-4 w-4" />
+                Translate to French
+              </Button>
+            )}
             {/* One photo instead of an hour of typing. Renders nothing when the
                 server has no vision key — see MenuPhotoImport. */}
             <MenuPhotoImport categories={categories ?? []} />

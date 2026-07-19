@@ -218,12 +218,20 @@ export class MenuController {
     return { description };
   }
 
-  /** Translate the whole menu to French (fills any missing French, never overwrites). */
+  /**
+   * Translate the whole menu to French (fills any missing French, never overwrites).
+   *
+   * Runs in the BACKGROUND and returns immediately: a real menu is dozens of strings,
+   * and awaiting all of them would blow past the HTTP timeout and leave it half done.
+   * The storefront picks up each batch as its cache is invalidated. Idempotent, so a
+   * second press safely fills anything the first run's rate limit missed.
+   */
   @Post('translate-french')
   @Roles('MANAGER')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   translateFrench(@TenantId() restaurantId: string) {
-    return this.menu.translateMenuToFrench(restaurantId);
+    void this.menu.translateMenuToFrench(restaurantId).catch(() => {});
+    return { started: true };
   }
 
   /**

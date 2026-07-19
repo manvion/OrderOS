@@ -455,6 +455,47 @@ export class MenuImportService {
     return '';
   }
 
+  /**
+   * Translate MANY short strings to French in ONE model call — the key to
+   * translating a whole menu without making a hundred separate calls (which trips
+   * the free model's rate limit and times the request out, leaving the menu half
+   * translated). Returns a same-length array, '' where a translation is missing,
+   * unusable, or identical to the source. On any failure the whole batch returns
+   * empties, so the caller leaves those French fields null and falls back.
+   */
+  async translateManyToFrench(texts: string[]): Promise<string[]> {
+    const sources = texts.map((t) => t.trim());
+    if (!this.available || sources.every((t) => !t)) return texts.map(() => '');
+
+    const system =
+      'You translate a JSON array of short restaurant menu strings into natural Quebec ' +
+      'French. Keep proper nouns, brand names and dish names conventionally left ' +
+      'untranslated (e.g. "Poutine", "Big Mac", "Nachos") as they are. Respond with ONLY a ' +
+      'JSON array of strings — the translations, in the SAME order and the SAME length as ' +
+      'the input. No keys, no notes, no markdown.';
+    const prompt = `Translate to French, same order and length:\n${JSON.stringify(sources)}`;
+
+    for (const model of this.openRouterModels) {
+      try {
+        const out = await this.callOpenRouter(model, system, { prompt });
+        const arr = parseStringArray(out);
+        if (arr && arr.length === sources.length) {
+          // Drop a translation that just echoes the source (a proper noun) — the
+          // storefront falls back to the original, which is the same text.
+          return arr.map((s, i) => {
+            const clean = typeof s === 'string' ? s.trim().slice(0, 600) : '';
+            return clean && clean !== sources[i] ? clean : '';
+          });
+        }
+      } catch (err) {
+        this.logger.warn(
+          `${model} failed batch translation (${(err as Error).message}) -- trying the next model`,
+        );
+      }
+    }
+    return texts.map(() => '');
+  }
+
   /** One sentence in a single language. The building block for the bilingual mode. */
   private async generateOneDescription(
     name: string,
@@ -593,6 +634,19 @@ export interface BrandIdea {
   bg: string;
   fg: string;
   font: 'serif' | 'sans' | 'script';
+}
+
+/** Pull a JSON array of strings out of a model reply (which may wrap it in prose). */
+function parseStringArray(text: string): string[] | null {
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed.map((v) => (typeof v === 'string' ? v : '')) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A #RGB / #RRGGBB hex, or null. Guards the SVG against a model's stray value. */
