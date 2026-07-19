@@ -294,6 +294,8 @@ export class RestaurantsService {
         // escaped paragraphs and never as HTML.
         aboutHeadline: true,
         aboutBody: true,
+        aboutHeadlineFr: true,
+        aboutBodyFr: true,
         galleryImages: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           select: { id: true, url: true, caption: true, sortOrder: true },

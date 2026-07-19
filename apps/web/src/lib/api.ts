@@ -973,6 +973,8 @@ export interface StorefrontRestaurant {
   /** The About page, in their own words. PLAIN TEXT — never render it as HTML. */
   aboutHeadline: string | null;
   aboutBody: string | null;
+  aboutHeadlineFr: string | null;
+  aboutBodyFr: string | null;
   galleryImages: RestaurantGalleryImage[];
   phone: string;
   street: string;
@@ -1215,6 +1217,8 @@ export interface Restaurant {
   /** About page content. Plain text, never HTML. */
   aboutHeadline: string | null;
   aboutBody: string | null;
+  aboutHeadlineFr: string | null;
+  aboutBodyFr: string | null;
   timezone: string;
   /** Derived from the country, never chosen. See deriveLocaleDefaults in @dinedirect/shared. */
   currency: string;

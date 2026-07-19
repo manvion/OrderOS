@@ -278,6 +278,10 @@ model Restaurant {
   /// whole formatting model, and it is enough for "we opened in 1998".
   aboutHeadline String?
   aboutBody     String? @db.Text
+  /// French versions of the About headline/story for a bilingual storefront —
+  /// typed by the restaurant; null falls back to the default-language version.
+  aboutHeadlineFr String?
+  aboutBodyFr     String? @db.Text
 
   /// BusinessHours JSON — see packages/shared/src/hours.ts for the shape.
   businessHours Json

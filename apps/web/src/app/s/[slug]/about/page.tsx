@@ -1,11 +1,18 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { headers } from 'next/headers';
-import { ArrowRight, Clock, Mail, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
+import { cookies, headers } from 'next/headers';
+import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { WEEKDAYS, aboutParagraphs, isOpenAt, type BusinessHours } from '@dinedirect/shared';
 import { storefrontApi } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
+import {
+  getDictionary,
+  LOCALE_COOKIE,
+  toLocale,
+  type Dictionary,
+  type Locale,
+} from '@/lib/i18n/dictionaries';
 
 export const revalidate = 300;
 
@@ -29,32 +36,33 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params;
   const restaurant = await storefrontApi.getRestaurant(slug, await previewTokenFor(slug));
 
-  const basePath = (await headers()).get('x-restaurant-slug') ? '' : `/s/${slug}`;
+  const headerList = await headers();
+  const basePath = headerList.get('x-restaurant-slug') ? '' : `/s/${slug}`;
   const href = (path: string) => `${basePath}${path}`;
+
+  // Locale, server-side: FR-only pins French, BOTH reads the cookie, else English.
+  const canToggle = restaurant.menuLanguage === 'BOTH';
+  const cookieLocale = (await cookies()).get(LOCALE_COOKIE)?.value;
+  const locale: Locale =
+    restaurant.menuLanguage === 'FR' ? 'fr' : canToggle ? toLocale(cookieLocale) : 'en';
+  const t = getDictionary(locale);
+  const dayLabel = (d: string) => t.about[d as keyof Dictionary['about']];
 
   const hours = restaurant.businessHours as BusinessHours;
   const today = WEEKDAYS[new Date().getDay()];
 
-  /** Their words and their photos. Both optional — the page works without either. */
-  const story = aboutParagraphs(restaurant.aboutBody);
+  /** Their words and their photos — in the customer's language, falling back. */
+  const headline =
+    (locale === 'fr' && restaurant.aboutHeadlineFr?.trim()) || restaurant.aboutHeadline?.trim();
+  const bodyText =
+    locale === 'fr' && restaurant.aboutBodyFr?.trim() ? restaurant.aboutBodyFr : restaurant.aboutBody;
+  const story = aboutParagraphs(bodyText);
   const gallery = restaurant.galleryImages ?? [];
 
   const options = [
-    restaurant.pickupEnabled && {
-      icon: ShoppingBag,
-      title: 'Pickup',
-      body: `Order ahead and collect. Usually ready in about ${restaurant.prepTimeMinutes} minutes.`,
-    },
-    restaurant.deliveryEnabled && {
-      icon: Truck,
-      title: 'Delivery',
-      body: 'We bring it to you. You can follow your driver on a live map the whole way.',
-    },
-    restaurant.dineInEnabled && {
-      icon: UtensilsCrossed,
-      title: 'Dine in',
-      body: 'Scan the code on your table and order from your phone. No waiting to catch an eye.',
-    },
+    restaurant.pickupEnabled && { icon: ShoppingBag, title: t.about.pickup, body: t.about.pickupBody },
+    restaurant.deliveryEnabled && { icon: Truck, title: t.about.delivery, body: t.about.deliveryBody },
+    restaurant.dineInEnabled && { icon: UtensilsCrossed, title: t.about.dineIn, body: t.about.dineInBody },
   ].filter(Boolean) as Array<{ icon: typeof Truck; title: string; body: string }>;
 
   return (
@@ -63,7 +71,7 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
       <section className="border-b bg-muted/30">
         <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-20">
           <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            {restaurant.aboutHeadline?.trim() || `About ${restaurant.name}`}
+            {headline || `${t.about.aboutPrefix} ${restaurant.name}`}
           </h1>
           {restaurant.description && (
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
@@ -122,17 +130,17 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
         <section>
           <h2 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
             <Clock className="h-5 w-5" />
-            Opening hours
+            {t.about.openingHours}
           </h2>
 
           <p className="mt-2 text-sm text-muted-foreground">
             {isOpenAt(hours, restaurant.timezone) ? (
               <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600">
                 <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                Open right now
+                {t.about.openNow}
               </span>
             ) : (
-              'Closed right now'
+              t.about.closedNow
             )}
           </p>
 
@@ -148,15 +156,17 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
                     isToday ? 'bg-brand-subtle font-medium' : ''
                   }`}
                 >
-                  <dt className="capitalize">
-                    {day}
+                  <dt>
+                    {dayLabel(day)}
                     {isToday && (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">today</span>
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        {t.about.today}
+                      </span>
                     )}
                   </dt>
                   <dd className="tabular-nums text-muted-foreground">
                     {!dayHours || dayHours.closed || dayHours.windows.length === 0
-                      ? 'Closed'
+                      ? t.about.closed
                       : dayHours.windows.map((w) => `${w.open} – ${w.close}`).join(', ')}
                   </dd>
                 </div>
@@ -168,7 +178,7 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
         {/* How to order */}
         {options.length > 0 && (
           <section>
-            <h2 className="text-2xl font-bold tracking-tight">How to order</h2>
+            <h2 className="text-2xl font-bold tracking-tight">{t.about.howToOrder}</h2>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {options.map(({ icon: Icon, title, body }, i) => (
@@ -193,13 +203,13 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
         <section>
           <h2 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
             <MapPin className="h-5 w-5" />
-            Find us
+            {t.about.findUs}
           </h2>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="rounded-2xl border p-6">
               <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                Address
+                {t.about.address}
               </p>
               <address className="mt-2 not-italic leading-relaxed">
                 {restaurant.street}
@@ -217,14 +227,14 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
               >
-                Get directions
+                {t.about.getDirections}
                 <ArrowRight className="h-3.5 w-3.5" />
               </a>
             </div>
 
             <div className="rounded-2xl border p-6">
               <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                Get in touch
+                {t.about.getInTouch}
               </p>
 
               <a
@@ -236,8 +246,7 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
               </a>
 
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-                Something wrong with an order? Call us — we&apos;d much rather fix it than have you
-                leave unhappy.
+                {t.about.contactPitch}
               </p>
             </div>
           </div>
@@ -248,16 +257,15 @@ export default async function AboutPage({ params }: { params: Promise<{ slug: st
             restaurant's own site over the app they already have installed. */}
         <section className="rounded-2xl bg-muted/50 p-8 text-center sm:p-10">
           <p className="mx-auto max-w-lg text-lg font-medium leading-relaxed">
-            When you order here, your money goes to this kitchen.
+            {t.about.moneyPitch1}
           </p>
           <p className="mx-auto mt-2.5 max-w-md text-sm leading-relaxed text-muted-foreground">
-            Delivery apps take up to 30% of every order. Ordering direct means the people who
-            cooked your food keep what you paid for it.
+            {t.about.moneyPitch2}
           </p>
 
           <Button asChild variant="brand" size="lg" className="mt-7 rounded-xl px-8">
             <Link href={href('/menu')}>
-              See the menu
+              {t.about.seeMenu}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

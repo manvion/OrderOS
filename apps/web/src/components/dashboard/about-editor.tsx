@@ -35,6 +35,9 @@ export function AboutEditor() {
 
   const [headline, setHeadline] = useState(restaurant?.aboutHeadline ?? '');
   const [body, setBody] = useState(restaurant?.aboutBody ?? '');
+  const [headlineFr, setHeadlineFr] = useState(restaurant?.aboutHeadlineFr ?? '');
+  const [bodyFr, setBodyFr] = useState(restaurant?.aboutBodyFr ?? '');
+  const bilingual = restaurant?.menuLanguage === 'BOTH';
 
   const { data: gallery, isLoading } = useQuery({
     queryKey: ['gallery', restaurant?.id],
@@ -47,6 +50,8 @@ export function AboutEditor() {
       api.updateCurrent({
         aboutHeadline: headline.trim() || null,
         aboutBody: body.trim() || null,
+        aboutHeadlineFr: headlineFr.trim() || null,
+        aboutBodyFr: bodyFr.trim() || null,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries();
@@ -82,7 +87,9 @@ export function AboutEditor() {
 
   const changed =
     headline.trim() !== (restaurant.aboutHeadline ?? '') ||
-    body.trim() !== (restaurant.aboutBody ?? '');
+    body.trim() !== (restaurant.aboutBody ?? '') ||
+    headlineFr.trim() !== (restaurant.aboutHeadlineFr ?? '') ||
+    bodyFr.trim() !== (restaurant.aboutBodyFr ?? '');
 
   const paragraphs = aboutParagraphs(body);
   const atLimit = (gallery?.length ?? 0) >= GALLERY_MAX_IMAGES;
@@ -111,6 +118,16 @@ export function AboutEditor() {
           <p className="text-xs text-muted-foreground">
             Leave it blank and we&apos;ll use &ldquo;About {restaurant.name}&rdquo;.
           </p>
+          {bilingual && (
+            <Input
+              value={headlineFr}
+              onChange={(e) => setHeadlineFr(e.target.value)}
+              placeholder="Titre en français (optional)"
+              maxLength={120}
+              lang="fr"
+              disabled={readOnly}
+            />
+          )}
         </div>
 
         <div className="space-y-2">
@@ -125,6 +142,16 @@ export function AboutEditor() {
             className="min-h-40"
             disabled={readOnly}
           />
+          {bilingual && (
+            <Textarea
+              value={bodyFr}
+              onChange={(e) => setBodyFr(e.target.value.slice(0, ABOUT_BODY_MAX))}
+              placeholder="Votre histoire en français (optional)"
+              lang="fr"
+              className="min-h-40"
+              disabled={readOnly}
+            />
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
               Plain text. A blank line starts a new paragraph

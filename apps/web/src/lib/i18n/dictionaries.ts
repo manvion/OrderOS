@@ -153,6 +153,55 @@ export interface Dictionary {
     afterPaying: string;
     people: string;
   };
+  orders: {
+    title: string;
+    subtitle: string;
+    pointsBalance: string;
+    noOrders: string;
+    noOrdersHint: string;
+    findYourOrder: string;
+    findDesc: string;
+    orderNumber: string;
+    orderNumberHint: string;
+    phoneUsed: string;
+    findingIt: string;
+    findMyOrder: string;
+    orderALot: string;
+    createAccountPitch: string;
+    createAccount: string;
+    stillStuck: string;
+    call: string;
+  };
+  about: {
+    aboutPrefix: string;
+    openingHours: string;
+    openNow: string;
+    closedNow: string;
+    today: string;
+    closed: string;
+    howToOrder: string;
+    pickup: string;
+    delivery: string;
+    dineIn: string;
+    pickupBody: string;
+    deliveryBody: string;
+    dineInBody: string;
+    findUs: string;
+    address: string;
+    getDirections: string;
+    getInTouch: string;
+    contactPitch: string;
+    moneyPitch1: string;
+    moneyPitch2: string;
+    seeMenu: string;
+    monday: string;
+    tuesday: string;
+    wednesday: string;
+    thursday: string;
+    friday: string;
+    saturday: string;
+    sunday: string;
+  };
   kitchen: {
     title: string;
     loading: string;
@@ -326,6 +375,58 @@ const en: Dictionary = {
     afterPaying: 'Secure checkout. You’ll confirm details with the restaurant after paying.',
     people: 'people',
   },
+  orders: {
+    title: 'Your orders',
+    subtitle: 'Track an order, or reorder a favourite.',
+    pointsBalance: 'Your points balance',
+    noOrders: 'No orders yet',
+    noOrdersHint: 'Your orders will appear here once you’ve placed one.',
+    findYourOrder: 'Find your order',
+    findDesc: 'We texted you a tracking link when you ordered. Lost it? Look it up here.',
+    orderNumber: 'Order number',
+    orderNumberHint: 'It’s in the text and the email we sent you.',
+    phoneUsed: 'The phone number you used',
+    findingIt: 'Finding it…',
+    findMyOrder: 'Find my order',
+    orderALot: 'Order a lot?',
+    createAccountPitch:
+      'Create an account and your orders are always here — no lookup, and your address is saved for next time.',
+    createAccount: 'Create an account',
+    stillStuck: 'Still stuck?',
+    call: 'Call',
+  },
+  about: {
+    aboutPrefix: 'About',
+    openingHours: 'Opening hours',
+    openNow: 'Open right now',
+    closedNow: 'Closed right now',
+    today: 'today',
+    closed: 'Closed',
+    howToOrder: 'How to order',
+    pickup: 'Pickup',
+    delivery: 'Delivery',
+    dineIn: 'Dine in',
+    pickupBody: 'Order ahead and collect. Usually ready in a few minutes.',
+    deliveryBody: 'We bring it to you. You can follow your driver on a live map the whole way.',
+    dineInBody: 'Scan the code on your table and order from your phone. No waiting to catch an eye.',
+    findUs: 'Find us',
+    address: 'Address',
+    getDirections: 'Get directions',
+    getInTouch: 'Get in touch',
+    contactPitch:
+      'Something wrong with an order? Call us — we’d much rather fix it than have you leave unhappy.',
+    moneyPitch1: 'When you order here, your money goes to this kitchen.',
+    moneyPitch2:
+      'Delivery apps take up to 30% of every order. Ordering direct means the people who cooked your food keep what you paid for it.',
+    seeMenu: 'See the menu',
+    monday: 'Monday',
+    tuesday: 'Tuesday',
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+    sunday: 'Sunday',
+  },
   kitchen: {
     title: 'Kitchen',
     loading: 'Loading…',
@@ -495,6 +596,60 @@ const fr: Dictionary = {
     afterPaying:
       'Paiement sécurisé. Vous confirmerez les détails avec le restaurant après le paiement.',
     people: 'personnes',
+  },
+  orders: {
+    title: 'Vos commandes',
+    subtitle: 'Suivez une commande ou recommandez un favori.',
+    pointsBalance: 'Votre solde de points',
+    noOrders: 'Aucune commande',
+    noOrdersHint: 'Vos commandes apparaîtront ici une fois que vous en aurez passé une.',
+    findYourOrder: 'Trouver votre commande',
+    findDesc: 'Nous vous avons envoyé un lien de suivi par texto. Perdu ? Retrouvez-le ici.',
+    orderNumber: 'Numéro de commande',
+    orderNumberHint: 'Il est dans le texto et le courriel que nous vous avons envoyés.',
+    phoneUsed: 'Le numéro de téléphone utilisé',
+    findingIt: 'Recherche…',
+    findMyOrder: 'Trouver ma commande',
+    orderALot: 'Vous commandez souvent ?',
+    createAccountPitch:
+      'Créez un compte et vos commandes sont toujours ici — sans recherche, et votre adresse est enregistrée pour la prochaine fois.',
+    createAccount: 'Créer un compte',
+    stillStuck: 'Toujours coincé ?',
+    call: 'Appeler',
+  },
+  about: {
+    aboutPrefix: 'À propos de',
+    openingHours: 'Heures d’ouverture',
+    openNow: 'Ouvert maintenant',
+    closedNow: 'Fermé en ce moment',
+    today: 'aujourd’hui',
+    closed: 'Fermé',
+    howToOrder: 'Comment commander',
+    pickup: 'À emporter',
+    delivery: 'Livraison',
+    dineIn: 'Sur place',
+    pickupBody: 'Commandez à l’avance et venez chercher. Habituellement prêt en quelques minutes.',
+    deliveryBody:
+      'Nous vous l’apportons. Vous pouvez suivre votre livreur sur une carte en direct tout le long.',
+    dineInBody:
+      'Scannez le code à votre table et commandez depuis votre téléphone. Aucune attente pour attirer l’attention.',
+    findUs: 'Nous trouver',
+    address: 'Adresse',
+    getDirections: 'Obtenir l’itinéraire',
+    getInTouch: 'Nous joindre',
+    contactPitch:
+      'Un problème avec une commande ? Appelez-nous — nous préférons de loin la corriger que de vous voir partir mécontent.',
+    moneyPitch1: 'Quand vous commandez ici, votre argent va à cette cuisine.',
+    moneyPitch2:
+      'Les applis de livraison prennent jusqu’à 30 % de chaque commande. Commander en direct, c’est laisser aux gens qui ont cuisiné ce que vous avez payé.',
+    seeMenu: 'Voir le menu',
+    monday: 'Lundi',
+    tuesday: 'Mardi',
+    wednesday: 'Mercredi',
+    thursday: 'Jeudi',
+    friday: 'Vendredi',
+    saturday: 'Samedi',
+    sunday: 'Dimanche',
   },
   kitchen: {
     title: 'Cuisine',

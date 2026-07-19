@@ -169,6 +169,8 @@ export const updateRestaurantSchema = z.object({
    */
   aboutHeadline: z.string().max(120).nullable().optional(),
   aboutBody: z.string().max(4000).nullable().optional(),
+  aboutHeadlineFr: z.string().max(120).nullable().optional(),
+  aboutBodyFr: z.string().max(4000).nullable().optional(),
 
   /**
    * Who the restaurant is to a tax authority.

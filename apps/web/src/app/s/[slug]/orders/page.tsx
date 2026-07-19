@@ -9,6 +9,7 @@ import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
+import { useT } from '@/components/storefront/i18n-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ const LIVE = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DRIVER_ASSIGNED', 'O
 export default function OrdersPage() {
   const restaurant = useTenant();
   const href = useTenantHref();
+  const t = useT();
   const { getToken, isSignedIn } = useCustomerAuth();
 
   const [orderNumber, setOrderNumber] = useState('');
@@ -73,8 +75,8 @@ export default function OrdersPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Your orders</h1>
-        <p className="mt-1 text-muted-foreground">Track an order, or reorder a favourite.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t.orders.title}</h1>
+        <p className="mt-1 text-muted-foreground">{t.orders.subtitle}</p>
       </div>
 
       {/* Signed in: just show them their orders. */}
@@ -85,7 +87,7 @@ export default function OrdersPage() {
             <CardContent className="flex items-center gap-3 py-4">
               <Sparkles className="h-5 w-5 shrink-0 text-brand" />
               <div>
-                <p className="text-sm text-muted-foreground">Your points balance</p>
+                <p className="text-sm text-muted-foreground">{t.orders.pointsBalance}</p>
                 <p className="text-xl font-bold tabular-nums">{profile.customer.loyaltyPoints}</p>
               </div>
             </CardContent>
@@ -96,12 +98,10 @@ export default function OrdersPage() {
         ) : !profile?.orders.length ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="font-medium">No orders yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your orders will appear here once you&apos;ve placed one.
-              </p>
+              <p className="font-medium">{t.orders.noOrders}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t.orders.noOrdersHint}</p>
               <Button asChild variant="brand" className="mt-4">
-                <Link href={href('/menu')}>Browse the menu</Link>
+                <Link href={href('/menu')}>{t.cart.browseMenu}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -152,16 +152,14 @@ export default function OrdersPage() {
       {!isSignedIn && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Find your order</CardTitle>
-            <CardDescription>
-              We texted you a tracking link when you ordered. Lost it? Look it up here.
-            </CardDescription>
+            <CardTitle className="text-base">{t.orders.findYourOrder}</CardTitle>
+            <CardDescription>{t.orders.findDesc}</CardDescription>
           </CardHeader>
 
           <CardContent>
             <form onSubmit={lookup} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="order-number">Order number</Label>
+                <Label htmlFor="order-number">{t.orders.orderNumber}</Label>
                 <Input
                   id="order-number"
                   value={orderNumber}
@@ -170,13 +168,11 @@ export default function OrdersPage() {
                   required
                   className="font-mono"
                 />
-                <p className="text-xs text-muted-foreground">
-                  It&apos;s in the text and the email we sent you.
-                </p>
+                <p className="text-xs text-muted-foreground">{t.orders.orderNumberHint}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="lookup-phone">The phone number you used</Label>
+                <Label htmlFor="lookup-phone">{t.orders.phoneUsed}</Label>
                 <Input
                   id="lookup-phone"
                   type="tel"
@@ -197,12 +193,12 @@ export default function OrdersPage() {
                 {looking ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Finding it…
+                    {t.orders.findingIt}
                   </>
                 ) : (
                   <>
                     <Search className="h-4 w-4" />
-                    Find my order
+                    {t.orders.findMyOrder}
                   </>
                 )}
               </Button>
@@ -213,13 +209,10 @@ export default function OrdersPage() {
                 configured would be a button that goes nowhere. */}
             {CLERK_ENABLED && (
               <div className="mt-6 rounded-xl bg-muted p-4 text-center">
-                <p className="text-sm font-medium">Order a lot?</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Create an account and your orders are always here — no lookup, and your address
-                  is saved for next time.
-                </p>
+                <p className="text-sm font-medium">{t.orders.orderALot}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t.orders.createAccountPitch}</p>
                 <Button asChild variant="outline" size="sm" className="mt-3">
-                  <Link href="/sign-in">Create an account</Link>
+                  <Link href="/sign-in">{t.orders.createAccount}</Link>
                 </Button>
               </div>
             )}
@@ -228,9 +221,9 @@ export default function OrdersPage() {
       )}
 
       <p className="text-center text-sm text-muted-foreground">
-        Still stuck?{' '}
+        {t.orders.stillStuck}{' '}
         <a href={`tel:${restaurant.phone}`} className="font-medium underline">
-          Call {restaurant.name}
+          {t.orders.call} {restaurant.name}
         </a>
       </p>
     </div>
