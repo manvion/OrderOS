@@ -305,82 +305,9 @@ function SignatureHome({ restaurant, href }: TemplateProps) {
  * one exists: this template's whole identity is "fast", not "photo-forward".
  */
 function BoldHome({ restaurant, href }: TemplateProps) {
-  const options = fulfillmentOptions(restaurant);
-
   return (
     <div className="animate-rise">
-      <section
-        className="relative isolate overflow-hidden"
-        style={{ background: restaurant.brandPrimaryColor }}
-      >
-        <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            background: `radial-gradient(ellipse 800px 500px at 85% -10%, ${restaurant.brandAccentColor}, transparent 60%)`,
-          }}
-        />
-
-        <div className="relative mx-auto max-w-4xl px-5 py-20 text-center sm:px-8 sm:py-28">
-          <div className="rise-1 inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25">
-            <span
-              className={`pulse-dot h-1.5 w-1.5 rounded-full ${
-                restaurant.isOpen ? 'bg-emerald-300 text-emerald-300' : 'bg-white/70'
-              }`}
-            />
-            {restaurant.isOpen ? 'Open now' : 'Closed'}
-            {restaurant.isOpen && (
-              <>
-                <span className="text-white/50">·</span>
-                ready in ~{restaurant.prepTimeMinutes} min
-              </>
-            )}
-          </div>
-
-          <h1 className="rise-2 mt-6 text-5xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-7xl">
-            {restaurant.name}
-          </h1>
-
-          {restaurant.description && (
-            <p className="rise-3 mx-auto mt-5 max-w-lg text-lg text-white/85">
-              {restaurant.description}
-            </p>
-          )}
-
-          <div className="rise-4 mt-9 flex flex-col items-center gap-4">
-            <Button
-              asChild
-              size="lg"
-              className="w-full max-w-xs rounded-xl bg-white px-8 text-base font-bold text-black shadow-floating hover:bg-white/90 sm:w-auto"
-            >
-              <Link href={href('/menu')} className="group">
-                {restaurant.isOpen ? 'Order now' : 'View the menu'}
-                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-            </Button>
-
-            {options.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {options.map(({ icon: Icon, label }) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-white/90 ring-1 ring-white/20"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
-            <p className="mt-5 text-sm text-white/75">
-              We&apos;re closed right now — but you can schedule an order for later.
-            </p>
-          )}
-        </div>
-      </section>
-
+      <MediaHero restaurant={restaurant} href={href} />
       <FactsRow restaurant={restaurant} />
       <ClosingPitch restaurant={restaurant} href={href} />
     </div>
@@ -394,50 +321,9 @@ function BoldHome({ restaurant, href }: TemplateProps) {
  * purpose: the menu button is the only thing asking for attention.
  */
 function MinimalHome({ restaurant, href }: TemplateProps) {
-  const options = fulfillmentOptions(restaurant);
-
   return (
     <div className="animate-rise">
-      <section className="mx-auto max-w-2xl px-5 py-24 text-center sm:px-8 sm:py-32">
-        <div className="rise-1 inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-500' : 'bg-muted-foreground/50'}`}
-          />
-          {restaurant.isOpen ? 'Open now' : 'Closed'}
-          {restaurant.isOpen && <>· ready in ~{restaurant.prepTimeMinutes} min</>}
-        </div>
-
-        <h1 className="rise-2 mt-6 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-          {restaurant.name}
-        </h1>
-
-        {restaurant.description && (
-          <p className="rise-3 mx-auto mt-4 max-w-md text-muted-foreground">
-            {restaurant.description}
-          </p>
-        )}
-
-        <div className="rise-4 mt-8 flex flex-col items-center gap-3">
-          <Button asChild variant="brand" size="lg" className="rounded-xl px-8">
-            <Link href={href('/menu')}>
-              {restaurant.isOpen ? 'Order now' : 'View the menu'}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-
-          {options.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {options.map((o) => o.label).join(' · ')}
-            </p>
-          )}
-
-          {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
-            <p className="text-sm text-muted-foreground">
-              Closed right now — but you can schedule an order for later.
-            </p>
-          )}
-        </div>
-      </section>
+      <MediaHero restaurant={restaurant} href={href} height="tall" />
 
       {/* Plain text, no icons, no cards -- the quietest version of the same facts
           every template shows. */}
