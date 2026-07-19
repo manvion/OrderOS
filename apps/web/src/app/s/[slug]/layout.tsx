@@ -12,7 +12,7 @@ import { I18nProvider } from '@/components/storefront/i18n-provider';
 import { LanguageToggle } from '@/components/storefront/language-toggle';
 import { getDictionary, LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
 import { nameWordmarkStyle } from '@/lib/name-style';
-import { SocialIcon } from '@/components/shared/social-icons';
+import { SiteFooter } from '@/components/storefront/site-footer';
 
 /**
  * Title, description, and — the part that matters — whether Google is allowed to
@@ -292,38 +292,8 @@ export default async function StorefrontLayout({
 
         <main className="flex-1">{children}</main>
 
-        <footer className="border-t py-8">
-          <div className="container space-y-1 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">{restaurant.name}</p>
-            <p>
-              {restaurant.street}, {restaurant.city}, {restaurant.state}
-            </p>
-            <p>
-              <a href={`tel:${restaurant.phone}`} className="hover:underline">
-                {restaurant.phone}
-              </a>
-            </p>
-            {restaurant.socialLinks && restaurant.socialLinks.length > 0 && (
-              <div className="flex flex-wrap items-center gap-3 pt-3">
-                {restaurant.socialLinks.map((link) => (
-                  <a
-                    key={link.platform}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    aria-label={link.platform}
-                    className="text-muted-foreground transition-colors hover:text-brand"
-                  >
-                    <SocialIcon platform={link.platform} className="h-5 w-5" />
-                  </a>
-                ))}
-              </div>
-            )}
-            {!restaurant.removeBranding && (
-              <p className="pt-4 text-xs">Powered by DineDirect</p>
-            )}
-          </div>
-        </footer>
+        {/* Address, hours, phone and socials — the site's standing info panel. */}
+        <SiteFooter restaurant={restaurant} locale={locale} />
       </div>
       </I18nProvider>
     </TenantProvider>

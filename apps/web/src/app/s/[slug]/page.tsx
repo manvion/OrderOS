@@ -100,7 +100,7 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
   return (
     <>
       {template}
-      <StoryBand restaurant={restaurant} locale={locale} href={href} />
+      <StoryBand restaurant={restaurant} locale={locale} />
     </>
   );
 }
