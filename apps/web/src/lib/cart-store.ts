@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { priceOrder, type PricingResult } from '@dinedirect/shared';
-import type { MenuProduct, StorefrontRestaurant } from './api';
+import { storefrontApi, type MenuProduct, type StorefrontRestaurant } from './api';
 
 export interface CartLine {
   /** Stable id for this configured line — the same product with different
@@ -221,4 +222,47 @@ export function useCartTotals(
     tipCents,
     discountCents: promoDiscountCents,
   });
+}
+
+/**
+ * Keeps the cart's discount in sync with the server as items change — including
+ * AUTO-APPLY promotions that carry no code.
+ *
+ * Without this, the only way a discount reached the summary was a customer manually
+ * entering a promo code; an automatic "10% off" the restaurant set up would silently
+ * apply at order creation (resolveDiscount always includes code-less promotions) but
+ * never show in the checkout total — the customer saw the full price, then a discounted
+ * receipt. This previews the exact same resolution the order uses, so the summary matches
+ * what they'll actually be charged. Re-runs whenever the cart or the applied code changes
+ * (cart edits reset the stored discount to 0; this restores the correct figure).
+ */
+export function useSyncedDiscount(restaurant: Pick<StorefrontRestaurant, 'slug'> | null): void {
+  const lines = useCart((s) => s.lines);
+  const promoCode = useCart((s) => s.promoCode);
+  const setPromo = useCart((s) => s.setPromo);
+  const slug = restaurant?.slug;
+
+  useEffect(() => {
+    if (!slug || lines.length === 0) return;
+    let cancelled = false;
+    const items = lines.map((l) => ({
+      productId: l.productId,
+      lineTotalCents:
+        (l.unitPriceCents + l.modifiers.reduce((s, m) => s + m.priceCents, 0)) * l.quantity,
+    }));
+    storefrontApi
+      .previewPromotion(slug, items, promoCode ?? undefined)
+      .then(({ discountCents }) => {
+        // Keep the applied code as-is; only the amount is server-owned. A code-less
+        // auto promo lands here with promoCode null and a positive discount.
+        if (!cancelled) setPromo(promoCode, discountCents);
+      })
+      .catch(() => {
+        // A now-invalid code (e.g. expired mid-session) just leaves the discount untouched.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, promoCode, JSON.stringify(lines.map((l) => [l.productId, l.quantity, l.modifiers.length]))]);
 }

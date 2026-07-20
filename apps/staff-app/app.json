@@ -34,6 +34,18 @@
           "bluetoothAlwaysUsagePermission": "Bluetooth is used to connect to card readers."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "05115645-e9d8-4d7b-8f82-139efe28a543"
+      }
+    },
+    "owner": "manvion",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/05115645-e9d8-4d7b-8f82-139efe28a543"
+    }
   }
 }

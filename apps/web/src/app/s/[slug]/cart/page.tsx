@@ -8,7 +8,7 @@ import { Minus, Plus, ShoppingBag, Tag, Trash2, Utensils, X } from 'lucide-react
 import { toast } from 'sonner';
 import { formatMoney } from '@dinedirect/shared';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
-import { useCart, useCartTotals } from '@/lib/cart-store';
+import { useCart, useCartTotals, useSyncedDiscount } from '@/lib/cart-store';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
 import { useT } from '@/components/storefront/i18n-provider';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,8 @@ export default function CartPage() {
   const promoDiscountCents = useCart((s) => s.promoDiscountCents);
   const setPromo = useCart((s) => s.setPromo);
   const totals = useCartTotals(restaurant);
+  // Keep discounts (incl. auto-apply promotions) live in the summary as items change.
+  useSyncedDiscount(restaurant);
 
   const [promoInput, setPromoInput] = useState('');
   const [applyingPromo, setApplyingPromo] = useState(false);

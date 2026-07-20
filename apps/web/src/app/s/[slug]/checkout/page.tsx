@@ -15,7 +15,7 @@ import {
   type DeliveryQuote,
   type OrderPayment,
 } from '@/lib/api';
-import { useCart, useCartTotals } from '@/lib/cart-store';
+import { useCart, useCartTotals, useSyncedDiscount } from '@/lib/cart-store';
 import { AddressAutocomplete } from '@/components/storefront/address-autocomplete';
 import { SchedulePicker } from '@/components/storefront/schedule-picker';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
@@ -120,6 +120,9 @@ export default function CheckoutPage() {
   const deliveryFeeOverride =
     quote?.deliverable && fulfillment === 'DELIVERY' ? quote.customerFeeCents : undefined;
   const totals = useCartTotals(restaurant, deliveryFeeOverride);
+  // Reflect any discount — including auto-apply promotions with no code — in the summary,
+  // so what's shown here matches what the order is actually charged.
+  useSyncedDiscount(restaurant);
 
   const availableFulfillments = useMemo(
     () =>
