@@ -87,43 +87,53 @@ export function OrderCta({ label, className }: { label: string; className?: stri
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center"
+          role="dialog"
+          aria-modal="true"
+        >
           <button
             aria-label="Close"
             onClick={() => setOpen(false)}
-            className="absolute inset-0 cursor-default bg-black/50 backdrop-blur-sm animate-in fade-in"
+            className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm animate-in fade-in"
           />
-          <div className="animate-in slide-in-from-bottom-4 fade-in absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-3xl bg-background p-5 pb-8 shadow-floating">
-            {/* Grabber + close, the app-sheet signals. */}
-            <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-muted-foreground/25" />
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-              className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent"
-            >
-              <X className="h-4 w-4" />
-            </button>
 
-            <h2 className="text-xl font-bold tracking-tight">How would you like it?</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">Pick one to start your order.</p>
+          {/* A floating rounded card, lifted off the edges — reads as a polished sheet,
+              not a panel bolted to the bottom of the screen. */}
+          <div className="animate-in slide-in-from-bottom-6 fade-in relative m-3 w-full max-w-md overflow-hidden rounded-[28px] bg-background shadow-floating ring-1 ring-black/5">
+            <div className="flex items-start justify-between gap-4 px-6 pt-6">
+              <div>
+                <h2 className="font-display text-2xl font-semibold tracking-tight">
+                  How would you like it?
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">Choose one to start ordering.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="-mr-1.5 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-            <div className="mt-5 grid gap-2.5">
+            <div className="grid gap-3 p-6 pt-5">
               {options.map(({ value, icon: Icon, label: optLabel, body }) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => go(value)}
-                  className="flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all hover:border-brand hover:bg-brand-subtle active:scale-[0.98]"
+                  className="group/opt flex items-center gap-4 rounded-3xl border border-border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:border-brand hover:shadow-lifted active:translate-y-0 active:scale-[0.99]"
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-subtle text-brand">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-subtle text-brand transition-colors group-hover/opt:bg-brand group-hover/opt:text-brand-foreground">
                     <Icon className="h-6 w-6" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block font-semibold">{optLabel}</span>
+                    <span className="block text-base font-semibold">{optLabel}</span>
                     <span className="block text-sm text-muted-foreground">{body}</span>
                   </span>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover/opt:translate-x-0.5" />
                 </button>
               ))}
             </div>
