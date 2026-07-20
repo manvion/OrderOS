@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Plus, Tag, UtensilsCrossed } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
@@ -218,8 +219,9 @@ export function MenuBrowser({
       {lines.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/90 p-4 backdrop-blur-md">
           <div className="mx-auto max-w-3xl">
-            <a
+            <Link
               href={href('/cart')}
+              prefetch
               className="flex items-center justify-between rounded-xl bg-brand px-6 py-4 font-semibold text-brand-foreground shadow-floating transition-transform hover:scale-[1.01]"
             >
               <span className="flex items-center gap-2.5">
@@ -232,7 +234,7 @@ export function MenuBrowser({
                 {formatMoney(subtotal, restaurant.currency)}
                 <ArrowRight className="h-4 w-4" />
               </span>
-            </a>
+            </Link>
           </div>
         </div>
       )}

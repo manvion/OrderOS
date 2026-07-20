@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
@@ -342,10 +343,10 @@ export default function CheckoutPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">{t.checkout.title}</h1>
         <Button asChild variant="ghost" size="sm">
-          <a href={href('/menu')}>
+          <Link href={href('/menu')} prefetch>
             <Plus className="h-4 w-4" />
-            {t.cart.addMore}
-          </a>
+          {t.cart.addMore}
+          </Link>
         </Button>
       </div>
 
@@ -710,14 +711,8 @@ export default function CheckoutPage() {
       {/* Summary */}
       {totals && (
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardHeader>
             <CardTitle className="text-base">{t.checkout.summary}</CardTitle>
-            <Button asChild variant="ghost" size="sm" className="-my-1">
-              <a href={href('/menu')}>
-                <Plus className="h-4 w-4" />
-                {t.cart.addMore}
-              </a>
-            </Button>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label={t.checkout.subtotal} cents={totals.subtotalCents} currency={restaurant.currency} />
@@ -771,10 +766,10 @@ export default function CheckoutPage() {
 
       {/* One last chance to add something before paying — right next to Pay. */}
       <Button asChild variant="outline" size="lg" className="w-full">
-        <a href={href('/menu')}>
+        <Link href={href('/menu')} prefetch>
           <Plus className="h-4 w-4" />
-          {t.cart.addMore}
-        </a>
+        {t.cart.addMore}
+        </Link>
       </Button>
 
       {belowMinimum && (

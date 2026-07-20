@@ -71,7 +71,18 @@ export function SiteFooter({
           )}
 
           {!restaurant.removeBranding && (
-            <p className="pt-3 text-xs">Powered by DineDirect</p>
+            <p className="pt-3 text-xs">
+              Powered by <span className="font-medium text-foreground">DineDirect</span> by Manvion
+              <br />
+              <a
+                href="https://dinedirect.manvion.ca"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                dinedirect.manvion.ca
+              </a>
+            </p>
           )}
         </div>
 
