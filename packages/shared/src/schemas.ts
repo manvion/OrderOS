@@ -222,8 +222,11 @@ export const updateRestaurantSchema = z.object({
     .optional(),
   themeMode: z.enum(['LIGHT', 'DARK']).optional(),
   logoDisplayMode: z.enum(['LOGO_AND_NAME', 'LOGO_ONLY', 'NAME_ONLY']).optional(),
-  /** Recolour the header logo mark. */
-  logoColor: z.enum(['ORIGINAL', 'WHITE', 'BLACK']).optional(),
+  /** The header logo's colour — ORIGINAL/WHITE/BLACK, or a #rrggbb custom silhouette. */
+  logoColor: z
+    .string()
+    .regex(/^(ORIGINAL|WHITE|BLACK|#[0-9a-fA-F]{6})$/, 'Must be ORIGINAL/WHITE/BLACK or a #rrggbb hex')
+    .optional(),
   /** The hero logo's colour — ORIGINAL/WHITE/BLACK, or a #rrggbb custom silhouette. */
   heroLogoColor: z
     .string()

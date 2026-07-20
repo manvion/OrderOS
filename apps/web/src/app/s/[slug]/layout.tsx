@@ -11,7 +11,8 @@ import { TenantProvider } from '@/components/storefront/tenant-provider';
 import { I18nProvider } from '@/components/storefront/i18n-provider';
 import { LanguageToggle } from '@/components/storefront/language-toggle';
 import { getDictionary, LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
-import { nameWordmarkStyle, logoColorFilter } from '@/lib/name-style';
+import { nameWordmarkStyle } from '@/lib/name-style';
+import { LogoMark } from '@/components/storefront/logo-mark';
 import { SiteFooter } from '@/components/storefront/site-footer';
 
 /**
@@ -214,16 +215,14 @@ export default async function StorefrontLayout({
                         />
                       </svg>
                     )}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={restaurant.logoUrl}
-                      alt={restaurant.name}
-                      className="relative z-10 w-auto object-contain"
-                      style={{
-                        height: `${(restaurant.logoScale ?? 100) * 0.44}px`,
-                        maxWidth: `${(restaurant.logoScale ?? 100) * 1.8}px`,
-                        filter: logoColorFilter(restaurant.logoColor),
-                      }}
+                    <LogoMark
+                      url={restaurant.logoUrl}
+                      name={restaurant.name}
+                      color={restaurant.logoColor}
+                      maxHeight={`${(restaurant.logoScale ?? 100) * 0.44}px`}
+                      maxWidth={`${(restaurant.logoScale ?? 100) * 1.8}px`}
+                      align="left"
+                      className="relative z-10"
                     />
                   </span>
                 ) : (

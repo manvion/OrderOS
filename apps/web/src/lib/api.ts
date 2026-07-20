@@ -1115,7 +1115,7 @@ export interface StorefrontRestaurant {
   websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY' | 'SIGNATURE';
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
-  logoColor: 'ORIGINAL' | 'WHITE' | 'BLACK';
+  logoColor: string;
   heroLogoColor: string;
   /** Header logo size as a percentage of default (100 = default). */
   logoScale: number;
@@ -1347,7 +1347,7 @@ export interface Restaurant {
   websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY' | 'SIGNATURE';
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
-  logoColor: 'ORIGINAL' | 'WHITE' | 'BLACK';
+  logoColor: string;
   heroLogoColor: string;
   /** Header logo size as a percentage of default (100 = default). */
   logoScale: number;

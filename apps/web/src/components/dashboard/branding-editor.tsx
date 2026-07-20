@@ -8,7 +8,8 @@ import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { BrandIdeasGenerator } from './brand-ideas';
 import { ApiRequestError } from '@/lib/api';
-import { nameWordmarkStyle, logoColorFilter } from '@/lib/name-style';
+import { nameWordmarkStyle } from '@/lib/name-style';
+import { LogoMark } from '@/components/storefront/logo-mark';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -118,7 +119,7 @@ export function BrandingEditor() {
   });
 
   const saveLogoColor = useMutation({
-    mutationFn: (logoColor: 'ORIGINAL' | 'WHITE' | 'BLACK') => api.updateCurrent({ logoColor }),
+    mutationFn: (logoColor: string) => api.updateCurrent({ logoColor }),
     onSuccess: () => {
       void queryClient.invalidateQueries();
       toast.success('Logo colour updated');
@@ -267,17 +268,21 @@ export function BrandingEditor() {
             // width auto, never cropped — so a wide wordmark logo previews as a wide
             // wordmark here, not a squashed square. The white pad keeps a transparent
             // PNG visible on any theme.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={restaurant.logoUrl}
-              alt=""
-              className="h-16 w-auto max-w-[220px] rounded-2xl border object-contain p-1.5"
+            <div
+              className="flex h-16 items-center justify-center rounded-2xl border px-2"
               style={{
-                filter: logoColorFilter(restaurant.logoColor),
-                // A brand-coloured pad so a white OR black recolour is visible here.
-                background: restaurant.logoColor === 'ORIGINAL' ? '#fff' : primary,
+                // A brand-coloured pad so a white/black/custom recolour is visible here.
+                background: (restaurant.logoColor ?? 'ORIGINAL') === 'ORIGINAL' ? '#fff' : primary,
               }}
-            />
+            >
+              <LogoMark
+                url={restaurant.logoUrl}
+                name={restaurant.name}
+                color={restaurant.logoColor}
+                maxHeight="52px"
+                maxWidth="200px"
+              />
+            </div>
           ) : (
             <div
               className="flex items-center justify-center rounded-2xl text-2xl font-bold text-white"
@@ -353,6 +358,31 @@ export function BrandingEditor() {
                       {label}
                     </button>
                   ))}
+                  {/* Custom colour — a solid silhouette in your colour. */}
+                  <label
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      restaurant.logoColor?.startsWith('#')
+                        ? 'border-brand-subtle bg-brand-subtle'
+                        : 'hover:bg-accent/50'
+                    } ${readOnly ? 'pointer-events-none opacity-40' : ''}`}
+                  >
+                    <span
+                      className="h-3.5 w-3.5 rounded-full border"
+                      style={{
+                        background: restaurant.logoColor?.startsWith('#')
+                          ? restaurant.logoColor
+                          : 'conic-gradient(red, orange, yellow, green, blue, violet, red)',
+                      }}
+                    />
+                    Custom
+                    <input
+                      type="color"
+                      className="sr-only"
+                      disabled={readOnly || saveLogoColor.isPending}
+                      value={restaurant.logoColor?.startsWith('#') ? restaurant.logoColor : '#111111'}
+                      onChange={(e) => saveLogoColor.mutate(e.target.value.toUpperCase())}
+                    />
+                  </label>
                 </div>
 
                 {/* Hero logo — over the media, so often white, or your own colour. */}
