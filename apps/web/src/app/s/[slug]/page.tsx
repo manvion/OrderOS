@@ -218,9 +218,20 @@ function SignatureHome({ restaurant, href }: TemplateProps) {
               )}
             </span>
 
-            <h1 className="rise-2 mt-6 font-display text-5xl font-semibold leading-[1.03] tracking-tight sm:text-6xl lg:text-7xl">
-              {restaurant.name}
-            </h1>
+            {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={restaurant.logoUrl}
+                alt={restaurant.name}
+                className="rise-2 mb-6 mt-8 h-auto w-auto object-contain drop-shadow-2xl"
+                style={{ maxHeight: '140px', maxWidth: 'min(76vw, 420px)' }}
+              />
+            )}
+            {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
+              <h1 className="rise-2 mt-6 font-display text-5xl font-semibold leading-[1.03] tracking-tight sm:text-6xl lg:text-7xl">
+                {restaurant.name}
+              </h1>
+            )}
 
             {restaurant.description && (
               <p className="rise-3 mt-5 max-w-xl text-lg leading-relaxed text-background/75">
@@ -374,6 +385,15 @@ function RusticHome({ restaurant, href }: TemplateProps) {
           style={{ background: cardBg }}
         >
           <div className="p-8 sm:p-12">
+            {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={restaurant.logoUrl}
+                alt={restaurant.name}
+                className="rise-1 mb-6 h-auto w-auto object-contain drop-shadow-lg"
+                style={{ maxHeight: '108px', maxWidth: 'min(70vw, 320px)' }}
+              />
+            )}
             <div
               className="rise-1 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium"
               style={{ background: cardChipBg, color: cardText }}
@@ -385,12 +405,14 @@ function RusticHome({ restaurant, href }: TemplateProps) {
               {restaurant.isOpen ? 'Open now' : 'Closed'}
             </div>
 
-            <h1
-              className="rise-2 mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl"
-              style={{ color: cardText }}
-            >
-              {restaurant.name}
-            </h1>
+            {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
+              <h1
+                className="rise-2 mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl"
+                style={{ color: cardText }}
+              >
+                {restaurant.name}
+              </h1>
+            )}
 
             {restaurant.description && (
               <p className="rise-3 mt-4 max-w-md" style={{ color: cardTextMuted }}>
@@ -566,7 +588,17 @@ function BuilderHome({ restaurant, href }: TemplateProps) {
       <section className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
         <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <div>
-            <p className="rise-1 text-sm font-semibold text-muted-foreground">{restaurant.name}</p>
+            {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={restaurant.logoUrl}
+                alt={restaurant.name}
+                className="rise-1 mb-5 h-auto w-auto object-contain"
+                style={{ maxHeight: '104px', maxWidth: 'min(70vw, 320px)' }}
+              />
+            ) : (
+              <p className="rise-1 text-sm font-semibold text-muted-foreground">{restaurant.name}</p>
+            )}
             <h1 className="rise-2 mt-2 font-display text-5xl font-black leading-[0.95] tracking-tight text-foreground sm:text-6xl">
               What are you craving today?
             </h1>
@@ -703,13 +735,24 @@ function BentoHome({ restaurant, href }: TemplateProps) {
               }}
             />
             <div className="relative">
+              {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={restaurant.logoUrl}
+                  alt={restaurant.name}
+                  className="rise-1 mb-5 h-auto w-auto object-contain drop-shadow-lg"
+                  style={{ maxHeight: '112px', maxWidth: 'min(70vw, 320px)' }}
+                />
+              )}
               <div className="rise-1 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">
                 <Sparkles className="h-3 w-3" />
                 {restaurant.isOpen ? 'Open now' : 'Closed'}
               </div>
-              <h1 className="rise-2 mt-5 font-display text-5xl font-black uppercase leading-[0.9] tracking-tight text-white sm:text-6xl">
-                {restaurant.name}
-              </h1>
+              {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
+                <h1 className="rise-2 mt-5 font-display text-5xl font-black uppercase leading-[0.9] tracking-tight text-white sm:text-6xl">
+                  {restaurant.name}
+                </h1>
+              )}
               {restaurant.description && (
                 <p className="rise-3 mt-4 max-w-md text-white/85">{restaurant.description}</p>
               )}
@@ -824,16 +867,27 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
 
   return (
     <div className="animate-rise" style={{ background: page }}>
-      <section className="mx-auto max-w-4xl px-5 pt-16 text-center sm:px-8 sm:pt-24">
+      <section className="mx-auto max-w-4xl px-5 pt-20 text-center sm:px-8 sm:pt-28">
+        {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={restaurant.logoUrl}
+            alt={restaurant.name}
+            className="rise-1 mx-auto mb-8 h-auto w-auto object-contain"
+            style={{ maxHeight: '132px', maxWidth: 'min(72vw, 380px)' }}
+          />
+        )}
         <p className="rise-1 text-sm font-semibold uppercase tracking-[0.2em]" style={{ color: FOREST }}>
           {restaurant.isOpen ? 'Open now' : 'Currently closed'}
         </p>
-        <h1
-          className="rise-2 mt-4 font-display text-4xl font-medium italic leading-tight tracking-tight sm:text-6xl"
-          style={{ color: headline }}
-        >
-          {restaurant.name}
-        </h1>
+        {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
+          <h1
+            className="rise-2 mt-4 font-display text-4xl font-medium italic leading-tight tracking-tight sm:text-6xl"
+            style={{ color: headline }}
+          >
+            {restaurant.name}
+          </h1>
+        )}
         {restaurant.description && (
           <p className="rise-3 mx-auto mt-5 max-w-lg" style={{ color: headlineMuted }}>
             {restaurant.description}
@@ -974,7 +1028,16 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
           }}
         />
 
-        <div className="relative mx-auto max-w-2xl px-5 pt-16 text-center sm:px-8 sm:pt-20">
+        <div className="relative mx-auto max-w-2xl px-5 pt-20 text-center sm:px-8 sm:pt-24">
+          {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={restaurant.logoUrl}
+              alt={restaurant.name}
+              className="rise-1 mx-auto mb-7 h-auto w-auto object-contain drop-shadow"
+              style={{ maxHeight: '128px', maxWidth: 'min(72vw, 360px)' }}
+            />
+          )}
           <div
             className="rise-1 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide"
             style={{ background: `${restaurant.brandPrimaryColor}22`, color: restaurant.brandPrimaryColor }}
@@ -982,9 +1045,11 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
             {restaurant.city} · {options.map((o) => o.label).join(' & ') || 'Order direct'}
           </div>
 
-          <h1 className="rise-2 mt-6 font-display text-4xl font-black leading-[1.05] tracking-tight text-foreground sm:text-6xl">
-            {restaurant.name}
-          </h1>
+          {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
+            <h1 className="rise-2 mt-6 font-display text-4xl font-black leading-[1.05] tracking-tight text-foreground sm:text-6xl">
+              {restaurant.name}
+            </h1>
+          )}
 
           {restaurant.description && (
             <p className="rise-3 mx-auto mt-5 max-w-lg text-muted-foreground">{restaurant.description}</p>
