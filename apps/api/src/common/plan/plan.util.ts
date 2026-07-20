@@ -19,7 +19,15 @@ import type { PrismaService } from '../prisma/prisma.service';
  * one (`commissionOverridden`), in which case their exact `platformFeeBps` stands.
  * Deriving it (rather than reading a materialised column) means changing a plan's
  * rate in plans.ts updates every restaurant on it at once, with nothing to re-sync.
- * Falls back to the stored value only when the tier is unknown (pre-migration).
+ *
+ * When the tier genuinely can't be read — the transient window where the plan
+ * migration hasn't rolled out yet and the order path loaded the row with the plan
+ * columns omitted — we assume the BASE PAID RATE (Starter), not the stored
+ * `platformFeeBps`. That stored column defaults to 0, so the old fallback silently
+ * dropped commission to 0% on every order across the whole platform whenever a
+ * migration lagged — the platform gave away its cut and no one noticed. Starter is
+ * also exactly what every row backfills to once the migration lands, so this is the
+ * value they're about to have anyway. A negotiated custom rate still wins.
  */
 export function effectiveCommissionBps(r: {
   planTier?: PlanTier | null;
@@ -27,7 +35,7 @@ export function effectiveCommissionBps(r: {
   commissionOverridden?: boolean | null;
 }): number {
   if (r.commissionOverridden) return r.platformFeeBps;
-  if (!r.planTier) return r.platformFeeBps;
+  if (!r.planTier) return commissionBpsForTier('STARTER');
   return commissionBpsForTier(r.planTier);
 }
 
