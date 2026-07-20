@@ -1266,6 +1266,8 @@ export interface TrackedOrder {
   totalCents: number;
   currency: string;
   subtotalCents: number;
+  /** Promo discount applied to the order. 0 when none. */
+  discountCents: number;
   taxCents: number;
   /** Tax broken out by name (GST, QST, …) exactly as charged. Null on legacy orders. */
   taxLines: Array<{ name: string; amountCents: number }> | null;

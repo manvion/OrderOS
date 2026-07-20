@@ -328,6 +328,14 @@ export function OrderTracker({
 
           <div className="space-y-1.5 border-t pt-4 text-sm">
             <Row label={t.checkout.subtotal} cents={order.subtotalCents} currency={order.currency} />
+            {order.discountCents > 0 && (
+              <div className="flex justify-between text-brand">
+                <span className="font-medium">{t.checkout.discount}</span>
+                <span className="tabular-nums">
+                  -{formatMoney(order.discountCents, order.currency)}
+                </span>
+              </div>
+            )}
             {order.serviceFeeCents > 0 && (
               <Row label={t.checkout.serviceFee} cents={order.serviceFeeCents} currency={order.currency} />
             )}
