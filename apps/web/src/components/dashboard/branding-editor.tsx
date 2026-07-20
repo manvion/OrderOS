@@ -2,8 +2,8 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, Lock, Upload } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Film, ImagePlus, Lock, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { BrandIdeasGenerator } from './brand-ideas';
@@ -142,6 +142,57 @@ export function BrandingEditor() {
     },
     onError: (err) =>
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not save the video'),
+  });
+
+  const videoRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  const uploadVideo = useMutation({
+    mutationFn: (file: File) => api.uploadHeroVideo(file),
+    onSuccess: (res) => {
+      setHeroVideo(res.heroVideoUrl);
+      void queryClient.invalidateQueries();
+      toast.success('Background video uploaded');
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not upload the video'),
+  });
+
+  const removeVideo = useMutation({
+    mutationFn: () => api.updateCurrent({ heroVideoUrl: null }),
+    onSuccess: () => {
+      setHeroVideo('');
+      void queryClient.invalidateQueries();
+      toast.success('Background video removed');
+    },
+    onError: () => toast.error('Could not remove the video'),
+  });
+
+  // The hero slideshow plays these when there's no video — the same gallery the
+  // About story uses, surfaced here so photos and video live in one place.
+  const gallery = useQuery({
+    queryKey: ['gallery', restaurant?.id],
+    queryFn: () => api.listGallery(),
+    enabled: Boolean(restaurant),
+  });
+
+  const addPhoto = useMutation({
+    mutationFn: (file: File) => api.addGalleryImage(file),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['gallery'] });
+      toast.success('Photo added');
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not add the photo'),
+  });
+
+  const removePhoto = useMutation({
+    mutationFn: (id: string) => api.removeGalleryImage(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['gallery'] });
+      toast.success('Photo removed');
+    },
+    onError: () => toast.error('Could not remove the photo'),
   });
 
   const saveNameStyle = useMutation({
@@ -522,32 +573,152 @@ export function BrandingEditor() {
           </div>
         )}
 
-        {/* ---------- Hero background video ---------- */}
-        <div className="space-y-2">
-          <Label htmlFor="hero-video">Hero background video</Label>
-          <p className="text-xs text-muted-foreground">
-            A hosted <code>.mp4</code>/<code>.webm</code> link plays full-screen behind your
-            logo on the homepage — the most modern look. No video? Your gallery photos play as
-            a slideshow instead, then your cover photo.
-          </p>
-          <div className="flex gap-2">
-            <Input
-              id="hero-video"
-              value={heroVideo}
-              onChange={(e) => setHeroVideo(e.target.value)}
-              placeholder="https://…/hero.mp4"
-              inputMode="url"
-              disabled={readOnly}
-            />
-            {!readOnly && heroVideo.trim() !== (restaurant.heroVideoUrl ?? '') && (
-              <Button
-                size="sm"
-                onClick={() => saveHeroVideo.mutate(heroVideo.trim() || null)}
-                disabled={saveHeroVideo.isPending}
-              >
-                Save
-              </Button>
+        {/* ---------- Hero background (video + photos) ---------- */}
+        <div className="space-y-3">
+          <div>
+            <Label>Hero background</Label>
+            <p className="text-xs text-muted-foreground">
+              What plays full-screen behind your logo on the homepage. A video is the most
+              modern look; with no video, your photos play as a moving slideshow.
+            </p>
+          </div>
+
+          {/* Video */}
+          <div className="rounded-xl border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <Film className="h-4 w-4 text-muted-foreground" />
+                {restaurant.heroVideoUrl ? 'Video added' : 'Background video'}
+              </span>
+              <div className="flex items-center gap-2">
+                {!readOnly && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => videoRef.current?.click()}
+                    disabled={uploadVideo.isPending}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploadVideo.isPending
+                      ? 'Uploading…'
+                      : restaurant.heroVideoUrl
+                        ? 'Replace'
+                        : 'Upload video'}
+                  </Button>
+                )}
+                {!readOnly && restaurant.heroVideoUrl && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => removeVideo.mutate()}
+                    disabled={removeVideo.isPending}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+            {restaurant.heroVideoUrl && (
+              <video
+                src={restaurant.heroVideoUrl}
+                className="mt-3 aspect-video w-full rounded-lg bg-black object-cover"
+                muted
+                loop
+                autoPlay
+                playsInline
+              />
             )}
+            {/* Advanced: paste a hosted link instead of uploading. */}
+            <div className="mt-3 flex gap-2">
+              <Input
+                value={heroVideo}
+                onChange={(e) => setHeroVideo(e.target.value)}
+                placeholder="…or paste a hosted .mp4 / .webm link"
+                inputMode="url"
+                disabled={readOnly}
+              />
+              {!readOnly && heroVideo.trim() !== (restaurant.heroVideoUrl ?? '') && (
+                <Button
+                  size="sm"
+                  onClick={() => saveHeroVideo.mutate(heroVideo.trim() || null)}
+                  disabled={saveHeroVideo.isPending}
+                >
+                  Save
+                </Button>
+              )}
+            </div>
+            <input
+              ref={videoRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadVideo.mutate(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
+
+          {/* Photos — the same gallery the About story uses; they play as the slideshow. */}
+          <div className="rounded-xl border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                Photos
+                <span className="font-normal text-muted-foreground">
+                  play as a slideshow when there&apos;s no video
+                </span>
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {gallery.data?.map((image) => (
+                <div key={image.id} className="group relative overflow-hidden rounded-lg border">
+                  <Image
+                    src={image.url}
+                    alt=""
+                    width={160}
+                    height={120}
+                    className="h-20 w-full object-cover"
+                  />
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => removePhoto.mutate(image.id)}
+                      aria-label="Remove photo"
+                      className="absolute right-1 top-1 rounded-md bg-black/60 p-1 text-white opacity-0 transition-opacity hover:bg-destructive group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => photoRef.current?.click()}
+                  disabled={addPhoto.isPending}
+                  className="flex h-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <ImagePlus className="h-4 w-4" />
+                  <span className="text-[10px] font-medium">
+                    {addPhoto.isPending ? 'Uploading…' : 'Add'}
+                  </span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) addPhoto.mutate(file);
+                e.target.value = '';
+              }}
+            />
           </div>
         </div>
 

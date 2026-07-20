@@ -494,7 +494,17 @@ export function createDashboardApi(
       });
     },
 
-    // About page photos
+    /** The immersive hero's background video. */
+    uploadHeroVideo: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return call<{ heroVideoUrl: string }>('/restaurants/current/hero-video', {
+        method: 'POST',
+        body: form,
+      });
+    },
+
+    // About page photos (also feed the hero slideshow when there's no video)
     listGallery: () => call<RestaurantGalleryImage[]>('/restaurants/current/gallery'),
     addGalleryImage: (file: File, caption?: string) => {
       const form = new FormData();

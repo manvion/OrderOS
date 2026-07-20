@@ -553,6 +553,24 @@ export class RestaurantsService {
     return { coverImageUrl: url };
   }
 
+  async uploadHeroVideo(restaurantId: string, file: Express.Multer.File) {
+    // Only real video — an image here would just freeze behind the hero.
+    if (!file.mimetype?.startsWith('video/')) {
+      throw new BadRequestException('Upload a video file (MP4 or WebM).');
+    }
+    const { url } = await this.storage.upload(
+      file.buffer,
+      file.mimetype,
+      `restaurants/${restaurantId}/hero-video`,
+    );
+    const restaurant = await this.prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { heroVideoUrl: url },
+    });
+    await this.invalidateCache(restaurant.slug);
+    return { heroVideoUrl: url };
+  }
+
   // --- About page gallery ----------------------------------------------------
 
   listGallery(restaurantId: string) {

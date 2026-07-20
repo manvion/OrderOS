@@ -135,6 +135,18 @@ export class RestaurantsController {
     return this.restaurants.uploadCover(restaurantId, file);
   }
 
+  /** Upload a background video for the immersive hero. Bigger cap than images. */
+  @Post('current/hero-video')
+  @Roles('MANAGER')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 64 * 1024 * 1024 } }))
+  @Audit('restaurant.hero_video_uploaded', 'Restaurant')
+  async uploadHeroVideo(
+    @TenantId() restaurantId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.restaurants.uploadHeroVideo(restaurantId, file);
+  }
+
   // --- About page gallery ----------------------------------------------------
 
   @Get('current/gallery')
