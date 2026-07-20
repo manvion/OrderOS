@@ -24,6 +24,7 @@ import {
   Receipt,
   Rocket,
   Settings,
+  Store,
   UserCog,
   UtensilsCrossed,
   Users,
@@ -75,6 +76,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Operations',
     items: [
       // The screens staff actually live in during service, on a tablet by the pass.
+      { href: '/dashboard/pos', label: 'Point of sale', icon: Store, minRole: 'STAFF' },
       { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' },
       { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' },
       { href: '/dashboard/cash', label: 'Cash drawer', icon: Banknote, minRole: 'STAFF' },

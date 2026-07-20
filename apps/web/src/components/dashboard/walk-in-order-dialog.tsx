@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, Label } from '@/compo
  * the counter has no courier to hand cash to. Pickup and dine-in only.
  */
 
-type ConfiguredLine = {
+export type ConfiguredLine = {
   /** productId + a stable key of chosen modifier ids -- lets the same item with
    *  a DIFFERENT configuration sit as its own line instead of merging quantities
    *  that don't actually match. */
@@ -390,8 +390,9 @@ export function WalkInOrderDialog({
 }
 
 /** A minimal, local-state-only modifier picker -- see the file header for why
- *  this doesn't reuse the customer-facing ProductDialog. */
-function ModifierConfigurator({
+ *  this doesn't reuse the customer-facing ProductDialog. Exported so the full-screen
+ *  POS (dashboard/pos) rings up options the exact same way the walk-in dialog does. */
+export function ModifierConfigurator({
   product,
   currency,
   onCancel,

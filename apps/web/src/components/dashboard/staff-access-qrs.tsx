@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { ChefHat, CreditCard, LayoutDashboard, Printer } from 'lucide-react';
+import { ChefHat, CreditCard, LayoutDashboard, Monitor, Printer, Store } from 'lucide-react';
 import { useDashboard } from '@/components/dashboard/dashboard-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { tenantUrl } from '@/lib/tenant-url';
 
 /**
  * QRs for the people RUNNING the restaurant, not the ones eating in it.
@@ -21,41 +22,76 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
  * That's why these are safe to print and tape to a wall, and why they're rendered
  * client-side with no server state — there is nothing to steal.
  */
-const TARGETS = [
-  {
-    path: '/dashboard/kitchen',
-    label: 'Kitchen board',
-    icon: ChefHat,
-    hint: 'Tape it by the pass. Scan with the kitchen tablet — live orders, status buttons, new-order sound.',
-  },
-  {
-    path: '/dashboard',
-    label: 'Owner dashboard',
-    icon: LayoutDashboard,
-    hint: 'For your own phone. Orders, revenue, analytics — everything, from anywhere.',
-  },
-] as const;
-
-type Target = { path: string; label: string; icon: typeof ChefHat; hint: string };
+/**
+ * Each code is a role-scoped door. Scan it once on the device that lives at that
+ * station — the kitchen tablet, the front counter, the wall TV — and it opens
+ * exactly the screen that station needs and nothing else. Access is still gated by
+ * the sign-in behind the door (a line cook can't reach billing by scanning the
+ * kitchen code), so these stay safe to print and tape up. The one exception is the
+ * order display, which is a public read-only board with no PII and therefore no
+ * login — that's the whole point of a screen customers can see.
+ */
+type Target = {
+  /** Stable id — also the key into the generated-images map. */
+  key: string;
+  /** The final, absolute URL the code encodes. */
+  url: string;
+  label: string;
+  icon: typeof ChefHat;
+  hint: string;
+  /** Footer line on the printout. Defaults to "staff sign-in required". */
+  footer?: string;
+};
 
 export function StaffAccessQrs() {
   const { restaurant } = useDashboard();
   const [images, setImages] = useState<Record<string, string>>({});
 
-  // The payment-app code is per-restaurant: it carries this restaurant's slug so the
-  // install page knows whose account staff will sign into. Built here (not in the static
-  // list) because it needs the live slug.
+  // Every URL is built here because they need the live slug (and the display board
+  // lives on the tenant's own storefront host, not the dashboard's apex).
   const targets = useMemo<Target[]>(() => {
-    const list: Target[] = [...TARGETS];
-    if (restaurant?.slug) {
-      list.push({
-        path: `/get-app?r=${restaurant.slug}`,
+    if (!restaurant?.slug) return [];
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const storefront = tenantUrl(restaurant.slug);
+
+    return [
+      {
+        key: 'pos',
+        url: `${origin}/dashboard/pos`,
+        label: 'Front desk (POS)',
+        icon: Store,
+        hint: 'The counter terminal, on a tablet. Ring up walk-in & phone orders, take cash or card, and send deliveries out to Uber or your own driver.',
+      },
+      {
+        key: 'kitchen',
+        url: `${origin}/dashboard/kitchen`,
+        label: 'Kitchen board',
+        icon: ChefHat,
+        hint: 'Tape it by the pass. Scan with the kitchen tablet — live orders, status buttons, new-order sound.',
+      },
+      {
+        key: 'display',
+        url: `${storefront}/board`,
+        label: 'Order display',
+        icon: Monitor,
+        hint: 'A wall screen showing order numbers as they’re prepared and ready. No login — safe to point a public TV at.',
+        footer: 'No sign-in — a public order screen',
+      },
+      {
+        key: 'dashboard',
+        url: `${origin}/dashboard`,
+        label: 'Owner / manager',
+        icon: LayoutDashboard,
+        hint: 'The full back office. The screen adapts to who signs in — an owner sees everything; a manager sees day-to-day operations.',
+      },
+      {
+        key: 'app',
+        url: `${origin}/get-app?r=${restaurant.slug}`,
         label: 'Payment app',
         icon: CreditCard,
         hint: 'Tap to Pay on a staff phone. Scan to install, sign in, and take card payments in person — no reader.',
-      });
-    }
-    return list;
+      },
+    ];
   }, [restaurant?.slug]);
 
   useEffect(() => {
@@ -63,11 +99,10 @@ export function StaffAccessQrs() {
 
     void Promise.all(
       targets.map(async (t) => {
-        const url = `${window.location.origin}${t.path}`;
         // Medium error correction and a quiet zone: these get printed on office
         // paper and laminated over, not professionally produced.
-        const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 2 });
-        return [t.path, dataUrl] as const;
+        const dataUrl = await QRCode.toDataURL(t.url, { width: 480, margin: 2 });
+        return [t.key, dataUrl] as const;
       }),
     ).then((entries) => {
       if (!cancelled) setImages(Object.fromEntries(entries));
@@ -86,9 +121,11 @@ export function StaffAccessQrs() {
    * "staff sign-in required" tells a stranger everything they need to know
    * (don't bother scanning it) without telling them anything useful.
    */
-  const print = (label: string, path: string) => {
-    const img = images[path];
+  const print = (target: Target) => {
+    const img = images[target.key];
     if (!img) return;
+    const label = target.label;
+    const footer = target.footer ?? 'Staff sign-in required to open';
 
     const w = window.open('', '_blank');
     if (!w) return;
@@ -111,7 +148,7 @@ export function StaffAccessQrs() {
         `<img src="${img}" style="width:280px;height:280px;display:block" />` +
         `</div>` +
         `<h1 style="margin:24px 0 4px;font-size:24px;font-weight:700;color:#1c1917">${label}</h1>` +
-        `<p style="margin:0;font-size:13px;color:#78716c">Staff sign-in required to open</p>` +
+        `<p style="margin:0;font-size:13px;color:#78716c">${footer}</p>` +
         `</div></div></body></html>`,
     );
     w.document.close();
@@ -129,8 +166,10 @@ export function StaffAccessQrs() {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6 sm:grid-cols-2">
-        {targets.map(({ path, label, icon: Icon, hint }) => (
-          <div key={path} className="card-interactive space-y-3 p-4">
+        {targets.map((target) => {
+          const { key, label, icon: Icon, hint, footer } = target;
+          return (
+          <div key={key} className="card-interactive space-y-3 p-4">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand">
                 <Icon className="h-4 w-4" />
@@ -138,7 +177,7 @@ export function StaffAccessQrs() {
               <span className="font-medium">{label}</span>
             </div>
 
-            {images[path] ? (
+            {images[key] ? (
               // Same branded frame as the print version -- a bare matrix on
               // screen just gets printed bare too, because "Print" only ever
               // captures what's already here.
@@ -170,8 +209,10 @@ export function StaffAccessQrs() {
                   {/* Plain <img>, deliberately: the source is a local data URL, so
                       next/image's remote-host machinery has nothing to add but ways to fail. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={images[path]} alt={`QR code for the ${label}`} className="mx-auto w-full" />
-                  <p className="text-[11px] text-muted-foreground">Staff sign-in required</p>
+                  <img src={images[key]} alt={`QR code for the ${label}`} className="mx-auto w-full" />
+                  <p className="text-[11px] text-muted-foreground">
+                    {footer ?? 'Staff sign-in required'}
+                  </p>
                 </div>
               </div>
             ) : (
@@ -180,12 +221,13 @@ export function StaffAccessQrs() {
 
             <p className="text-xs text-muted-foreground">{hint}</p>
 
-            <Button variant="outline" size="sm" onClick={() => print(label, path)} disabled={!images[path]}>
+            <Button variant="outline" size="sm" onClick={() => print(target)} disabled={!images[key]}>
               <Printer className="h-3.5 w-3.5" />
               Print
             </Button>
           </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );
