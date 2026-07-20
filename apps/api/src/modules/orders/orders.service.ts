@@ -26,6 +26,7 @@ import {
   PLAN_DB_COLUMNS,
 } from '../../common/plan/plan.util';
 import { applyInventoryDelta } from '../../common/inventory/inventory.util';
+import { recordCashMovement } from '../../common/cash/cash.util';
 import { applyLoyaltyDelta, pointsForSubtotal } from '../../common/loyalty/loyalty.util';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -572,6 +573,17 @@ export class OrdersService {
       // confirmation that will never come for a walk-in.
       await applyInventoryDelta(tx, lineItems, -1);
       await applyLoyaltyDelta(tx, customer?.id, loyaltyPointsEarned, 1);
+      // A cash walk-in goes into the open till (no-op if no drawer is open).
+      if (input.paymentMethod === 'CASH') {
+        await recordCashMovement(tx, {
+          restaurantId,
+          type: 'SALE',
+          amountCents: pricing.totalCents,
+          createdById: userId,
+          orderId: created.id,
+          reason: `Order #${created.orderNumber}`,
+        });
+      }
 
       return created;
     });
@@ -643,6 +655,17 @@ export class OrdersService {
       // Held back at creation so an abandoned table never banks points; the bill is
       // real now, so credit them.
       await applyLoyaltyDelta(tx, order.customerId, order.loyaltyPointsEarned, 1);
+      // If it was settled in cash, drop it into the open till (no-op if none is open).
+      if (opts.method === 'CASH') {
+        await recordCashMovement(tx, {
+          restaurantId,
+          type: 'SALE',
+          amountCents: order.totalCents,
+          createdById: opts.userId,
+          orderId,
+          reason: `Order #${order.orderNumber}`,
+        });
+      }
       await tx.orderEvent.create({
         data: {
           orderId,

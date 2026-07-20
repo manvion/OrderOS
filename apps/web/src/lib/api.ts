@@ -710,6 +710,25 @@ export function createDashboardApi(
       notes?: string;
     }) => call<Order>('/orders/walk-in', { method: 'POST', body: JSON.stringify(body) }),
 
+    // Cash drawer (Z-report)
+    /** The drawer open right now (with movements + live totals), or null if none. */
+    getCashDrawer: () => call<CashSession | null>('/cash/current'),
+    /** Recent closed shifts — the Z-report history. */
+    getCashHistory: (limit?: number) =>
+      call<CashSession[]>(`/cash/history${limit ? `?limit=${limit}` : ''}`),
+    openCashDrawer: (openingFloatCents: number) =>
+      call<CashSession>('/cash/open', {
+        method: 'POST',
+        body: JSON.stringify({ openingFloatCents }),
+      }),
+    addCashMovement: (body: { type: 'PAY_IN' | 'PAY_OUT'; amountCents: number; reason?: string }) =>
+      call<CashSession | null>('/cash/movement', { method: 'POST', body: JSON.stringify(body) }),
+    closeCashDrawer: (countedCashCents: number) =>
+      call<CashSession>('/cash/close', {
+        method: 'POST',
+        body: JSON.stringify({ countedCashCents }),
+      }),
+
     // Payments
     getStripeStatus: () => call<StripeStatus>('/payments/connect/status'),
     createStripeOnboardingLink: () =>
@@ -1287,6 +1306,40 @@ export interface StatusBoardEntry {
   acceptedAt: string | null;
   estimatedReadyAt: string | null;
   customerFirstName: string | null;
+}
+
+export interface CashMovement {
+  id: string;
+  type: 'SALE' | 'REFUND' | 'PAY_IN' | 'PAY_OUT';
+  /** Always positive; `type` says whether it added to or removed from the drawer. */
+  amountCents: number;
+  reason: string | null;
+  orderId: string | null;
+  createdByName: string;
+  createdAt: string;
+}
+
+/** A cash-drawer shift with its movements and running totals (the Z-report). */
+export interface CashSession {
+  id: string;
+  status: 'OPEN' | 'CLOSED';
+  openingFloatCents: number;
+  openedByName: string;
+  openedAt: string;
+  /** Set only on a CLOSED session. */
+  countedCashCents: number | null;
+  overShortCents: number | null;
+  closedByName: string | null;
+  closedAt: string | null;
+  note: string | null;
+  movements: CashMovement[];
+  // Running totals attached by the server (live for an open drawer).
+  salesCents: number;
+  refundsCents: number;
+  payInsCents: number;
+  payOutsCents: number;
+  /** float + sales + pay-ins − refunds − pay-outs: what should physically be in the drawer. */
+  expectedCashCents: number;
 }
 
 /** An open, unpaid dine-in tab for a table — what a customer sees when they re-scan. */

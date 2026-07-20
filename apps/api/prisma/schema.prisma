@@ -470,6 +470,7 @@ model Restaurant {
   cateringPackages    CateringPackage[]
   cateringRequests    CateringRequest[]
   reservations        Reservation[]
+  cashSessions        CashSession[]
 
   @@index([isPublished, isActive])
   @@map("restaurants")
@@ -1928,4 +1929,89 @@ model Reservation {
   @@index([restaurantId, reservedAt])
   @@index([restaurantId, status, reservedAt])
   @@map("reservations")
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  /// Cash a customer handed over for an order (pay-at-desk, walk-in).
+  SALE
+  /// Cash refunded to a customer out of the drawer.
+  REFUND
+  /// Money added to the drawer that isn't a sale — extra change, a correction.
+  PAY_IN
+  /// Money taken out that isn't a refund — petty cash, a supplier paid in cash, a tip-out.
+  PAY_OUT
+}
+
+/**
+ * A cash-drawer shift: opened with a counted float, closed with a counted total.
+ *
+ * This is the ledger a cash-handling restaurant reconciles at end of day — the "Z
+ * report". Every cash sale, refund and pay-in/out during the shift is a CashMovement
+ * against the open session; closing counts the drawer and records over/short against
+ * what the movements say SHOULD be there. Entirely opt-in: a restaurant that never
+ * opens a drawer simply has no sessions, and nothing about card orders changes.
+ *
+ * User references are stored as id + a name snapshot (not a relation) so a closed
+ * shift's report still reads correctly even if that staff member is later removed.
+ */
+model CashSession {
+  id String @id @default(cuid())
+
+  status CashSessionStatus @default(OPEN)
+
+  /// Counted cash placed in the drawer at open (the starting float).
+  openingFloatCents Int      @default(0)
+  openedById        String
+  openedByName      String
+  openedAt          DateTime @default(now())
+
+  /// All set together on close.
+  countedCashCents  Int?
+  /// float + SALE + PAY_IN − REFUND − PAY_OUT, computed from the movements at close.
+  expectedCashCents Int?
+  /// countedCash − expectedCash. Negative = short, positive = over.
+  overShortCents Int?
+  closedById     String?
+  closedByName   String?
+  closedAt       DateTime?
+  note           String?
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  movements CashMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, status])
+  @@map("cash_sessions")
+}
+
+model CashMovement {
+  id String @id @default(cuid())
+
+  type CashMovementType
+  /// Always positive; `type` decides whether it adds to or removes from the drawer.
+  amountCents Int
+  reason      String?
+
+  /// Set for SALE / REFUND movements that came from an order.
+  orderId String?
+
+  createdById   String
+  createdByName String
+
+  sessionId String
+  session   CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("cash_movements")
 }

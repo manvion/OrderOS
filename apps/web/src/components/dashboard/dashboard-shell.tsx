@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { UserButton } from '@clerk/nextjs';
 import {
+  Banknote,
   BarChart3,
   CalendarCheck,
   CalendarDays,
@@ -56,6 +57,7 @@ const NAV: NavItem[] = [
   // because during service it is the only one that matters.
   { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' },
   { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' },
+  { href: '/dashboard/cash', label: 'Cash drawer', icon: Banknote, minRole: 'STAFF' },
   {
     href: '/dashboard/order-history',
     label: 'Order history',
