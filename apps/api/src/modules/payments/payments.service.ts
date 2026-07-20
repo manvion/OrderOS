@@ -1162,13 +1162,25 @@ export class PaymentsService {
       throw new BadRequestException('This payment has no Stripe payment intent to refund');
     }
 
-    const remaining = payment.amountCents - payment.refundedAmountCents;
+    /**
+     * Once the food has actually been DELIVERED, the delivery fee has been earned:
+     * the courier rode and the delivery happened, so that portion of the charge is no
+     * longer refundable — a "full" refund on a delivered order returns everything
+     * EXCEPT the delivery fee. It stays refundable right up until then (a delivery
+     * cancelled while out is fully refundable), and pickup / dine-in have no such fee.
+     */
+    const deliveryFeeLockedCents = order.status === 'DELIVERED' ? order.deliveryFeeCents : 0;
+    const refundableCeiling = payment.amountCents - deliveryFeeLockedCents;
+    const remaining = Math.max(0, refundableCeiling - payment.refundedAmountCents);
     const amountCents = input.amountCents ?? remaining;
 
     if (amountCents <= 0) throw new BadRequestException('Refund amount must be positive');
     if (amountCents > remaining) {
+      const suffix = deliveryFeeLockedCents
+        ? ' (the delivery fee is not refundable once the order has been delivered)'
+        : '';
       throw new BadRequestException(
-        `Only ${(remaining / 100).toFixed(2)} ${payment.currency} remains refundable on this order`,
+        `Only ${(remaining / 100).toFixed(2)} ${payment.currency} remains refundable on this order${suffix}`,
       );
     }
 

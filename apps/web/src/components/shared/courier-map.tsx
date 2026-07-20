@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import type { Map as LeafletMap, Marker, Polyline } from 'leaflet';
+import type { LatLngExpression, Map as LeafletMap, Marker, Polyline } from 'leaflet';
 
 export interface MapPoint {
   latitude: number;
@@ -24,6 +24,15 @@ export interface MapPoint {
  * The courier marker is moved rather than recreated on each poll, so the pin
  * glides to its new position instead of blinking out and reappearing somewhere
  * else. That difference is most of what makes a tracking map feel alive.
+ *
+ * ROUTE, the Uber part. We draw the driving route that FOLLOWS THE STREETS from the
+ * courier (or, before a driver is moving, the restaurant) to the customer's door —
+ * not a straight line, not just the breadcrumbs of where the driver has already
+ * been. The road ahead is the brand-coloured line; where the driver has actually
+ * driven is a muted line underneath. That is exactly the read a customer gets from
+ * a ride-hailing app: "here's the path to me, here's how far along they are."
+ * Geometry comes from OSRM (see {@link fetchRoute}); if it can't be reached we fall
+ * back to a straight line so there is always a visible track to the door.
  */
 export function CourierMap({
   restaurant,
@@ -44,9 +53,14 @@ export function CourierMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const courierMarkerRef = useRef<Marker | null>(null);
+  const routeRef = useRef<Polyline | null>(null);
+  const routeCasingRef = useRef<Polyline | null>(null);
   const trailRef = useRef<Polyline | null>(null);
-  const trailCasingRef = useRef<Polyline | null>(null);
   const hasFittedRef = useRef(false);
+  // The origin the currently-drawn route was computed FROM, rounded. Lets us skip
+  // re-routing on every 4s poll and only fetch again once the driver has genuinely
+  // moved on (see ROUTE_REFETCH_M) — one OSRM call per meaningful move, not per tick.
+  const routedFromRef = useRef<string | null>(null);
 
   // Stable identity so the effect below doesn't re-run on every poll just because
   // the parent handed us a new array with the same contents.
@@ -110,29 +124,41 @@ export function CourierMap({
         }).addTo(map);
       }
 
-      // --- The route so far ---
-      // A white "casing" under a solid brand line — the crisp, layered route look of a
-      // real ride-hailing map, and it keeps the line legible over any part of the map.
+      // --- Where the driver has actually been ---
+      // A muted line under the route, so the customer can see the ground already
+      // covered without it competing with the road ahead.
       if (trail.length > 1) {
-        const latlngs = trail.map((p) => [p.latitude, p.longitude] as [number, number]);
-        if (trailCasingRef.current && trailRef.current) {
-          trailCasingRef.current.setLatLngs(latlngs);
-          trailRef.current.setLatLngs(latlngs);
+        const travelled = trail.map((p) => [p.latitude, p.longitude] as [number, number]);
+        if (trailRef.current) {
+          trailRef.current.setLatLngs(travelled);
         } else {
-          trailCasingRef.current = L.polyline(latlngs, {
-            color: '#ffffff',
-            weight: 8,
-            opacity: 0.95,
+          trailRef.current = L.polyline(travelled, {
+            color: '#9ca3af',
+            weight: 4,
+            opacity: 0.7,
             lineCap: 'round',
             lineJoin: 'round',
           }).addTo(map);
-          trailRef.current = L.polyline(latlngs, {
-            color: brandColor,
-            weight: 4.5,
-            opacity: 1,
-            lineCap: 'round',
-            lineJoin: 'round',
-          }).addTo(map);
+        }
+      }
+
+      // --- The road ahead: the routed line to the door ---
+      // From the driver (once one is moving) to the customer, following the streets.
+      // Before a driver is assigned we still draw the restaurant -> door route so the
+      // customer can see the journey their food is about to take.
+      const routeStart = courier ?? restaurant;
+      if (routeStart && dropoff) {
+        const fromKey = roundKey(routeStart);
+        const moved =
+          routedFromRef.current === null ||
+          (courier != null && routedFromRef.current !== fromKey);
+
+        if (moved) {
+          routedFromRef.current = fromKey;
+          const latlngs = await fetchRoute(routeStart, dropoff);
+          if (cancelled || !mapRef.current) return;
+
+          drawRoute(L, map, routeCasingRef, routeRef, latlngs, brandColor);
         }
       }
 
@@ -154,20 +180,27 @@ export function CourierMap({
       }
 
       // --- Framing ---
-      // Fit everything once, then leave the viewport alone. Re-fitting on every
-      // poll would yank the map out from under a customer who is pinching to look
-      // at their own street.
+      // Fit ONCE, then leave the viewport alone — re-fitting on every poll would yank
+      // the map out from under a customer who is pinching to look at their own street.
+      //
+      // We frame the leg that matters: the courier and the door. Including the pickup
+      // when the driver is already halfway across town is what forced the map to zoom
+      // out until the street names vanished — the single most common complaint. Once a
+      // driver is moving we drop the restaurant from the fit and let the map sit at a
+      // street-level zoom where labels are readable. maxZoom 17 (was 16) keeps it close.
       if (!hasFittedRef.current) {
-        const points = [restaurant, dropoff, courier].filter(Boolean) as MapPoint[];
+        const focus = (courier ? [courier, dropoff] : [restaurant, dropoff, courier]).filter(
+          Boolean,
+        ) as MapPoint[];
 
-        if (points.length > 1) {
+        if (focus.length > 1) {
           map.fitBounds(
-            L.latLngBounds(points.map((p) => [p.latitude, p.longitude] as [number, number])),
-            { padding: [56, 56], maxZoom: 16 },
+            L.latLngBounds(focus.map((p) => [p.latitude, p.longitude] as [number, number])),
+            { padding: [48, 48], maxZoom: 17 },
           );
           hasFittedRef.current = true;
-        } else if (points.length === 1) {
-          map.setView([points[0].latitude, points[0].longitude], 15);
+        } else if (focus.length === 1) {
+          map.setView([focus[0].latitude, focus[0].longitude], 16);
           hasFittedRef.current = true;
         }
       }
@@ -185,8 +218,9 @@ export function CourierMap({
       mapRef.current?.remove();
       mapRef.current = null;
       courierMarkerRef.current = null;
+      routeRef.current = null;
+      routeCasingRef.current = null;
       trailRef.current = null;
-      trailCasingRef.current = null;
     };
   }, []);
 
@@ -207,11 +241,106 @@ export function CourierMap({
         ref={containerRef}
         className="h-full w-full overflow-hidden rounded-2xl border border-border shadow-soft"
         style={{ minHeight: 340, zIndex: 0, background: '#eaeaea' }}
-        aria-label="Map showing your delivery driver's location"
+        aria-label="Map showing your delivery driver's location and route to you"
         role="img"
       />
     </div>
   );
+}
+
+// Re-route only once the driver has moved on by roughly this much — enough to be a
+// real change of position, coarse enough that GPS jitter at a red light doesn't
+// trigger a fresh routing call every few seconds. ~4 decimals ≈ 11m.
+function roundKey(p: MapPoint): string {
+  return `${p.latitude.toFixed(3)},${p.longitude.toFixed(3)}`;
+}
+
+/**
+ * Driving geometry between two points, as [lat, lng] pairs following the roads.
+ *
+ * OSRM's public server — free, keyless, CORS-open — is the default, matching how
+ * geocoding defaults to Nominatim and tiles to CARTO: the product WORKS out of the
+ * box, and a self-hosted or paid OSRM can be dropped in via NEXT_PUBLIC_OSRM_URL
+ * with no code change. Like those other free tiers it isn't a plan for infinite
+ * scale, but the map is drawn once per delivery and re-routed only as the driver
+ * moves, so the call volume is modest.
+ *
+ * On ANY failure (network, rate limit, a point OSRM can't snap to a road) we return
+ * a straight line between the two points, so the customer always sees a track to
+ * their door rather than a blank map.
+ */
+async function fetchRoute(from: MapPoint, to: MapPoint): Promise<Array<[number, number]>> {
+  const straightLine: Array<[number, number]> = [
+    [from.latitude, from.longitude],
+    [to.latitude, to.longitude],
+  ];
+
+  const cacheKey = `${roundKey(from)}->${roundKey(to)}`;
+  const cached = routeCache.get(cacheKey);
+  if (cached) return cached;
+
+  const base = process.env.NEXT_PUBLIC_OSRM_URL ?? 'https://router.project-osrm.org';
+  // OSRM wants lng,lat — the opposite order to everything else here.
+  const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
+  const url = `${base}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return straightLine;
+
+    const body = (await res.json()) as {
+      code: string;
+      routes?: Array<{ geometry: { coordinates: Array<[number, number]> } }>;
+    };
+    const coordinates = body.routes?.[0]?.geometry.coordinates;
+    if (body.code !== 'Ok' || !coordinates || coordinates.length < 2) return straightLine;
+
+    // GeoJSON is [lng, lat]; Leaflet wants [lat, lng].
+    const latlngs = coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
+    routeCache.set(cacheKey, latlngs);
+    return latlngs;
+  } catch {
+    return straightLine;
+  }
+}
+
+// Routes don't change between renders for the same origin/destination, and a
+// customer flips between the cart, checkout and tracker pages. Cache them for the
+// life of the tab so we don't re-ask OSRM for a road that hasn't moved.
+const routeCache = new Map<string, Array<[number, number]>>();
+
+/**
+ * Draw (or update) the routed line: a white casing under a solid brand line — the
+ * crisp, layered route look of a real ride-hailing map, legible over any basemap.
+ */
+function drawRoute(
+  L: typeof import('leaflet'),
+  map: LeafletMap,
+  casingRef: React.MutableRefObject<Polyline | null>,
+  lineRef: React.MutableRefObject<Polyline | null>,
+  latlngs: Array<[number, number]>,
+  brandColor: string,
+) {
+  const path = latlngs as LatLngExpression[];
+  if (casingRef.current && lineRef.current) {
+    casingRef.current.setLatLngs(path);
+    lineRef.current.setLatLngs(path);
+    return;
+  }
+  casingRef.current = L.polyline(path, {
+    color: '#ffffff',
+    weight: 9,
+    opacity: 0.95,
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(map);
+  lineRef.current = L.polyline(path, {
+    color: brandColor,
+    weight: 5,
+    opacity: 1,
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(map);
 }
 
 // Clean monochrome glyphs (Material-style paths), drawn in white inside the markers.

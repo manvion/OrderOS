@@ -65,7 +65,11 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
 
   const payment = order.payment;
   const alreadyRefunded = payment?.refundedAmountCents ?? 0;
-  const refundable = (payment?.amountCents ?? 0) - alreadyRefunded;
+  // Once the order has been delivered the delivery fee has been earned (the courier
+  // rode), so it stops being refundable — mirror the backend cap so the number shown
+  // here is the number the server will actually allow.
+  const deliveryFeeLocked = order.status === 'DELIVERED' ? order.deliveryFeeCents : 0;
+  const refundable = Math.max(0, (payment?.amountCents ?? 0) - deliveryFeeLocked - alreadyRefunded);
   const canRefund =
     can('MANAGER') &&
     refundable > 0 &&
@@ -507,8 +511,10 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
             <section className="rounded-lg border border-destructive/30 p-4">
               <h3 className="text-sm font-semibold">Refund</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                {formatMoney(refundable, order.currency)} is still refundable. A full refund also
-                cancels the order and notifies the customer.
+                {formatMoney(refundable, order.currency)} is still refundable.{' '}
+                {deliveryFeeLocked > 0
+                  ? `The ${formatMoney(deliveryFeeLocked, order.currency)} delivery fee isn't refundable — the order has already been delivered.`
+                  : 'A full refund also cancels the order and notifies the customer.'}
               </p>
 
               {refunding ? (
