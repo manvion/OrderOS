@@ -126,15 +126,6 @@ export function BrandingEditor() {
     onError: () => toast.error('Could not update the logo size'),
   });
 
-  const saveLogoBackdrop = useMutation({
-    mutationFn: (logoBackdrop: boolean) => api.updateCurrent({ logoBackdrop }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries();
-      toast.success('Logo backdrop updated');
-    },
-    onError: () => toast.error('Could not update the backdrop'),
-  });
-
   const saveHeroVideo = useMutation({
     mutationFn: (heroVideoUrl: string | null) => api.updateCurrent({ heroVideoUrl }),
     onSuccess: () => {
@@ -248,63 +239,6 @@ export function BrandingEditor() {
       </CardHeader>
 
       <CardContent className="space-y-8">
-        {/* ---------- Cover photo ---------- */}
-        <div className="space-y-2">
-          <Label>Cover photo</Label>
-
-          <div className="relative overflow-hidden rounded-xl border">
-            {restaurant.coverImageUrl ? (
-              <Image
-                src={restaurant.coverImageUrl}
-                alt=""
-                width={800}
-                height={240}
-                className="h-40 w-full object-cover"
-              />
-            ) : (
-              // The SAME gradient the storefront hero falls back to (140deg, primary
-              // -> accent), so what they see here is literally what a customer sees.
-              <div
-                className="flex h-40 w-full items-center justify-center"
-                style={{
-                  background: `linear-gradient(140deg, ${primary} 0%, ${accent} 100%)`,
-                }}
-              >
-                <p className="text-sm font-medium text-white/90">
-                  No photo yet — customers see this gradient
-                </p>
-              </div>
-            )}
-          </div>
-
-          <input
-            ref={coverRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={onPick((f) => uploadCover.mutate(f))}
-          />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => coverRef.current?.click()}
-              disabled={readOnly || uploadCover.isPending}
-            >
-              <ImagePlus className="h-3.5 w-3.5" />
-              {uploadCover.isPending
-                ? 'Uploading…'
-                : restaurant.coverImageUrl
-                  ? 'Replace photo'
-                  : 'Add a cover photo'}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Wide, not tall — around 1600×600. A photo of the food beats a photo of the building.
-            </p>
-          </div>
-        </div>
-
         {/* ---------- Logo ---------- */}
         <div className="flex flex-wrap items-center gap-5">
           {restaurant.logoUrl ? (
@@ -427,38 +361,6 @@ export function BrandingEditor() {
           </div>
         )}
 
-        {/* ---------- Logo backdrop ---------- */}
-        {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
-          <div className="space-y-2">
-            <Label>Logo backdrop</Label>
-            <p className="text-xs text-muted-foreground">
-              A soft panel behind the logo in your brand colour — helps a transparent logo stand
-              out.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(
-                [
-                  { value: false, label: 'Off' },
-                  { value: true, label: 'On' },
-                ] as const
-              ).map(({ value, label }) => (
-                <button
-                  key={label}
-                  type="button"
-                  disabled={readOnly || saveLogoBackdrop.isPending}
-                  onClick={() => saveLogoBackdrop.mutate(value)}
-                  className={`rounded-xl border p-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                    Boolean(restaurant.logoBackdrop) === value
-                      ? 'border-brand-subtle bg-brand-subtle'
-                      : 'hover:bg-accent/50'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ---------- Name style ---------- */}
         {restaurant.logoDisplayMode !== 'LOGO_ONLY' && (
@@ -733,6 +635,51 @@ export function BrandingEditor() {
                 if (file) addPhoto.mutate(file);
                 e.target.value = '';
               }}
+            />
+          </div>
+
+          {/* Poster / fallback — the still shown before a video loads and when there's
+              no video or photos at all. (This is the old 'cover photo'.) */}
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border p-4">
+            <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg border">
+              {restaurant.coverImageUrl ? (
+                <Image
+                  src={restaurant.coverImageUrl}
+                  alt=""
+                  width={160}
+                  height={90}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div
+                  className="h-full w-full"
+                  style={{ background: `linear-gradient(140deg, ${primary} 0%, ${accent} 100%)` }}
+                />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Poster / fallback image</p>
+              <p className="text-xs text-muted-foreground">
+                Shown before a video loads, and when there&apos;s no video or photos.
+              </p>
+            </div>
+            {!readOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => coverRef.current?.click()}
+                disabled={uploadCover.isPending}
+              >
+                <ImagePlus className="h-3.5 w-3.5" />
+                {uploadCover.isPending ? 'Uploading…' : restaurant.coverImageUrl ? 'Replace' : 'Add image'}
+              </Button>
+            )}
+            <input
+              ref={coverRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={onPick((f) => uploadCover.mutate(f))}
             />
           </div>
         </div>
