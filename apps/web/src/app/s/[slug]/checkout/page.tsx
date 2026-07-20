@@ -104,6 +104,12 @@ export default function CheckoutPage() {
     if (!restaurant.isOpen && !scheduledFor && slots.length > 0) setScheduledFor(slots[0].iso);
   }, [restaurant.isOpen, scheduledFor, slots]);
 
+  // Group the slots into day + time, so the customer picks a day then a short list of
+  // times — not one giant scrolling list of every 15 minutes for a week.
+  const scheduleDays = [...new Map(slots.map((s) => [s.day, s.dayLabel])).entries()];
+  const selectedDay = slots.find((s) => s.iso === scheduledFor)?.day ?? scheduleDays[0]?.[0];
+  const dayTimes = slots.filter((s) => s.day === selectedDay);
+
   // Once a real Uber quote lands, price the order with THAT fee rather than the
   // restaurant's default — otherwise the total shown here wouldn't match the one
   // the server computes and the customer would see it change at Stripe.
@@ -626,13 +632,29 @@ export default function CheckoutPage() {
             </Select>
 
             {scheduledFor && slots.length > 0 && (
-              <Select value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)}>
-                {slots.map((s) => (
-                  <option key={s.iso} value={s.iso}>
-                    {s.label}
-                  </option>
-                ))}
-              </Select>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Day, then a short list of that day's times. */}
+                <Select
+                  value={selectedDay}
+                  onChange={(e) => {
+                    const first = slots.find((s) => s.day === e.target.value);
+                    if (first) setScheduledFor(first.iso);
+                  }}
+                >
+                  {scheduleDays.map(([day, dayLabel]) => (
+                    <option key={day} value={day}>
+                      {dayLabel}
+                    </option>
+                  ))}
+                </Select>
+                <Select value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)}>
+                  {dayTimes.map((s) => (
+                    <option key={s.iso} value={s.iso}>
+                      {s.time}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             )}
 
             {!restaurant.isOpen && slots.length === 0 && (

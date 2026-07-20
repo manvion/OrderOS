@@ -13,8 +13,12 @@ import { WEEKDAYS, type BusinessHours } from '@dinedirect/shared';
 export interface Slot {
   /** The exact instant, UTC ISO — sent to the API as scheduledFor. */
   iso: string;
-  /** Human label in the restaurant's timezone, e.g. "Sat, 6:30 PM". */
-  label: string;
+  /** The calendar day it falls on, in the restaurant's tz (YYYY-MM-DD) — for grouping. */
+  day: string;
+  /** Friendly day name: "Today", "Tomorrow", or "Mon, Jul 21". */
+  dayLabel: string;
+  /** Time only, in the restaurant's tz, e.g. "6:30 PM". */
+  time: string;
 }
 
 /** Offset (ms) the zone has at `date`: wallClock(tz) − UTC. */
@@ -73,14 +77,25 @@ export function scheduleSlots(
   const earliest = now + Math.max(15, opts.leadMinutes) * 60_000;
   const horizon = now + 14 * 24 * 60 * 60_000;
 
-  const label = new Intl.DateTimeFormat('en-US', {
+  const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' });
+  const dayKeyFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const dayNameFmt = new Intl.DateTimeFormat('en-US', {
     timeZone,
     weekday: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
+    month: 'short',
+    day: 'numeric',
   });
 
   const today = todayInTz(timeZone);
+  const todayKey = `${today.y}-${String(today.mo).padStart(2, '0')}-${String(today.d).padStart(2, '0')}`;
+  const tomorrow = new Date(Date.UTC(today.y, today.mo - 1, today.d + 1));
+  const tomorrowKey = `${tomorrow.getUTCFullYear()}-${String(tomorrow.getUTCMonth() + 1).padStart(2, '0')}-${String(tomorrow.getUTCDate()).padStart(2, '0')}`;
+
   const slots: Slot[] = [];
   const seen = new Set<string>();
 
@@ -107,7 +122,10 @@ export function scheduleSlots(
         const iso = instant.toISOString();
         if (seen.has(iso)) continue;
         seen.add(iso);
-        slots.push({ iso, label: label.format(instant).replace(',', ',') });
+        const dayKey = dayKeyFmt.format(instant);
+        const dayLabel =
+          dayKey === todayKey ? 'Today' : dayKey === tomorrowKey ? 'Tomorrow' : dayNameFmt.format(instant);
+        slots.push({ iso, day: dayKey, dayLabel, time: timeFmt.format(instant) });
       }
     }
   }
