@@ -65,6 +65,45 @@ function todayInTz(timeZone: string): { y: number; mo: number; d: number } {
   return { y: map.year, mo: map.month, d: map.day };
 }
 
+export interface DayOption {
+  /** YYYY-MM-DD in the restaurant's tz — matches Slot.day. */
+  key: string;
+  /** "Today", "Tomorrow", or the weekday ("Mon"). */
+  label: string;
+  /** Day of month, e.g. "21". */
+  dayNum: string;
+  /** Short month, e.g. "Jul". */
+  month: string;
+}
+
+/** The next `days` calendar days in the restaurant's tz, for a calendar-style strip. */
+export function upcomingDays(timeZone: string, days = 14): DayOption[] {
+  const today = todayInTz(timeZone);
+  const todayKey = `${today.y}-${String(today.mo).padStart(2, '0')}-${String(today.d).padStart(2, '0')}`;
+  const tomorrow = new Date(Date.UTC(today.y, today.mo - 1, today.d + 1));
+  const tomorrowKey = `${tomorrow.getUTCFullYear()}-${String(tomorrow.getUTCMonth() + 1).padStart(2, '0')}-${String(tomorrow.getUTCDate()).padStart(2, '0')}`;
+
+  const wd = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' });
+  const dn = new Intl.DateTimeFormat('en-US', { timeZone, day: 'numeric' });
+  const mo = new Intl.DateTimeFormat('en-US', { timeZone, month: 'short' });
+  const keyFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  const out: DayOption[] = [];
+  for (let offset = 0; offset < days; offset++) {
+    // Noon avoids any DST edge when formatting the date.
+    const inst = zonedWallTimeToUtc(today.y, today.mo, today.d + offset, 12, 0, timeZone);
+    const key = keyFmt.format(inst);
+    const label = key === todayKey ? 'Today' : key === tomorrowKey ? 'Tomorrow' : wd.format(inst);
+    out.push({ key, label, dayNum: dn.format(inst), month: mo.format(inst) });
+  }
+  return out;
+}
+
 export function scheduleSlots(
   hours: BusinessHours | null | undefined,
   timeZone: string,

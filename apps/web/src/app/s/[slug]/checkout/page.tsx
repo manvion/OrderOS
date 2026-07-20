@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { formatMoney, type BusinessHours } from '@dinedirect/shared';
 import { toast } from 'sonner';
-import { scheduleSlots } from '@/lib/schedule-slots';
+import { scheduleSlots, upcomingDays } from '@/lib/schedule-slots';
 import {
   storefrontApi,
   ApiRequestError,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/api';
 import { useCart, useCartTotals } from '@/lib/cart-store';
 import { AddressAutocomplete } from '@/components/storefront/address-autocomplete';
+import { SchedulePicker } from '@/components/storefront/schedule-picker';
 import { useTenant, useTenantHref } from '@/components/storefront/tenant-provider';
 import { useT, useLocale } from '@/components/storefront/i18n-provider';
 import { useCustomerAuth } from '@/components/storefront/customer-auth';
@@ -102,11 +103,8 @@ export default function CheckoutPage() {
   // don't hide the option — we prompt them to pick a time instead of silently failing.
   const closedAsap = !restaurant.isOpen && !scheduledFor;
 
-  // Group the slots into day + time, so the customer picks a day then a short list of
-  // times — not one giant scrolling list of every 15 minutes for a week.
-  const scheduleDays = [...new Map(slots.map((s) => [s.day, s.dayLabel])).entries()];
-  const selectedDay = slots.find((s) => s.iso === scheduledFor)?.day ?? scheduleDays[0]?.[0];
-  const dayTimes = slots.filter((s) => s.day === selectedDay);
+  // The calendar-style day rail for the scheduler (next two weeks in the shop's tz).
+  const scheduleDayStrip = useMemo(() => upcomingDays(restaurant.timezone, 14), [restaurant.timezone]);
 
   // Once a real Uber quote lands, price the order with THAT fee rather than the
   // restaurant's default — otherwise the total shown here wouldn't match the one
@@ -638,29 +636,13 @@ export default function CheckoutPage() {
             </Select>
 
             {scheduledFor && slots.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                {/* Day, then a short list of that day's times. */}
-                <Select
-                  value={selectedDay}
-                  onChange={(e) => {
-                    const first = slots.find((s) => s.day === e.target.value);
-                    if (first) setScheduledFor(first.iso);
-                  }}
-                >
-                  {scheduleDays.map(([day, dayLabel]) => (
-                    <option key={day} value={day}>
-                      {dayLabel}
-                    </option>
-                  ))}
-                </Select>
-                <Select value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)}>
-                  {dayTimes.map((s) => (
-                    <option key={s.iso} value={s.iso}>
-                      {s.time}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+              <SchedulePicker
+                slots={slots}
+                days={scheduleDayStrip}
+                value={scheduledFor}
+                onChange={setScheduledFor}
+                restaurantName={restaurant.name}
+              />
             )}
 
             {closedAsap && slots.length > 0 && (

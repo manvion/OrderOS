@@ -212,6 +212,14 @@ export default function CartPage() {
         </Card>
       )}
 
+      {/* Add more items — visible on every size (the footer's copy is desktop-only). */}
+      <Button asChild variant="outline" className="mt-4 w-full">
+        <Link href={href('/menu')}>
+          <Plus className="h-4 w-4" />
+          {t.cart.addMore}
+        </Link>
+      </Button>
+
       {/* A delivery minimum is a hint here, never a block — the customer picks pickup
           or delivery on the next screen, so we can't decide it for them yet. */}
       {belowMinimum && (
