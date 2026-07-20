@@ -113,6 +113,23 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
       )
       .join('');
 
+    // The bill breakdown for the slip — subtotal, discount and the rest, so it
+    // reconciles to the total (no payout/fees here; this rides on the customer's bag).
+    const money = (c: number) => formatMoney(Math.abs(c), order.currency);
+    const slipRow = (label: string, cents: number, bold = false) =>
+      `<div style="display:flex;justify-content:space-between;${bold ? 'font-weight:800;font-size:15px;' : 'font-size:12px;'}"><span>${label}</span><span>${cents < 0 ? '-' : ''}${money(cents)}</span></div>`;
+    const taxRows =
+      order.taxLines && order.taxLines.length > 0
+        ? order.taxLines.map((tl) => slipRow(tl.name, tl.amountCents)).join('')
+        : slipRow('Tax', order.taxCents);
+    const billRows =
+      slipRow('Subtotal', order.subtotalCents) +
+      (order.discountCents > 0 ? slipRow('Discount', -order.discountCents) : '') +
+      (order.serviceFeeCents > 0 ? slipRow('Service fee', order.serviceFeeCents) : '') +
+      (order.deliveryFeeCents > 0 ? slipRow('Delivery', order.deliveryFeeCents) : '') +
+      taxRows +
+      (order.tipCents > 0 ? slipRow('Tip', order.tipCents) : '');
+
     w.document.write(`<html><head><title>Order #${esc(order.orderNumber)}</title>
       <style>
         @page { size: 80mm auto; margin: 0; }
@@ -141,9 +158,9 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
           <div style="font-size:12px">${esc(order.customerName)}</div>
           <table style="margin-top:7px;font-size:13px">${itemRows}</table>
           <hr />
-          <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px">
-            <span>Total</span><span>${formatMoney(order.totalCents, order.currency)}</span>
-          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">${billRows}</div>
+          <hr />
+          ${slipRow('Total', order.totalCents, true)}
           ${order.notes ? `<div style="margin-top:7px;padding:5px 7px;border:1px solid #000;border-radius:4px;font-size:12px">${esc(order.notes)}</div>` : ''}
           <div style="margin-top:10px;text-align:center;font-size:13px;font-weight:800">Thank you — enjoy every bite!</div>
           <div style="margin-top:2px;text-align:center;font-size:10px;line-height:1.35">
@@ -209,6 +226,86 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
               ))}
             </ul>
           </section>
+
+          {/* Bill — the full breakdown INCLUDING the discount, so it reconciles to the
+              total the customer actually paid. */}
+          <section>
+            <h3 className="mb-2 text-sm font-semibold">Bill</h3>
+            <dl className="space-y-1.5 rounded-lg border p-3 text-sm">
+              <MoneyRow label="Subtotal" cents={order.subtotalCents} currency={order.currency} />
+              {order.discountCents > 0 && (
+                <MoneyRow label="Discount" cents={-order.discountCents} currency={order.currency} accent />
+              )}
+              {order.serviceFeeCents > 0 && (
+                <MoneyRow label="Service fee" cents={order.serviceFeeCents} currency={order.currency} />
+              )}
+              {order.deliveryFeeCents > 0 && (
+                <MoneyRow label="Delivery" cents={order.deliveryFeeCents} currency={order.currency} />
+              )}
+              {order.taxLines && order.taxLines.length > 0 ? (
+                order.taxLines.map((tl) => (
+                  <MoneyRow key={tl.name} label={tl.name} cents={tl.amountCents} currency={order.currency} />
+                ))
+              ) : (
+                <MoneyRow label="Tax" cents={order.taxCents} currency={order.currency} />
+              )}
+              {order.tipCents > 0 && (
+                <MoneyRow label="Tip" cents={order.tipCents} currency={order.currency} />
+              )}
+              <MoneyRow label="Total paid" cents={order.totalCents} currency={order.currency} bold />
+            </dl>
+          </section>
+
+          {/* Payout — what actually lands in the restaurant's account after the
+              platform's commission and the courier cost (both folded into the Stripe
+              application fee), minus any refund. The exact net, not an estimate. */}
+          {payment && payment.status !== 'PENDING' && (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold">Your payout</h3>
+              <dl className="space-y-1.5 rounded-lg border p-3 text-sm">
+                <MoneyRow label="Total paid" cents={order.totalCents} currency={order.currency} />
+                {payment.platformFeeCents > 0 && (
+                  <MoneyRow
+                    label="Platform commission"
+                    cents={-payment.platformFeeCents}
+                    currency={order.currency}
+                    accent
+                  />
+                )}
+                {(payment.courierCostCents ?? 0) > 0 && (
+                  <MoneyRow
+                    label="Delivery cost"
+                    cents={-(payment.courierCostCents ?? 0)}
+                    currency={order.currency}
+                    accent
+                  />
+                )}
+                {alreadyRefunded > 0 && (
+                  <MoneyRow
+                    label="Refunded to customer"
+                    cents={-alreadyRefunded}
+                    currency={order.currency}
+                    accent
+                  />
+                )}
+                <MoneyRow
+                  label="You receive"
+                  cents={
+                    order.totalCents -
+                    payment.platformFeeCents -
+                    (payment.courierCostCents ?? 0) -
+                    alreadyRefunded
+                  }
+                  currency={order.currency}
+                  bold
+                />
+              </dl>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Deposited to your Stripe account. The commission covers card processing —
+                there is no separate Stripe fee taken from you.
+              </p>
+            </section>
+          )}
 
           {/* Customer */}
           <section className="grid gap-4 sm:grid-cols-2">
@@ -399,5 +496,32 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One line of the bill / payout. Negative amounts (discount, fees) show a minus. */
+function MoneyRow({
+  label,
+  cents,
+  currency,
+  bold,
+  accent,
+}: {
+  label: string;
+  cents: number;
+  currency: string;
+  bold?: boolean;
+  accent?: boolean;
+}) {
+  return (
+    <div className={`flex justify-between ${bold ? 'border-t pt-2 text-base font-semibold' : ''}`}>
+      <span className={bold ? '' : accent ? 'font-medium text-brand' : 'text-muted-foreground'}>
+        {label}
+      </span>
+      <span className={`tabular-nums ${accent && !bold ? 'text-brand' : ''}`}>
+        {cents < 0 ? '−' : ''}
+        {formatMoney(Math.abs(cents), currency)}
+      </span>
+    </div>
   );
 }

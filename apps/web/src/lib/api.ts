@@ -1473,7 +1473,11 @@ export interface Order {
   status: string;
   fulfillment: string;
   subtotalCents: number;
+  /** Promo discount on this order. 0 when none. */
+  discountCents: number;
   taxCents: number;
+  /** Tax broken out by legal name (GST, QST, …). Null on legacy orders. */
+  taxLines: Array<{ name: string; amountCents: number }> | null;
   tipCents: number;
   deliveryFeeCents: number;
   serviceFeeCents: number;
@@ -1504,6 +1508,10 @@ export interface Order {
     refundedAmountCents: number;
     cardBrand: string | null;
     cardLast4: string | null;
+    /** The platform's commission on this charge (application fee, excl. courier). */
+    platformFeeCents: number;
+    /** Courier cost recouped from the restaurant via the application fee. Null if none. */
+    courierCostCents: number | null;
   } | null;
   delivery: Delivery | null;
   customer: { id: string; name: string; totalOrders: number } | null;
