@@ -27,7 +27,9 @@ export function SiteFooter({
 
   return (
     <footer className="border-t bg-muted/20">
-      <div className="container grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr]">
+      {/* Extra bottom padding so the footer clears the fixed "View cart"/checkout bar
+          that overlays the viewport bottom on the menu, cart and checkout pages. */}
+      <div className="container grid gap-10 pb-28 pt-12 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr]">
         {/* Who + where + how to reach them. */}
         <div className="space-y-3 text-sm text-muted-foreground">
           <p className="font-display text-lg font-semibold text-foreground">{restaurant.name}</p>
