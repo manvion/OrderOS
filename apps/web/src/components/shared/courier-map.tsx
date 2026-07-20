@@ -72,11 +72,11 @@ export function CourierMap({
           scrollWheelZoom: false,
         });
 
-        // CARTO Positron: a clean, muted, low-contrast basemap — the "Uber / Stripe"
-        // look — instead of OpenStreetMap's busy default tiles. Free, no API key, and
-        // `{r}`/detectRetina serves crisp @2x tiles on phones. The muted map is the
-        // point: it recedes so the route and the moving courier are what you see.
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        // CARTO Voyager: clean and modern but with legible roads, labels and subtle
+        // colour — the Google/Uber-style basemap — rather than OpenStreetMap's busy
+        // tiles or Positron's too-faint grey. Free, no API key, and `{r}` +
+        // detectRetina serves crisp @2x tiles on phones.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; OpenStreetMap &copy; CARTO',
           subdomains: 'abcd',
           detectRetina: true,
