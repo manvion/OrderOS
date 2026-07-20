@@ -3,8 +3,9 @@ import Image from 'next/image';
 import { ArrowRight, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import type { StorefrontRestaurant } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { nameWordmarkStyle, logoColorFilter } from '@/lib/name-style';
+import { nameWordmarkStyle } from '@/lib/name-style';
 import { HeroSlideshow } from './hero-slideshow';
+import { LogoMark } from './logo-mark';
 
 /** The hero tagline's inline style. Defaults to translucent white over the media. */
 function taglineStyle(r: StorefrontRestaurant): React.CSSProperties {
@@ -116,16 +117,13 @@ export function MediaHero({
 
         {showLogo && (
           <span className="rise-2 mt-8 inline-flex">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={restaurant.logoUrl!}
-              alt={restaurant.name}
-              className="h-auto w-auto object-contain drop-shadow-2xl"
-              style={{
-                maxHeight: '160px',
-                maxWidth: 'min(80vw, 460px)',
-                filter: logoColorFilter(restaurant.logoColor),
-              }}
+            <LogoMark
+              url={restaurant.logoUrl!}
+              name={restaurant.name}
+              color={restaurant.heroLogoColor}
+              maxHeight="160px"
+              maxWidth="min(80vw, 460px)"
+              className="drop-shadow-2xl"
             />
           </span>
         )}

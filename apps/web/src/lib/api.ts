@@ -1116,6 +1116,7 @@ export interface StorefrontRestaurant {
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
   logoColor: 'ORIGINAL' | 'WHITE' | 'BLACK';
+  heroLogoColor: string;
   /** Header logo size as a percentage of default (100 = default). */
   logoScale: number;
   /** Soft brand-coloured backdrop behind the header logo. */
@@ -1347,6 +1348,7 @@ export interface Restaurant {
   themeMode: 'LIGHT' | 'DARK';
   logoDisplayMode: 'LOGO_AND_NAME' | 'LOGO_ONLY' | 'NAME_ONLY';
   logoColor: 'ORIGINAL' | 'WHITE' | 'BLACK';
+  heroLogoColor: string;
   /** Header logo size as a percentage of default (100 = default). */
   logoScale: number;
   /** Soft brand-coloured backdrop behind the header logo. */

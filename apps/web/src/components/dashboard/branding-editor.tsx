@@ -135,6 +135,15 @@ export function BrandingEditor() {
     onError: () => toast.error('Could not update the logo colour'),
   });
 
+  const saveHeroLogoColor = useMutation({
+    mutationFn: (heroLogoColor: string) => api.updateCurrent({ heroLogoColor }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Hero logo colour updated');
+    },
+    onError: () => toast.error('Could not update the hero logo colour'),
+  });
+
   const removeLogoBg = useMutation({
     mutationFn: () => api.removeLogoBackground(),
     onSuccess: () => {
@@ -328,29 +337,85 @@ export function BrandingEditor() {
             </p>
 
             {restaurant.logoUrl && (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-xs font-medium text-muted-foreground">Logo colour</span>
-                {(
-                  [
-                    { value: 'ORIGINAL', label: 'Original' },
-                    { value: 'WHITE', label: 'White' },
-                    { value: 'BLACK', label: 'Black' },
-                  ] as const
-                ).map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    disabled={readOnly || saveLogoColor.isPending}
-                    onClick={() => saveLogoColor.mutate(value)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                      (restaurant.logoColor ?? 'ORIGINAL') === value
+              <div className="space-y-2 pt-1">
+                {/* Header logo — sits on the light top bar, so usually stays original. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-24 text-xs font-medium text-muted-foreground">Header logo</span>
+                  {(
+                    [
+                      { value: 'ORIGINAL', label: 'Original' },
+                      { value: 'WHITE', label: 'White' },
+                      { value: 'BLACK', label: 'Black' },
+                    ] as const
+                  ).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={readOnly || saveLogoColor.isPending}
+                      onClick={() => saveLogoColor.mutate(value)}
+                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        (restaurant.logoColor ?? 'ORIGINAL') === value
+                          ? 'border-brand-subtle bg-brand-subtle'
+                          : 'hover:bg-accent/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Hero logo — over the media, so often white, or your own colour. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-24 text-xs font-medium text-muted-foreground">Hero logo</span>
+                  {(
+                    [
+                      { value: 'ORIGINAL', label: 'Original' },
+                      { value: 'WHITE', label: 'White' },
+                      { value: 'BLACK', label: 'Black' },
+                    ] as const
+                  ).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={readOnly || saveHeroLogoColor.isPending}
+                      onClick={() => saveHeroLogoColor.mutate(value)}
+                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        (restaurant.heroLogoColor ?? 'ORIGINAL') === value
+                          ? 'border-brand-subtle bg-brand-subtle'
+                          : 'hover:bg-accent/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  {/* Custom colour — fills the logo as a solid silhouette in your colour. */}
+                  <label
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      restaurant.heroLogoColor?.startsWith('#')
                         ? 'border-brand-subtle bg-brand-subtle'
                         : 'hover:bg-accent/50'
-                    }`}
+                    } ${readOnly ? 'pointer-events-none opacity-40' : ''}`}
                   >
-                    {label}
-                  </button>
-                ))}
+                    <span
+                      className="h-3.5 w-3.5 rounded-full border"
+                      style={{
+                        background: restaurant.heroLogoColor?.startsWith('#')
+                          ? restaurant.heroLogoColor
+                          : 'conic-gradient(red, orange, yellow, green, blue, violet, red)',
+                      }}
+                    />
+                    Custom
+                    <input
+                      type="color"
+                      className="sr-only"
+                      disabled={readOnly || saveHeroLogoColor.isPending}
+                      value={
+                        restaurant.heroLogoColor?.startsWith('#') ? restaurant.heroLogoColor : '#ffffff'
+                      }
+                      onChange={(e) => saveHeroLogoColor.mutate(e.target.value.toUpperCase())}
+                    />
+                  </label>
+                </div>
               </div>
             )}
           </div>

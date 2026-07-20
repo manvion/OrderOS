@@ -277,6 +277,10 @@ model Restaurant {
   /// and BLACK render it as a solid silhouette (via a CSS filter) so it reads over a
   /// dark or light hero. Pairs with the auto background removal.
   logoColor         String          @default("ORIGINAL")
+  /// The HERO logo is a separate placement from the header one — over dark media you
+  /// often want it white while the header (on a light bar) stays original. ORIGINAL/
+  /// WHITE/BLACK, or a #rrggbb hex for a custom-colour silhouette.
+  heroLogoColor     String          @default("ORIGINAL")
   /// How large the logo renders in the header, as a percentage of the default size.
   /// Lets a wide wordmark logo ("logo + name" baked into one image) be shown big
   /// instead of being capped small. 100 = default; clamped 50–250 by the API.
