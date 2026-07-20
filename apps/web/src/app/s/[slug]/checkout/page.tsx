@@ -98,11 +98,9 @@ export default function CheckoutPage() {
     [restaurant.businessHours, restaurant.timezone, restaurant.prepTimeMinutes],
   );
 
-  // Closed right now? An ASAP order can't happen, so default to the first real slot
-  // instead of leaving them on an "as soon as possible" that the kitchen would reject.
-  useEffect(() => {
-    if (!restaurant.isOpen && !scheduledFor && slots.length > 0) setScheduledFor(slots[0].iso);
-  }, [restaurant.isOpen, scheduledFor, slots]);
+  // "As soon as possible" only works while the kitchen is open. When it's closed we
+  // don't hide the option — we prompt them to pick a time instead of silently failing.
+  const closedAsap = !restaurant.isOpen && !scheduledFor;
 
   // Group the slots into day + time, so the customer picks a day then a short list of
   // times — not one giant scrolling list of every 15 minutes for a week.
@@ -254,6 +252,7 @@ export default function CheckoutPage() {
     customer.email.includes('@') &&
     (fulfillment !== 'DELIVERY' || (addressComplete && quote?.deliverable === true)) &&
     !belowMinimum &&
+    !closedAsap &&
     !submitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -626,8 +625,7 @@ export default function CheckoutPage() {
               value={scheduledFor ? 'later' : 'asap'}
               onChange={(e) => setScheduledFor(e.target.value === 'asap' ? '' : (slots[0]?.iso ?? ''))}
             >
-              {/* ASAP only makes sense while they're open. */}
-              {restaurant.isOpen && <option value="asap">{t.checkout.asap}</option>}
+              <option value="asap">{t.checkout.asap}</option>
               {slots.length > 0 && <option value="later">{t.checkout.scheduleLater}</option>}
             </Select>
 
@@ -655,6 +653,13 @@ export default function CheckoutPage() {
                   ))}
                 </Select>
               </div>
+            )}
+
+            {closedAsap && slots.length > 0 && (
+              <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                {restaurant.name} is closed right now — choose “{t.checkout.scheduleLater}” to book a
+                time.
+              </p>
             )}
 
             {!restaurant.isOpen && slots.length === 0 && (
