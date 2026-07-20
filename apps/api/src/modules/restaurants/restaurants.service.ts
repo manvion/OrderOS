@@ -542,6 +542,49 @@ export class RestaurantsService {
     return { logoUrl: url };
   }
 
+  /**
+   * Re-run background removal on the CURRENT logo, on demand.
+   *
+   * The auto-knockout only fires on upload, so a logo added before that existed — or
+   * one the owner wants to retry — needs this. We fetch the stored image, knock out a
+   * solid background, and re-upload as a fresh (transparent) PNG.
+   */
+  async removeLogoBackground(restaurantId: string) {
+    const current = await this.prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { logoUrl: true },
+    });
+    if (!current?.logoUrl) throw new BadRequestException('Upload a logo first.');
+
+    let buffer: Buffer;
+    try {
+      const res = await fetch(current.logoUrl);
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      buffer = Buffer.from(await res.arrayBuffer());
+    } catch {
+      throw new BadRequestException('Could not read the current logo. Try re-uploading it.');
+    }
+
+    const knocked = await autoKnockoutLogo(buffer).catch(() => null);
+    if (!knocked) {
+      throw new BadRequestException(
+        "We couldn't find a solid background to remove — this logo may already be transparent, or it sits on a photo.",
+      );
+    }
+
+    const { url } = await this.storage.upload(
+      knocked,
+      'image/png',
+      `restaurants/${restaurantId}/logo`,
+    );
+    const restaurant = await this.prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { logoUrl: url },
+    });
+    await this.invalidateCache(restaurant.slug);
+    return { logoUrl: url };
+  }
+
   async uploadCover(restaurantId: string, file: Express.Multer.File) {
     const { url } = await this.storage.upload(
       file.buffer,

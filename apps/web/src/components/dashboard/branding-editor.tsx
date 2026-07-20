@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Film, ImagePlus, Lock, Trash2, Upload, X } from 'lucide-react';
+import { Film, ImagePlus, Lock, Scissors, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { BrandIdeasGenerator } from './brand-ideas';
@@ -124,6 +124,18 @@ export function BrandingEditor() {
       toast.success('Logo size updated');
     },
     onError: () => toast.error('Could not update the logo size'),
+  });
+
+  const removeLogoBg = useMutation({
+    mutationFn: () => api.removeLogoBackground(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Logo background removed.');
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not remove the background',
+      ),
   });
 
   const saveHeroVideo = useMutation({
@@ -270,21 +282,35 @@ export function BrandingEditor() {
               onChange={onPick((f) => uploadLogo.mutate(f))}
             />
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => logoRef.current?.click()}
-              disabled={readOnly || uploadLogo.isPending}
-            >
-              <Upload className="h-3.5 w-3.5" />
-              {uploadLogo.isPending
-                ? 'Uploading…'
-                : restaurant.logoUrl
-                  ? 'Replace logo'
-                  : 'Upload a logo'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => logoRef.current?.click()}
+                disabled={readOnly || uploadLogo.isPending}
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {uploadLogo.isPending
+                  ? 'Uploading…'
+                  : restaurant.logoUrl
+                    ? 'Replace logo'
+                    : 'Upload a logo'}
+              </Button>
+              {restaurant.logoUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeLogoBg.mutate()}
+                  disabled={readOnly || removeLogoBg.isPending}
+                >
+                  <Scissors className="h-3.5 w-3.5" />
+                  {removeLogoBg.isPending ? 'Removing…' : 'Remove background'}
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Square works best. PNG, JPG, WebP or SVG, up to 5MB.
+              Square works best. PNG, JPG, WebP or SVG, up to 5MB. New uploads have their
+              background removed automatically; use “Remove background” to redo it.
             </p>
           </div>
         </div>

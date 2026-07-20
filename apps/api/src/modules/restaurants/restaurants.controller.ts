@@ -125,6 +125,14 @@ export class RestaurantsController {
     return this.restaurants.uploadLogo(restaurantId, file, user.id);
   }
 
+  /** Re-run background removal on the current logo (on demand). */
+  @Post('current/logo/remove-bg')
+  @Roles('MANAGER')
+  @Audit('restaurant.logo_background_removed', 'Restaurant')
+  removeLogoBackground(@TenantId() restaurantId: string) {
+    return this.restaurants.removeLogoBackground(restaurantId);
+  }
+
   @Post('current/cover')
   @Roles('MANAGER')
   @UseInterceptors(FileInterceptor('file'))

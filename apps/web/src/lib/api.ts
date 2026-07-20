@@ -494,6 +494,10 @@ export function createDashboardApi(
       });
     },
 
+    /** Re-run background removal on the current logo. */
+    removeLogoBackground: () =>
+      call<{ logoUrl: string }>('/restaurants/current/logo/remove-bg', { method: 'POST' }),
+
     /** The immersive hero's background video. */
     uploadHeroVideo: (file: File) => {
       const form = new FormData();
