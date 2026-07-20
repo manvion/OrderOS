@@ -89,7 +89,11 @@ export function OrderTracker({
   const currentIndex = steps.findIndex((s) => s.status === order.status);
   const isCancelled = order.status === 'CANCELLED';
   const isDone = order.status === 'DELIVERED' || order.status === 'COMPLETED';
-  const isUnpaid = order.payment?.status === 'PENDING';
+  // A pay-at-desk table order is placed and cooking — it's "unpaid" online but that's
+  // by design, not an abandoned checkout. Only a genuinely-abandoned Stripe order gets
+  // the "we haven't received your payment" treatment.
+  const awaitingDesk = order.payAtDesk && order.payment?.status === 'PENDING';
+  const isUnpaid = order.payment?.status === 'PENDING' && !order.payAtDesk;
 
   const delivery = order.delivery;
   const showMap =
@@ -164,6 +168,16 @@ export function OrderTracker({
           <CardContent className="p-4 text-sm text-amber-900">
             We haven&apos;t received your payment yet. If you closed the payment page before
             finishing, this order will be cancelled automatically.
+          </CardContent>
+        </Card>
+      )}
+
+      {awaitingDesk && (
+        <Card className="mb-6 border-amber-300 bg-amber-50">
+          <CardContent className="p-4 text-sm text-amber-900">
+            <span className="font-semibold">Pay at the counter.</span> Your order is with the
+            kitchen. Settle {formatMoney(order.totalCents, order.currency)} at the desk
+            {order.tableNumber ? '' : ' when you’re done'} — no need to pay online.
           </CardContent>
         </Card>
       )}

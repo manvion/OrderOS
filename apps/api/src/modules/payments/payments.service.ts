@@ -735,15 +735,21 @@ export class PaymentsService {
         ? session.payment_intent
         : session.payment_intent?.id;
 
-    // Pull the charge so we can show "Visa ···4242" in the dashboard.
+    // Pull the charge so we can show "Visa ···4242" in the dashboard, and read the
+    // real Stripe processing fee off its balance transaction. We charge with
+    // `on_behalf_of` the restaurant, so the restaurant is the settlement merchant and
+    // this fee is deducted from THEIR balance — it belongs in their payout maths, not
+    // ours. Using the actual settled fee (not a 2.9%+30¢ estimate) keeps the payout
+    // exact to the cent.
     let cardBrand: string | null = null;
     let cardLast4: string | null = null;
     let chargeId: string | null = null;
+    let stripeFeeCents: number | null = null;
 
     if (paymentIntentId) {
       try {
         const intent = await this.stripe.paymentIntents.retrieve(paymentIntentId, {
-          expand: ['latest_charge'],
+          expand: ['latest_charge.balance_transaction'],
         });
         const charge = intent.latest_charge as Stripe.Charge | null;
         if (charge) {
@@ -751,15 +757,21 @@ export class PaymentsService {
           const card = charge.payment_method_details?.card;
           cardBrand = card?.brand ?? null;
           cardLast4 = card?.last4 ?? null;
+          const balanceTx = charge.balance_transaction as Stripe.BalanceTransaction | null;
+          if (balanceTx && typeof balanceTx.fee === 'number') stripeFeeCents = balanceTx.fee;
         }
       } catch (err) {
-        // Cosmetic only — never fail a payment over a missing card brand.
+        // Cosmetic only — never fail a payment over a missing card brand or fee.
         this.logger.warn(`Could not expand charge for ${paymentIntentId}: ${(err as Error).message}`);
       }
     }
 
     await this.markOrderPaid(orderId, {
-      paymentFields: { stripePaymentIntentId: paymentIntentId, stripeChargeId: chargeId },
+      paymentFields: {
+        stripePaymentIntentId: paymentIntentId,
+        stripeChargeId: chargeId,
+        ...(stripeFeeCents !== null ? { stripeFeeCents } : {}),
+      },
       cardBrand,
       cardLast4,
       auditMeta: { stripeSessionId: session.id },

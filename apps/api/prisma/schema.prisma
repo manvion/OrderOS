@@ -1082,6 +1082,14 @@ model Order {
   tableNumber String?
 
   /**
+   * A dine-in table order the customer chose to settle at the counter rather than
+   * pay online. The kitchen still cooks it (it lands CONFIRMED, not PENDING), but
+   * its Payment stays unpaid until a staff member marks it settled at the desk.
+   * Only ever true for DINE_IN orders placed from a table QR.
+   */
+  payAtDesk Boolean @default(false)
+
+  /**
    * The code that gets the right food to the right person. EVERY order has one.
    *
    * Pickup: the customer reads it out at the counter. Dine-in: it's on the ticket
@@ -1237,6 +1245,16 @@ model Payment {
    * settling exact costs after the fact -- is an invoicing system.
    */
   courierCostCents Int?
+
+  /**
+   * The actual Stripe processing fee for this charge, read back from the charge's
+   * balance transaction once the payment settles. Because we create the charge with
+   * `on_behalf_of` the connected account, the RESTAURANT is the settlement merchant
+   * and Stripe deducts this fee from their balance -- so it comes off the restaurant's
+   * payout, on top of our commission. NULL until the webhook captures it, and for
+   * pay-at-desk / cash orders where no card was processed.
+   */
+  stripeFeeCents Int?
 
   stripeCheckoutSessionId String? @unique
   stripePaymentIntentId   String? @unique

@@ -378,6 +378,11 @@ function OrderCard({
               ? `${t.kitchen.table} ${order.tableNumber}`
               : t.kitchen[f.labelKey]}
           </span>
+          {order.payAtDesk && order.payment?.status !== 'PAID' && (
+            <span className="mt-1 block rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+              Pay at desk
+            </span>
+          )}
           <p
             className={`mt-1.5 flex items-center justify-end gap-1 text-xs font-bold tabular-nums ${
               late ? 'text-destructive' : 'text-muted-foreground'

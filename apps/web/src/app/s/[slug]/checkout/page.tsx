@@ -86,6 +86,13 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // A dine-in order scanned from a table can settle at the counter instead of paying
+  // online. Only offered for table orders — never pickup/delivery, where unpaid food
+  // walks out the door. Defaults to paying now.
+  const isDineInTable = fulfillment === 'DINE_IN' && !!tableNumber;
+  const [payMode, setPayMode] = useState<'now' | 'desk'>('now');
+  const payAtDesk = isDineInTable && payMode === 'desk';
+
   const subtotalCents = useCart((s) => s.subtotalCents());
 
   // Real "schedule for later" slots — only times the kitchen is open, in the
@@ -283,6 +290,7 @@ export default function CheckoutPage() {
           notes: notes.trim() || undefined,
           ...(tableNumber ? { tableNumber } : {}),
           ...(qrCodeId ? { qrCodeId } : {}),
+          ...(payAtDesk ? { payAtDesk: true } : {}),
           ...(promoCode ? { promoCode } : {}),
           // So their texts and emails come back in the language they ordered in.
           locale,
@@ -303,6 +311,13 @@ export default function CheckoutPage() {
       // Where the customer lands once paid — the tracking page for this order,
       // derived from the current storefront path so it works on a subdomain or /s/slug.
       const trackUrl = `${window.location.pathname.replace(/\/checkout\/?$/, '')}/track/${response.trackingToken}?paid=1`;
+
+      // Pay at desk: nothing to charge online. The order is placed and already on the
+      // kitchen board; send them straight to the tracker to await their food.
+      if (response.payAtDesk || response.payment.provider === 'AT_DESK') {
+        window.location.href = `${window.location.pathname.replace(/\/checkout\/?$/, '')}/track/${response.trackingToken}?placed=1`;
+        return;
+      }
 
       if (response.payment.provider === 'RAZORPAY') {
         // India: Razorpay Checkout is a client-side modal, not a redirect.
@@ -781,12 +796,39 @@ export default function CheckoutPage() {
         </p>
       )}
 
+      {/* Dine-in at a table: pay now, or run it on the table and settle at the counter. */}
+      {isDineInTable && (
+        <div className="grid grid-cols-2 gap-2">
+          {(['now', 'desk'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setPayMode(mode)}
+              className={`rounded-xl border p-3 text-left transition ${
+                payMode === mode
+                  ? 'border-brand ring-2 ring-brand/30'
+                  : 'border-border hover:border-brand/40'
+              }`}
+            >
+              <span className="block text-sm font-semibold">
+                {mode === 'now' ? 'Pay now' : 'Pay at desk'}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {mode === 'now' ? 'Card, online' : 'Settle at the counter'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <Button type="submit" variant="brand" size="lg" className="w-full" disabled={!canSubmit}>
         {submitting ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            {t.checkout.takingToPayment}
+            {payAtDesk ? 'Placing order…' : t.checkout.takingToPayment}
           </>
+        ) : payAtDesk ? (
+          <>Place order · {formatMoney(totals?.totalCents ?? 0, restaurant.currency)} at desk</>
         ) : (
           <>
             {t.checkout.pay} {formatMoney(totals?.totalCents ?? 0, restaurant.currency)}
@@ -794,7 +836,11 @@ export default function CheckoutPage() {
         )}
       </Button>
 
-      <p className="text-center text-xs text-muted-foreground">{t.checkout.redirectNote}</p>
+      <p className="text-center text-xs text-muted-foreground">
+        {payAtDesk
+          ? 'Your order goes to the kitchen now. Pay at the counter when you’re done.'
+          : t.checkout.redirectNote}
+      </p>
     </form>
   );
 }

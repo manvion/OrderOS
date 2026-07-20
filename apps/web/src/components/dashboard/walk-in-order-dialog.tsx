@@ -40,13 +40,22 @@ type ConfiguredLine = {
 export function WalkInOrderDialog({
   open,
   onOpenChange,
+  tabOrder,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * When set, this dialog runs in "add to tab" mode: the item picker is identical,
+   * but instead of ringing up a new paid walk-in it appends the chosen items to an
+   * existing open dine-in order (a running table tab). The customer/fulfillment/payment
+   * fields are hidden — those belong to the original ticket, not this extra round.
+   */
+  tabOrder?: { id: string; orderNumber: string; tableNumber: string | null } | null;
 }) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { restaurant } = useDashboard();
+  const isTab = !!tabOrder;
 
   const { data: categories } = useQuery({
     queryKey: ['menu', 'categories'],
@@ -123,24 +132,33 @@ export function WalkInOrderDialog({
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, quantity } : l)));
   };
 
+  const itemsPayload = () =>
+    lines.map((l) => ({
+      productId: l.productId,
+      quantity: l.quantity,
+      modifierIds: l.modifierIds,
+    }));
+
   const create = useMutation({
     mutationFn: () =>
-      api.createWalkInOrder({
-        items: lines.map((l) => ({
-          productId: l.productId,
-          quantity: l.quantity,
-          modifierIds: l.modifierIds,
-        })),
-        fulfillment,
-        customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        customerEmail: customerEmail.trim() || undefined,
-        tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
-        paymentMethod,
-      }),
+      isTab
+        ? api.addTabItems(tabOrder!.id, itemsPayload())
+        : api.createWalkInOrder({
+            items: itemsPayload(),
+            fulfillment,
+            customerName: customerName.trim() || undefined,
+            customerPhone: customerPhone.trim() || undefined,
+            customerEmail: customerEmail.trim() || undefined,
+            tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
+            paymentMethod,
+          }),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      toast.success(`Order #${order.orderNumber} sent to the kitchen — code ${order.orderNumber.slice(-3)}`);
+      toast.success(
+        isTab
+          ? `Added to tab #${order.orderNumber} — sent to the kitchen`
+          : `Order #${order.orderNumber} sent to the kitchen — code ${order.orderNumber.slice(-3)}`,
+      );
       setLines([]);
       setCustomerName('');
       setCustomerPhone('');
@@ -148,7 +166,13 @@ export function WalkInOrderDialog({
       onOpenChange(false);
     },
     onError: (err) =>
-      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not create the order'),
+      toast.error(
+        err instanceof ApiRequestError
+          ? err.body.message
+          : isTab
+            ? 'Could not add to the tab'
+            : 'Could not create the order',
+      ),
   });
 
   if (!restaurant) return null;
@@ -158,7 +182,11 @@ export function WalkInOrderDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl gap-0 p-0">
           <DialogHeader className="border-b p-5">
-            <DialogTitle>New walk-in / phone order</DialogTitle>
+            <DialogTitle>
+              {isTab
+                ? `Add to ${tabOrder!.tableNumber ? `Table ${tabOrder!.tableNumber}` : `#${tabOrder!.orderNumber}`} tab`
+                : 'New walk-in / phone order'}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="grid max-h-[70vh] grid-cols-1 sm:grid-cols-[1.3fr_1fr]">
@@ -245,7 +273,7 @@ export function WalkInOrderDialog({
                   </ul>
                 )}
 
-                <div className="border-t pt-3">
+                <div className={isTab ? 'hidden' : 'border-t pt-3'}>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
                       type="button"
@@ -332,7 +360,13 @@ export function WalkInOrderDialog({
                   disabled={lines.length === 0 || create.isPending}
                   onClick={() => create.mutate()}
                 >
-                  {create.isPending ? 'Sending to kitchen…' : 'Confirm — paid, send to kitchen'}
+                  {create.isPending
+                    ? isTab
+                      ? 'Adding…'
+                      : 'Sending to kitchen…'
+                    : isTab
+                      ? 'Add to tab — send to kitchen'
+                      : 'Confirm — paid, send to kitchen'}
                 </Button>
               </div>
             </div>

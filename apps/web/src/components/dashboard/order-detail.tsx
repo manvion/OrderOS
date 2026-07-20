@@ -9,12 +9,14 @@ import {
   Mail,
   MessageSquare,
   Phone,
+  Plus,
   Printer,
   X,
 } from 'lucide-react';
 import { formatMoney } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
+import { WalkInOrderDialog } from './walk-in-order-dialog';
 import { ApiRequestError, type Order } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +47,16 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
   const [refunding, setRefunding] = useState(false);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [addingItems, setAddingItems] = useState(false);
+
+  // An open dine-in table order that hasn't been paid is a running tab: staff can add
+  // another round to it (someone at the table asked for one more). A paid or closed
+  // order can't grow — the backend refuses it, so we don't offer it here either.
+  const isOpenTab =
+    order.fulfillment === 'DINE_IN' &&
+    ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'].includes(order.status) &&
+    order.payment?.status !== 'PAID' &&
+    order.payment?.status !== 'PARTIALLY_REFUNDED';
 
   const { data: notifications, isLoading: loadingNotifications } = useQuery({
     queryKey: ['notifications', order.id],
@@ -76,6 +88,20 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
     },
     onError: (err) =>
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Refund failed'),
+  });
+
+  // Pay-at-desk settlement: this dine-in table hasn't paid online. Staff clicks this
+  // when they collect at the counter, flipping the unpaid order to paid.
+  const awaitingDeskPayment = order.payAtDesk && payment?.status !== 'PAID';
+  const settle = useMutation({
+    mutationFn: (method: 'CASH' | 'CARD_TERMINAL') => api.settleAtDesk(order.id, method),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success('Marked paid. Loyalty points credited.');
+      onClose();
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not mark paid'),
   });
 
   /**
@@ -179,6 +205,7 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
   };
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -200,7 +227,14 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
         <div className="space-y-6">
           {/* Items */}
           <section>
-            <h3 className="mb-2 text-sm font-semibold">Items</h3>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Items</h3>
+              {isOpenTab && can('STAFF') && (
+                <Button size="sm" variant="outline" onClick={() => setAddingItems(true)}>
+                  <Plus className="h-4 w-4" /> Add items
+                </Button>
+              )}
+            </div>
             <ul className="space-y-2 rounded-lg border p-3 text-sm">
               {order.items.map((item) => (
                 <li key={item.id}>
@@ -252,9 +286,46 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
               {order.tipCents > 0 && (
                 <MoneyRow label="Tip" cents={order.tipCents} currency={order.currency} />
               )}
-              <MoneyRow label="Total paid" cents={order.totalCents} currency={order.currency} bold />
+              <MoneyRow
+                label={awaitingDeskPayment ? 'Total due' : 'Total paid'}
+                cents={order.totalCents}
+                currency={order.currency}
+                bold
+              />
             </dl>
           </section>
+
+          {/* Pay at desk — this dine-in table chose to settle at the counter. Until
+              staff collect, the order is unpaid; these buttons are how they mark it in. */}
+          {awaitingDeskPayment && (
+            <section className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <p className="text-sm font-semibold text-amber-900">Awaiting payment at desk</p>
+              <p className="mt-0.5 text-xs text-amber-800">
+                {order.tableNumber ? `Table ${order.tableNumber}. ` : ''}Collect{' '}
+                {formatMoney(order.totalCents, order.currency)}, then mark how it was paid.
+              </p>
+              {can('STAFF') && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="brand"
+                    disabled={settle.isPending}
+                    onClick={() => settle.mutate('CASH')}
+                  >
+                    <Check className="h-4 w-4" /> Paid — cash
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="brand"
+                    disabled={settle.isPending}
+                    onClick={() => settle.mutate('CARD_TERMINAL')}
+                  >
+                    <CreditCard className="h-4 w-4" /> Paid — card
+                  </Button>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Payout — what actually lands in the restaurant's account after the
               platform's commission and the courier cost (both folded into the Stripe
@@ -280,6 +351,14 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
                     accent
                   />
                 )}
+                {(payment.stripeFeeCents ?? 0) > 0 && (
+                  <MoneyRow
+                    label="Card processing fee (Stripe)"
+                    cents={-(payment.stripeFeeCents ?? 0)}
+                    currency={order.currency}
+                    accent
+                  />
+                )}
                 {alreadyRefunded > 0 && (
                   <MoneyRow
                     label="Refunded to customer"
@@ -294,6 +373,7 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
                     order.totalCents -
                     payment.platformFeeCents -
                     (payment.courierCostCents ?? 0) -
+                    (payment.stripeFeeCents ?? 0) -
                     alreadyRefunded
                   }
                   currency={order.currency}
@@ -301,8 +381,10 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
                 />
               </dl>
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Deposited to your Stripe account. The commission covers card processing —
-                there is no separate Stripe fee taken from you.
+                Deposited to your Stripe account
+                {payment.stripeFeeCents == null
+                  ? ' once the card settles (the exact processing fee is deducted then).'
+                  : ', net of the card processing fee shown above.'}
               </p>
             </section>
           )}
@@ -496,6 +578,16 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Add-to-tab: the walk-in item picker in "append to this open tab" mode. */}
+    {isOpenTab && (
+      <WalkInOrderDialog
+        open={addingItems}
+        onOpenChange={setAddingItems}
+        tabOrder={{ id: order.id, orderNumber: order.orderNumber, tableNumber: order.tableNumber }}
+      />
+    )}
+    </>
   );
 }
 

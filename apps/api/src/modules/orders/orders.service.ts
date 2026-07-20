@@ -275,6 +275,13 @@ export class OrdersService {
         ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
         : 0;
 
+    // Pay-at-desk is only ever offered for a dine-in order placed from a table QR --
+    // it's the sit-down "put it on the table, I'll settle when I leave" flow. We never
+    // let a pickup/delivery customer walk off with unpaid food, so the flag is dropped
+    // unless the order really is a table dine-in.
+    const payAtDesk =
+      input.payAtDesk === true && input.fulfillment === 'DINE_IN' && !!input.tableNumber;
+
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -285,7 +292,11 @@ export class OrdersService {
           handoffCode: generateHandoffCode((n) => randomBytes(n)),
           restaurantId,
           customerId: customer.id,
+          // Every new ticket starts PENDING (a new order the kitchen must accept). A
+          // pay-at-desk order is no different in status — what makes it show on the
+          // board despite being unpaid is the payAtDesk flag, which listActive ORs in.
           status: 'PENDING',
+          payAtDesk,
           fulfillment: input.fulfillment,
 
           subtotalCents: pricing.subtotalCents,
@@ -348,34 +359,58 @@ export class OrdersService {
           },
 
           payment: {
-            create: {
-              restaurantId,
-              amountCents: pricing.totalCents,
-              currency: restaurant.currency,
-              status: 'PENDING',
-              /**
-               * Commission is taken on NET FOOD SALES (subtotal minus discount) — NOT
-               * on the whole total. Taking a cut of sales tax is taking a cut of money
-               * that belongs to the government; taking a cut of the tip is taking it
-               * from the staff; and delivery is largely a pass-through. So the base is
-               * the merchandise the restaurant actually sold, which is also the number
-               * the restaurant reconciles its own commission against.
-               */
-              platformFeeCents: Math.round(
-                ((pricing.subtotalCents - pricing.discountCents) *
-                  effectiveCommissionBps(restaurant)) /
-                  10_000,
-              ),
-              courierCostCents,
-            },
+            create: payAtDesk
+              ? {
+                  restaurantId,
+                  amountCents: pricing.totalCents,
+                  currency: restaurant.currency,
+                  // Unpaid until a staff member settles it at the counter. No Stripe
+                  // charge exists, so — exactly like a walk-in — there's nothing for an
+                  // application fee to take a cut of; the platform earns no commission
+                  // on an at-desk sale. Marked CARD_TERMINAL because that's how the
+                  // counter will most likely collect; staff aren't billed on the method.
+                  status: 'PENDING',
+                  method: 'CARD_TERMINAL',
+                  platformFeeCents: 0,
+                }
+              : {
+                  restaurantId,
+                  amountCents: pricing.totalCents,
+                  currency: restaurant.currency,
+                  status: 'PENDING',
+                  /**
+                   * Commission is taken on NET FOOD SALES (subtotal minus discount) — NOT
+                   * on the whole total. Taking a cut of sales tax is taking a cut of money
+                   * that belongs to the government; taking a cut of the tip is taking it
+                   * from the staff; and delivery is largely a pass-through. So the base is
+                   * the merchandise the restaurant actually sold, which is also the number
+                   * the restaurant reconciles its own commission against.
+                   */
+                  platformFeeCents: Math.round(
+                    ((pricing.subtotalCents - pricing.discountCents) *
+                      effectiveCommissionBps(restaurant)) /
+                      10_000,
+                  ),
+                  courierCostCents,
+                },
           },
 
           events: {
-            create: { status: 'PENDING', source: 'customer', note: 'Order placed' },
+            create: {
+              status: 'PENDING',
+              source: 'customer',
+              note: payAtDesk ? 'Order placed — pay at desk' : 'Order placed',
+            },
           },
         },
         include: this.orderInclude(),
       });
+
+      // The kitchen is about to cook this, so the stock leaves now — the same point a
+      // walk-in decrements. Loyalty is NOT credited yet; that waits until the bill is
+      // actually settled at the desk (markOrderPaid handles it), so an abandoned table
+      // never banks points.
+      if (payAtDesk) await applyInventoryDelta(tx, lineItems, -1);
 
       return created;
     });
@@ -387,6 +422,16 @@ export class OrdersService {
       this.promotions
         .recordRedemption(discount.promotionId)
         .catch((err: Error) => this.logger.warn(`Failed to record promotion redemption: ${err.message}`));
+    }
+
+    // A pay-at-desk order never touches Stripe, so no webhook will ever fire the
+    // "NEW ORDER" alert + printable ticket the kitchen relies on. Fire it here, at
+    // creation, the same way markOrderPaid does for a paid order — the kitchen must
+    // start cooking now, not when the customer eventually settles the bill.
+    if (payAtDesk) {
+      void this.notifications.onOrderStatus(order, restaurant, 'PENDING').catch((err) => {
+        this.logger.error(`Notification failed for pay-at-desk order ${order.id}: ${(err as Error).message}`);
+      });
     }
 
     return order;
@@ -555,6 +600,242 @@ export class OrdersService {
     });
 
     return order;
+  }
+
+  /**
+   * Settle a pay-at-desk dine-in order at the counter -- staff collected cash or ran a
+   * card terminal, so the bill is now paid. Unlike a Stripe order there's no webhook to
+   * flip the payment; this is that flip. Inventory already left at creation (the kitchen
+   * cooked it) and the "NEW ORDER" alert already fired, so this does NOT touch stock or
+   * re-notify the kitchen -- it only marks the money in and credits loyalty, which was
+   * deliberately held back until the bill was actually settled.
+   *
+   * `method` lets staff record how it was collected (cash vs terminal). Idempotent: a
+   * second click on an already-settled order is a no-op.
+   */
+  async settleAtDesk(
+    restaurantId: string,
+    orderId: string,
+    opts: { userId: string; method?: 'CASH' | 'CARD_TERMINAL' },
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { payment: true, customer: { select: { id: true } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!order.payAtDesk) {
+      throw new BadRequestException('This order was not placed to pay at the desk');
+    }
+    if (order.payment?.status === 'PAID') {
+      // Already settled -- return the current order rather than double-crediting loyalty.
+      return this.findById(restaurantId, orderId);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { orderId },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+          ...(opts.method ? { method: opts.method } : {}),
+        },
+      });
+      // Held back at creation so an abandoned table never banks points; the bill is
+      // real now, so credit them.
+      await applyLoyaltyDelta(tx, order.customerId, order.loyaltyPointsEarned, 1);
+      await tx.orderEvent.create({
+        data: {
+          orderId,
+          status: order.status,
+          source: 'restaurant',
+          note: `Settled at desk (${opts.method === 'CASH' ? 'cash' : 'card terminal'})`,
+        },
+      });
+    });
+
+    await this.audit.log({
+      restaurantId,
+      userId: opts.userId,
+      action: 'order.settled_at_desk',
+      entityType: 'Order',
+      entityId: orderId,
+      metadata: { orderNumber: order.orderNumber, totalCents: order.totalCents },
+    });
+
+    this.logger.log(`Order ${order.orderNumber} settled at desk (${order.totalCents} ${order.currency})`);
+    return this.findById(restaurantId, orderId);
+  }
+
+  /**
+   * The open order for a given table, if there is one still running. Used to answer
+   * "this table already has a tab — add to it" rather than opening a second ticket.
+   * An order counts as an open tab while it's a dine-in order that hasn't been paid,
+   * completed or cancelled. Returns null when the table is clear.
+   */
+  async findOpenTabForTable(restaurantId: string, tableNumber: string) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        restaurantId,
+        tableNumber,
+        fulfillment: 'DINE_IN',
+        status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'] },
+        // Only a still-open bill. A tab that's been settled online or at the desk is
+        // closed — the next round is a fresh ticket.
+        payment: { status: { notIn: ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] } },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: this.orderInclude(),
+    });
+    return order;
+  }
+
+  /**
+   * Add another round to an open table tab — the customer re-scanned and wants more,
+   * or staff are adding an item someone asked for at the table. The items append to the
+   * SAME order so the table gets one bill, and the whole order is re-priced (subtotal,
+   * tax, total, loyalty) from the full item set so tax stays exact on the new subtotal.
+   *
+   * Only ever touches an unpaid, open dine-in order. A tab that's already been paid is
+   * closed — you can't silently grow a bill the customer already settled; that would be
+   * a second charge they never agreed to. The new items' stock leaves now (the kitchen
+   * cooks them immediately), matching how the original items were handled.
+   */
+  async addTabItems(
+    restaurantId: string,
+    orderId: string,
+    input: Pick<CreateOrderInput, 'items'>,
+    opts: { source: 'customer' | 'restaurant'; userId?: string },
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } }, payment: true, restaurant: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.fulfillment !== 'DINE_IN') {
+      throw new BadRequestException('Only dine-in table orders can run a tab');
+    }
+    if (!['PENDING', 'ACCEPTED', 'PREPARING', 'READY'].includes(order.status)) {
+      throw new BadRequestException('This order is closed — start a new one');
+    }
+    if (order.payment && ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(order.payment.status)) {
+      throw new BadRequestException(
+        'This bill is already paid. Place a new order for anything else.',
+      );
+    }
+
+    const restaurant = order.restaurant;
+    const newItems = await this.resolveLineItems(restaurantId, input);
+
+    // Re-price the WHOLE tab from every item (the ones already on it + the new round),
+    // so tax is computed on the real running subtotal, not added piecemeal. Fees, tip
+    // and any discount stay exactly as they were frozen on the original ticket.
+    const existingPriced: PricedLineItem[] = order.items.map((it) => ({
+      productId: it.productId ?? '',
+      name: it.name,
+      unitPriceCents: it.unitPriceCents,
+      quantity: it.quantity,
+      modifiers: it.modifiers.map((m) => ({
+        modifierId: m.modifierId ?? '',
+        name: m.name,
+        priceCents: m.priceCents,
+        quantity: m.quantity,
+      })),
+    }));
+
+    const pricing = priceOrder({
+      items: [...existingPriced, ...newItems],
+      taxRateBps: restaurant.taxRateBps,
+      taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
+      fulfillment: 'DINE_IN',
+      serviceFeeCents: order.serviceFeeCents,
+      tipCents: order.tipCents,
+      discountCents: order.discountCents,
+    });
+
+    const loyaltyPointsEarned =
+      restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)
+        ? pointsForSubtotal(pricing.subtotalCents, restaurant.loyaltyPointsPerDollar)
+        : order.loyaltyPointsEarned;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Append the new items as their own OrderItem rows (existing rows are untouched,
+      // so the ticket reads as rounds in the order they were sent to the kitchen).
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          subtotalCents: pricing.subtotalCents,
+          taxCents: pricing.taxCents,
+          taxLines: pricing.taxLines as unknown as Prisma.InputJsonValue,
+          totalCents: pricing.totalCents,
+          loyaltyPointsEarned,
+          items: {
+            create: newItems.map((item) => {
+              const modifiersCents = item.modifiers.reduce((s, m) => s + m.priceCents, 0);
+              return {
+                name: item.name,
+                quantity: item.quantity,
+                unitPriceCents: item.unitPriceCents,
+                totalCents: (item.unitPriceCents + modifiersCents) * item.quantity,
+                notes: item.notes,
+                productId: item.productId,
+                modifiers: {
+                  create: item.modifiers.map((m) => ({
+                    name: m.name,
+                    priceCents: m.priceCents,
+                    quantity: m.quantity,
+                    modifierId: m.modifierId,
+                  })),
+                },
+              };
+            }),
+          },
+          events: {
+            create: {
+              status: order.status,
+              source: opts.source,
+              note: `Added to tab: ${newItems.map((i) => `${i.quantity}× ${i.name}`).join(', ')}`,
+            },
+          },
+        },
+      });
+
+      // The unpaid Payment tracks the running total so a later settle-at-desk collects
+      // the whole tab, not just the first round.
+      await tx.payment.update({
+        where: { orderId },
+        data: { amountCents: pricing.totalCents },
+      });
+
+      // The new round is going to the kitchen now, so its stock leaves now — same as
+      // the original items on a pay-at-desk order.
+      await applyInventoryDelta(tx, newItems, -1);
+    });
+
+    void updated;
+
+    await this.audit.log({
+      restaurantId,
+      userId: opts.userId,
+      action: 'order.tab_items_added',
+      entityType: 'Order',
+      entityId: orderId,
+      metadata: {
+        orderNumber: order.orderNumber,
+        addedItems: newItems.map((i) => `${i.quantity}× ${i.name}`),
+        newTotalCents: pricing.totalCents,
+      },
+    });
+
+    this.logger.log(
+      `Added ${newItems.length} item(s) to tab ${order.orderNumber} (new total ${pricing.totalCents} ${order.currency})`,
+    );
+
+    // No push notification here on purpose: onOrderStatus is a status-CHANGE notifier
+    // and would text the customer a second "order placed". The kitchen board polls
+    // listActive and re-renders the updated ticket within its refresh interval, and the
+    // event log above records exactly what was added — that's the right signal for
+    // "more food for a table already cooking", without a misleading duplicate message.
+    return this.findById(restaurantId, orderId);
   }
 
   /**
@@ -777,7 +1058,9 @@ export class OrdersService {
     const where: Prisma.OrderWhereInput = {
       restaurantId,
       ...(opts.status?.length ? { status: { in: opts.status } } : {}),
-      ...(opts.paidOnly ? { payment: { status: { in: ['PAID', 'PARTIALLY_REFUNDED'] } } } : {}),
+      ...(opts.paidOnly
+        ? { OR: [{ payment: { status: { in: ['PAID', 'PARTIALLY_REFUNDED'] } } }, { payAtDesk: true }] }
+        : {}),
       ...(opts.from || opts.to
         ? { createdAt: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
         : {}),
@@ -804,7 +1087,9 @@ export class OrdersService {
       where: {
         restaurantId,
         status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DRIVER_ASSIGNED', 'OUT_FOR_DELIVERY'] },
-        payment: { status: { in: ['PAID', 'PARTIALLY_REFUNDED'] } },
+        // Paid orders, plus pay-at-desk tables that are cooking now and will settle at
+        // the counter — the kitchen must see those even though the money hasn't landed.
+        OR: [{ payment: { status: { in: ['PAID', 'PARTIALLY_REFUNDED'] } } }, { payAtDesk: true }],
       },
       include: this.orderInclude(),
       orderBy: { createdAt: 'asc' },

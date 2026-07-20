@@ -16,8 +16,10 @@ import {
   addressSchema,
   createOrderSchema,
   planAllows,
+  tabItemsSchema,
   usesRazorpay,
   type CreateOrderInput,
+  type TabItemsInput,
 } from '@dinedirect/shared';
 import { z } from 'zod';
 import { isMissingPlanColumn } from '../../common/plan/plan.util';
@@ -295,6 +297,14 @@ export class StorefrontController {
       currency: order.currency,
     };
 
+    // Pay-at-desk: the order is already placed and cooking; no online payment is
+    // collected. Return no checkout URL — the client jumps straight to the tracker and
+    // the customer settles at the counter. (The service has already validated this is a
+    // genuine dine-in table order; a spoofed flag on a pickup order was dropped there.)
+    if (order.payAtDesk) {
+      return { ...base, payAtDesk: true, payment: { provider: 'AT_DESK' as const } };
+    }
+
     // Which rail collects is decided by the restaurant's country: India pays through
     // Razorpay's Checkout modal, everyone else through Stripe's hosted redirect. The
     // browser branches on `payment.provider`.
@@ -354,6 +364,35 @@ export class StorefrontController {
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   track(@Param('token') token: string) {
     return this.orders.findByTrackingToken(token);
+  }
+
+  /**
+   * "Does this table already have a tab running?" — asked when a customer re-scans the
+   * table QR after their first order. If there's an open, unpaid dine-in order for the
+   * table, we return it so the storefront can offer "add to your table's order" instead
+   * of opening a second ticket. Returns null when the table is clear.
+   */
+  @Get('open-tab')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async openTab(@TenantId() restaurantId: string, @Query('tableNumber') tableNumber?: string) {
+    if (!tableNumber) return { tab: null };
+    const tab = await this.orders.findOpenTabForTable(restaurantId, tableNumber);
+    return { tab };
+  }
+
+  /**
+   * A customer at the table adding another round to their open tab. Appends to the same
+   * order (one bill for the table). The service refuses anything that isn't a still-open,
+   * unpaid dine-in order, so this can only ever grow a live tab — never a settled one.
+   */
+  @Post('orders/:orderId/tab-items')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  addTabItems(
+    @TenantId() restaurantId: string,
+    @Param('orderId') orderId: string,
+    @Body(new ZodValidationPipe(tabItemsSchema)) body: TabItemsInput,
+  ) {
+    return this.orders.addTabItems(restaurantId, orderId, body, { source: 'customer' });
   }
 
   /**

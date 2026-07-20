@@ -342,6 +342,21 @@ export const storefrontApi = {
       body: JSON.stringify(body),
     }),
 
+  /** Is there an open, unpaid dine-in tab for this table? (Customer re-scanned the QR.) */
+  getOpenTab: (slug: string, tableNumber: string) =>
+    storefrontApi.request<{ tab: OpenTab | null }>(
+      `/storefront/open-tab?tableNumber=${encodeURIComponent(tableNumber)}`,
+      slug,
+    ),
+
+  /** Customer adding another round to their open table tab. */
+  addTabItems: (slug: string, orderId: string, body: { items: unknown[] }, token?: string) =>
+    storefrontApi.request<OpenTab>(`/storefront/orders/${orderId}/tab-items`, slug, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: JSON.stringify(body),
+    }),
+
   /** Confirm a Razorpay (India) payment the Checkout modal just completed. */
   verifyRazorpay: (
     slug: string,
@@ -662,6 +677,21 @@ export function createDashboardApi(
       }),
     cancelOrder: (id: string, reason: string) =>
       call<Order>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    /** Settle a pay-at-desk dine-in order at the counter — marks it paid, credits loyalty. */
+    settleAtDesk: (id: string, method?: 'CASH' | 'CARD_TERMINAL') =>
+      call<Order>(`/orders/${id}/settle-at-desk`, {
+        method: 'POST',
+        body: JSON.stringify(method ? { method } : {}),
+      }),
+    /** Staff adding another round to an open dine-in table tab. */
+    addTabItems: (
+      id: string,
+      items: Array<{ productId: string; quantity: number; modifierIds: string[]; notes?: string }>,
+    ) =>
+      call<Order>(`/orders/${id}/tab-items`, {
+        method: 'POST',
+        body: JSON.stringify({ items }),
+      }),
     /** Override the countdown the public status board shows for this order. */
     setOrderEta: (id: string, minutesFromNow: number) =>
       call<Order>(`/orders/${id}/eta`, {
@@ -1218,9 +1248,10 @@ export type DeliveryQuote =
       limitMeters?: number;
     };
 
-/** How the customer pays — Stripe (hosted redirect) or Razorpay (Checkout modal). */
+/** How the customer pays — Stripe (hosted redirect), Razorpay (modal), or at the desk. */
 export type OrderPayment =
   | { provider: 'STRIPE'; checkoutUrl: string }
+  | { provider: 'AT_DESK' }
   | {
       provider: 'RAZORPAY';
       razorpayOrderId: string;
@@ -1240,6 +1271,8 @@ export interface CreateOrderResponse {
   currency: string;
   /** Present for Stripe orders (kept for backward compatibility). */
   checkoutUrl?: string;
+  /** True when the dine-in order was placed to settle at the counter — no online payment. */
+  payAtDesk?: boolean;
   /** The provider-tagged payment instructions the client should branch on. */
   payment: OrderPayment;
 }
@@ -1256,6 +1289,18 @@ export interface StatusBoardEntry {
   customerFirstName: string | null;
 }
 
+/** An open, unpaid dine-in tab for a table — what a customer sees when they re-scan. */
+export interface OpenTab {
+  id: string;
+  orderNumber: string;
+  trackingToken: string;
+  tableNumber: string | null;
+  status: string;
+  totalCents: number;
+  currency: string;
+  items: Array<{ id: string; name: string; quantity: number; totalCents: number }>;
+}
+
 export interface TrackedOrder {
   /** The unguessable key to this order's tracking page. */
   trackingToken: string;
@@ -1263,6 +1308,8 @@ export interface TrackedOrder {
   tableNumber: string | null;
   status: string;
   fulfillment: string;
+  /** Dine-in table order settling at the counter — "unpaid" here means "pay at desk", not abandoned. */
+  payAtDesk: boolean;
   totalCents: number;
   currency: string;
   subtotalCents: number;
@@ -1489,6 +1536,8 @@ export interface Order {
   deliveryStreet: string | null;
   deliveryCity: string | null;
   tableNumber: string | null;
+  /** Dine-in table order placed to settle at the counter — its payment stays unpaid until staff settle it. */
+  payAtDesk: boolean;
   notes: string | null;
   scheduledFor: string | null;
   createdAt: string;
@@ -1512,6 +1561,10 @@ export interface Order {
     platformFeeCents: number;
     /** Courier cost recouped from the restaurant via the application fee. Null if none. */
     courierCostCents: number | null;
+    /** Actual Stripe processing fee, borne by the restaurant (on_behalf_of). Null until settled / for at-desk. */
+    stripeFeeCents: number | null;
+    /** Whether this dine-in order was placed to settle at the counter (no online payment). */
+    method?: string;
   } | null;
   delivery: Delivery | null;
   customer: { id: string; name: string; totalOrders: number } | null;

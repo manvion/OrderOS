@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { OrderStatus } from '@prisma/client';
+import { tabItemsSchema, type TabItemsInput } from '@dinedirect/shared';
 import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
 import { Audit, CurrentUser, TenantId } from '../../common/auth/decorators';
@@ -36,6 +37,11 @@ const transitionSchema = z.object({
 const cancelSchema = z.object({ reason: z.string().min(1).max(500) });
 
 const etaSchema = z.object({ minutesFromNow: z.number().int().min(0).max(180) });
+
+const settleAtDeskSchema = z.object({
+  /** How the counter collected. Defaults to card terminal if unspecified. */
+  method: z.enum(['CASH', 'CARD_TERMINAL']).optional(),
+});
 
 const walkInItemSchema = z.object({
   productId: z.string().cuid(),
@@ -232,5 +238,35 @@ export class OrdersController {
     @Body(new ZodValidationPipe(walkInOrderSchema)) body: z.infer<typeof walkInOrderSchema>,
   ) {
     return this.orders.createWalkIn(restaurantId, body, user.id);
+  }
+
+  /**
+   * Settle a pay-at-desk dine-in order — the customer is paying at the counter now.
+   * Marks the unpaid order paid and credits loyalty; no Stripe involved.
+   */
+  @Post(':id/settle-at-desk')
+  @Audit('order.settled_at_desk', 'Order')
+  settleAtDesk(
+    @TenantId() restaurantId: string,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(settleAtDeskSchema)) body: z.infer<typeof settleAtDeskSchema>,
+  ) {
+    return this.orders.settleAtDesk(restaurantId, id, { userId: user.id, method: body.method });
+  }
+
+  /**
+   * Staff adding a round to an open table tab — someone at the table asked for another
+   * item. Appends to the same order so the table gets one bill.
+   */
+  @Post(':id/tab-items')
+  @Audit('order.tab_items_added', 'Order')
+  addTabItems(
+    @TenantId() restaurantId: string,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(tabItemsSchema)) body: TabItemsInput,
+  ) {
+    return this.orders.addTabItems(restaurantId, id, body, { source: 'restaurant', userId: user.id });
   }
 }

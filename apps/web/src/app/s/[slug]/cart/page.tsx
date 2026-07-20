@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Minus, Plus, ShoppingBag, Tag, Trash2, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Minus, Plus, ShoppingBag, Tag, Trash2, Utensils, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatMoney } from '@dinedirect/shared';
 import { ApiRequestError, storefrontApi } from '@/lib/api';
@@ -22,6 +23,8 @@ export default function CartPage() {
   const setQuantity = useCart((s) => s.setQuantity);
   const removeLine = useCart((s) => s.removeLine);
   const fulfillment = useCart((s) => s.fulfillment);
+  const tableNumber = useCart((s) => s.tableNumber);
+  const clear = useCart((s) => s.clear);
   const promoCode = useCart((s) => s.promoCode);
   const promoDiscountCents = useCart((s) => s.promoDiscountCents);
   const setPromo = useCart((s) => s.setPromo);
@@ -29,6 +32,36 @@ export default function CartPage() {
 
   const [promoInput, setPromoInput] = useState('');
   const [applyingPromo, setApplyingPromo] = useState(false);
+  const [addingToTab, setAddingToTab] = useState(false);
+
+  // If this table already has an order running, offer to add to that same tab (one bill)
+  // rather than opening a second ticket. Only relevant for a dine-in scan with a table.
+  const { data: openTab } = useQuery({
+    queryKey: ['open-tab', restaurant.slug, tableNumber],
+    queryFn: () => storefrontApi.getOpenTab(restaurant.slug, tableNumber!),
+    enabled: fulfillment === 'DINE_IN' && !!tableNumber,
+    staleTime: 15_000,
+  });
+  const tab = openTab?.tab ?? null;
+
+  const addToTab = async () => {
+    if (!tab) return;
+    setAddingToTab(true);
+    try {
+      const items = lines.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        notes: l.notes,
+        modifierIds: l.modifiers.map((m) => m.modifierId),
+      }));
+      await storefrontApi.addTabItems(restaurant.slug, tab.id, { items });
+      clear();
+      window.location.href = `${window.location.pathname.replace(/\/cart\/?$/, '')}/track/${tab.trackingToken}?placed=1`;
+    } catch (err) {
+      setAddingToTab(false);
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not add to your tab');
+    }
+  };
 
   const applyPromo = async () => {
     const code = promoInput.trim();
@@ -229,6 +262,22 @@ export default function CartPage() {
         </p>
       )}
 
+      {/* This table already has a tab running — offer to add to it rather than checkout. */}
+      {tab && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-brand/30 bg-brand-subtle/40 p-4">
+          <Utensils className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
+          <div className="text-sm">
+            <p className="font-semibold">
+              Table {tab.tableNumber} has an open tab (order #{tab.orderNumber})
+            </p>
+            <p className="text-muted-foreground">
+              Add these to your table&apos;s bill — {formatMoney(tab.totalCents, restaurant.currency)}{' '}
+              so far. One bill, settle it all at the end.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Sticky footer: on a phone the cart scrolls, and the checkout button must
           never be the thing you have to scroll to find. */}
       <div className="fixed inset-x-0 bottom-0 border-t bg-background/95 p-4 backdrop-blur">
@@ -236,15 +285,32 @@ export default function CartPage() {
           <Button asChild variant="outline" className="hidden sm:flex">
             <Link href={href('/menu')}>{t.cart.addMore}</Link>
           </Button>
-          <Button asChild variant="brand" size="lg" className="flex-1">
-            <Link href={href('/checkout')}>
-              {t.cart.checkout} ·{' '}
-              {formatMoney(
-                (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
-                restaurant.currency,
-              )}
-            </Link>
-          </Button>
+          {tab ? (
+            <Button
+              variant="brand"
+              size="lg"
+              className="flex-1"
+              disabled={addingToTab}
+              onClick={addToTab}
+            >
+              {addingToTab
+                ? 'Adding…'
+                : `Add to Table ${tab.tableNumber} tab · ${formatMoney(
+                    (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
+                    restaurant.currency,
+                  )}`}
+            </Button>
+          ) : (
+            <Button asChild variant="brand" size="lg" className="flex-1">
+              <Link href={href('/checkout')}>
+                {t.cart.checkout} ·{' '}
+                {formatMoney(
+                  (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
+                  restaurant.currency,
+                )}
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
     </div>

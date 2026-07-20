@@ -436,6 +436,12 @@ export const cartItemSchema = z.object({
 });
 export type CartItemInput = z.infer<typeof cartItemSchema>;
 
+/** Adding another round to an open table tab — the same cart items shape, on their own. */
+export const tabItemsSchema = z.object({
+  items: z.array(cartItemSchema).min(1).max(100),
+});
+export type TabItemsInput = z.infer<typeof tabItemsSchema>;
+
 export const createOrderSchema = z
   .object({
     items: z.array(cartItemSchema).min(1).max(100),
@@ -453,6 +459,13 @@ export const createOrderSchema = z
     /** Set when the order came from a table QR code. */
     tableNumber: z.string().max(20).optional(),
     qrCodeId: z.string().cuid().optional(),
+    /**
+     * Dine-in only: the customer chose to settle at the counter instead of paying
+     * online. No Stripe checkout is created; the kitchen still gets the ticket and a
+     * staff member marks it paid when they collect. Ignored unless the order is
+     * DINE_IN from a table (server-enforced).
+     */
+    payAtDesk: z.boolean().optional(),
     /** Customer-entered promo code. Re-validated server-side; never trust the discount from the client. */
     promoCode: z.string().max(40).optional(),
     /** The language the customer is ordering in — their texts/emails come back in it. */
