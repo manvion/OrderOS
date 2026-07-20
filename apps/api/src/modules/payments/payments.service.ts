@@ -344,10 +344,25 @@ export class PaymentsService {
     // here is a paid order and a lost customer. See common/tenant-url.ts.
     const storefront = storefrontBaseUrl(this.config, order.restaurant.slug);
 
+    // The line items above are at FULL price, so their sum is the undiscounted total.
+    // The order total already has the promo discount subtracted — so without this the
+    // customer would be charged the full amount while their receipt shows the discount.
+    // A one-time coupon for exactly the discount makes Stripe charge order.totalCents.
+    // Idempotent per order, so a retry reuses the same coupon instead of stacking.
+    let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined;
+    if (order.discountCents > 0) {
+      const coupon = await this.stripe.coupons.create(
+        { amount_off: order.discountCents, currency, duration: 'once', name: 'Discount' },
+        { idempotencyKey: `discount:${order.id}` },
+      );
+      discounts = [{ coupon: coupon.id }];
+    }
+
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: 'payment',
         line_items: lineItems,
+        ...(discounts ? { discounts } : {}),
         customer_email: order.customerEmail,
         client_reference_id: order.id,
 
