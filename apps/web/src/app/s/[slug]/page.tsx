@@ -137,41 +137,9 @@ function fulfillmentOptions(restaurant: StorefrontRestaurant) {
 function ClassicHome({ restaurant, href }: TemplateProps) {
   return (
     <div className="animate-rise">
+      {/* The hero already plays the gallery photos (as a video/slideshow), so there's
+          no separate photo grid here — it would just show the same images twice. */}
       <MediaHero restaurant={restaurant} href={href} />
-
-      {/* The food, before the facts. Photos the owner uploaded in Settings ->
-          Gallery become the homepage's centrepiece -- an empty gallery renders
-          nothing at all, so the page never shows placeholder grey. */}
-      {restaurant.galleryImages.length > 0 && (
-        <section className="mx-auto max-w-6xl px-5 pt-14 sm:px-8">
-          <Reveal>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-              {restaurant.galleryImages.slice(0, 6).map((image, i) => (
-                <div
-                  key={image.id}
-                  className={`img-zoom relative rounded-2xl ${
-                    i === 0 ? 'col-span-2 row-span-2 aspect-[4/3] sm:col-span-2' : 'aspect-square'
-                  }`}
-                >
-                  <Image
-                    src={image.url}
-                    alt={image.caption ?? ''}
-                    fill
-                    sizes="(max-width: 640px) 50vw, 33vw"
-                    className="rounded-2xl object-cover"
-                  />
-                  {image.caption && (
-                    <span className="absolute bottom-2 left-2 rounded-lg bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                      {image.caption}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </section>
-      )}
-
       <FactsRow restaurant={restaurant} />
       <ClosingPitch restaurant={restaurant} href={href} />
     </div>
