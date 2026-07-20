@@ -72,12 +72,20 @@ export function CourierMap({
           scrollWheelZoom: false,
         });
 
-        // CARTO Voyager: clean and modern but with legible roads, labels and subtle
-        // colour — the Google/Uber-style basemap — rather than OpenStreetMap's busy
-        // tiles or Positron's too-faint grey. Free, no API key, and `{r}` +
-        // detectRetina serves crisp @2x tiles on phones.
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
+        // Basemap. Default: CARTO Voyager — clean and modern but with legible roads,
+        // labels and subtle colour (Google/Uber-style), free and no API key. If a
+        // MapTiler key is set (NEXT_PUBLIC_MAPTILER_KEY), use MapTiler Streets for a
+        // crisper, premium basemap instead — a drop-in upgrade with no code change.
+        // `{r}` + detectRetina serve @2x tiles on phones either way.
+        const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+        const tileUrl = maptilerKey
+          ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}{r}.png?key=${maptilerKey}`
+          : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
+        L.tileLayer(tileUrl, {
+          attribution: maptilerKey
+            ? '&copy; MapTiler &copy; OpenStreetMap'
+            : '&copy; OpenStreetMap &copy; CARTO',
           subdomains: 'abcd',
           detectRetina: true,
           maxZoom: 20,
@@ -155,11 +163,11 @@ export function CourierMap({
         if (points.length > 1) {
           map.fitBounds(
             L.latLngBounds(points.map((p) => [p.latitude, p.longitude] as [number, number])),
-            { padding: [48, 48], maxZoom: 15 },
+            { padding: [56, 56], maxZoom: 16 },
           );
           hasFittedRef.current = true;
         } else if (points.length === 1) {
-          map.setView([points[0].latitude, points[0].longitude], 14);
+          map.setView([points[0].latitude, points[0].longitude], 15);
           hasFittedRef.current = true;
         }
       }
@@ -198,7 +206,7 @@ export function CourierMap({
       <div
         ref={containerRef}
         className="h-full w-full overflow-hidden rounded-2xl border border-border shadow-soft"
-        style={{ minHeight: 260, zIndex: 0, background: '#eaeaea' }}
+        style={{ minHeight: 340, zIndex: 0, background: '#eaeaea' }}
         aria-label="Map showing your delivery driver's location"
         role="img"
       />
