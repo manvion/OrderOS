@@ -239,6 +239,14 @@ export const updateRestaurantSchema = z.object({
   socialLinks: z.array(socialLinkSchema).max(SOCIAL_PLATFORMS.length).nullable().optional(),
   /** A hosted background video (.mp4/.webm) for the immersive hero. */
   heroVideoUrl: z.string().url().max(600).nullable().optional(),
+  /** A short hero tagline in the restaurant's own words, and how it's styled. */
+  heroTagline: z.string().max(160).nullable().optional(),
+  heroTaglineColor: z
+    .string()
+    .regex(/^(BRAND|#[0-9a-fA-F]{6})$/, 'Must be "BRAND" or a #rrggbb hex')
+    .nullable()
+    .optional(),
+  heroTaglineFont: z.enum(['DISPLAY', 'SERIF', 'SANS', 'MONO', 'SCRIPT']).optional(),
 
   // Table reservations — "simple capacity per slot". See tax.ts-style docs on the model.
   reservationsEnabled: z.boolean().optional(),

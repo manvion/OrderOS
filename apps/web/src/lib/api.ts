@@ -1100,6 +1100,10 @@ export interface StorefrontRestaurant {
   coverImageUrl: string | null;
   /** Optional background video (.mp4/.webm) for the immersive hero. */
   heroVideoUrl: string | null;
+  /** A short, stylable hero tagline in the restaurant's own words. */
+  heroTagline: string | null;
+  heroTaglineColor: string | null;
+  heroTaglineFont: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
   brandPrimaryColor: string;
   brandAccentColor: string;
   /** Three genuinely different storefront layouts -- see the homepage, which
@@ -1328,6 +1332,10 @@ export interface Restaurant {
   coverImageUrl: string | null;
   /** Optional background video (.mp4/.webm) for the immersive hero. */
   heroVideoUrl: string | null;
+  /** A short, stylable hero tagline in the restaurant's own words. */
+  heroTagline: string | null;
+  heroTaglineColor: string | null;
+  heroTaglineFont: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
   brandPrimaryColor: string;
   brandAccentColor: string;
   websiteTemplate: 'CLASSIC' | 'BOLD' | 'MINIMAL' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY' | 'SIGNATURE';

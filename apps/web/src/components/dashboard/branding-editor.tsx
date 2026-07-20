@@ -44,6 +44,7 @@ export function BrandingEditor() {
   const [primary, setPrimary] = useState(restaurant?.brandPrimaryColor ?? '#EA580C');
   const [accent, setAccent] = useState(restaurant?.brandAccentColor ?? '#0F172A');
   const [heroVideo, setHeroVideo] = useState(restaurant?.heroVideoUrl ?? '');
+  const [tagline, setTagline] = useState(restaurant?.heroTagline ?? '');
 
   const uploadLogo = useMutation({
     mutationFn: (file: File) => api.uploadLogo(file),
@@ -206,6 +207,20 @@ export function BrandingEditor() {
       toast.success('Name style updated');
     },
     onError: () => toast.error('Could not update the name style'),
+  });
+
+  const saveTagline = useMutation({
+    mutationFn: (body: {
+      heroTagline?: string | null;
+      heroTaglineColor?: string | null;
+      heroTaglineFont?: 'DISPLAY' | 'SERIF' | 'SANS' | 'MONO' | 'SCRIPT';
+    }) => api.updateCurrent(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Hero tagline updated');
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not save the tagline'),
   });
 
   if (!restaurant) return null;
@@ -719,6 +734,118 @@ export function BrandingEditor() {
                 e.target.value = '';
               }}
             />
+          </div>
+        </div>
+
+        {/* ---------- Hero tagline ---------- */}
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="hero-tagline">Hero tagline</Label>
+            <p className="text-xs text-muted-foreground">
+              A short line under your logo in the hero — your words about the place (“Home of
+              the famous flautas”). Leave blank to use your description.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Input
+              id="hero-tagline"
+              value={tagline}
+              onChange={(e) => setTagline(e.target.value)}
+              placeholder="Home of the famous flautas"
+              maxLength={160}
+              disabled={readOnly}
+            />
+            {!readOnly && tagline.trim() !== (restaurant.heroTagline ?? '') && (
+              <Button
+                size="sm"
+                onClick={() => saveTagline.mutate({ heroTagline: tagline.trim() || null })}
+                disabled={saveTagline.isPending}
+              >
+                Save
+              </Button>
+            )}
+          </div>
+
+          {/* Font */}
+          <div className="grid gap-2 sm:grid-cols-5">
+            {(
+              [
+                { value: 'DISPLAY', label: 'Display' },
+                { value: 'SERIF', label: 'Serif' },
+                { value: 'SANS', label: 'Sans' },
+                { value: 'MONO', label: 'Mono' },
+                { value: 'SCRIPT', label: 'Script' },
+              ] as const
+            ).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                disabled={readOnly || saveTagline.isPending}
+                onClick={() => saveTagline.mutate({ heroTaglineFont: value })}
+                style={nameWordmarkStyle({ nameFont: value })}
+                className={`rounded-xl border p-2.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  (restaurant.heroTaglineFont ?? 'SANS') === value
+                    ? 'border-brand-subtle bg-brand-subtle'
+                    : 'hover:bg-accent/50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Colour */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                { value: null, label: 'Default' },
+                { value: 'BRAND', label: 'Brand colour' },
+              ] as const
+            ).map(({ value, label }) => (
+              <button
+                key={label}
+                type="button"
+                disabled={readOnly || saveTagline.isPending}
+                onClick={() => saveTagline.mutate({ heroTaglineColor: value })}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  (restaurant.heroTaglineColor ?? null) === value
+                    ? 'border-brand-subtle bg-brand-subtle'
+                    : 'hover:bg-accent/50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            <label
+              className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                restaurant.heroTaglineColor && restaurant.heroTaglineColor.startsWith('#')
+                  ? 'border-brand-subtle bg-brand-subtle'
+                  : 'hover:bg-accent/50'
+              } ${readOnly ? 'pointer-events-none opacity-40' : ''}`}
+            >
+              <span
+                className="h-4 w-4 rounded-full border"
+                style={{
+                  background:
+                    restaurant.heroTaglineColor && restaurant.heroTaglineColor.startsWith('#')
+                      ? restaurant.heroTaglineColor
+                      : 'conic-gradient(red, orange, yellow, green, blue, violet, red)',
+                }}
+              />
+              Custom
+              <input
+                type="color"
+                className="sr-only"
+                disabled={readOnly || saveTagline.isPending}
+                value={
+                  restaurant.heroTaglineColor && restaurant.heroTaglineColor.startsWith('#')
+                    ? restaurant.heroTaglineColor
+                    : '#ffffff'
+                }
+                onChange={(e) => saveTagline.mutate({ heroTaglineColor: e.target.value.toUpperCase() })}
+              />
+            </label>
           </div>
         </div>
 

@@ -6,6 +6,17 @@ import { Button } from '@/components/ui/button';
 import { nameWordmarkStyle } from '@/lib/name-style';
 import { HeroSlideshow } from './hero-slideshow';
 
+/** The hero tagline's inline style. Defaults to translucent white over the media. */
+function taglineStyle(r: StorefrontRestaurant): React.CSSProperties {
+  const style = nameWordmarkStyle({
+    nameFont: r.heroTaglineFont,
+    nameColor: r.heroTaglineColor,
+    nameTransform: 'NONE',
+  });
+  if (!r.heroTaglineColor) style.color = 'rgba(255,255,255,0.88)';
+  return style;
+}
+
 /**
  * The immersive, media-first hero.
  *
@@ -124,9 +135,12 @@ export function MediaHero({
           </h1>
         )}
 
-        {restaurant.description && (
-          <p className="rise-3 mt-5 max-w-xl text-lg leading-relaxed text-white/85 drop-shadow">
-            {restaurant.description}
+        {(restaurant.heroTagline?.trim() || restaurant.description) && (
+          <p
+            className="rise-3 mt-5 max-w-xl text-lg leading-relaxed drop-shadow"
+            style={taglineStyle(restaurant)}
+          >
+            {restaurant.heroTagline?.trim() || restaurant.description}
           </p>
         )}
 

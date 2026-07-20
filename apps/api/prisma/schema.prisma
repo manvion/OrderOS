@@ -253,6 +253,13 @@ model Restaurant {
   /// and the fallback when it's absent. This is what makes the storefront feel modern
   /// rather than a static page.
   heroVideoUrl      String?
+  /// A short line shown in the hero, under the logo — the restaurant's own words
+  /// ("Home of the famous flautas"). heroTaglineColor is null=default, "BRAND", or a
+  /// #hex; heroTaglineFont picks a type feel (same set as the name wordmark). Falls
+  /// back to `description` in the hero when blank.
+  heroTagline       String?
+  heroTaglineColor  String?
+  heroTaglineFont   String  @default("SANS")
   brandPrimaryColor String  @default("#EA580C")
   brandAccentColor  String  @default("#0F172A")
   /// Three genuinely different storefront LAYOUTS, not a palette swap -- see
