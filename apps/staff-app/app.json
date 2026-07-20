@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "DineDirect Staff",
+    "slug": "dinedirect-staff",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "dinedirect-staff",
+    "ios": {
+      "bundleIdentifier": "ca.manvion.dinedirect.staff",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Location is required by Stripe to accept in-person card payments.",
+        "NSBluetoothAlwaysUsageDescription": "Bluetooth is used to connect to card readers."
+      },
+      "entitlements": {
+        "com.apple.developer.proximity-reader.payment.acceptance": true
+      }
+    },
+    "android": {
+      "package": "ca.manvion.dinedirect.staff",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN"
+      ]
+    },
+    "plugins": [
+      [
+        "@stripe/stripe-terminal-react-native",
+        {
+          "bluetoothBackgroundMode": true,
+          "locationWhenInUsePermission": "Location is required to accept in-person card payments.",
+          "bluetoothPeripheralPermission": "Bluetooth is used to connect to card readers.",
+          "bluetoothAlwaysUsagePermission": "Bluetooth is used to connect to card readers."
+        }
+      ]
+    ]
+  }
+}

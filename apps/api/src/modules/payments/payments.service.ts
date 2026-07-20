@@ -462,6 +462,143 @@ export class PaymentsService {
     return { checkoutUrl: session.url!, sessionId: session.id };
   }
 
+  // --- Stripe Terminal (in-person / Tap to Pay) ------------------------------
+  //
+  // Card-present payments taken by staff on the counter, through the native staff
+  // app's Stripe Terminal SDK (Tap to Pay on the phone, or a physical reader). The
+  // web dashboard can't reach the phone's NFC, so the actual tap lives in the app;
+  // these three endpoints are everything the app needs from us.
+  //
+  // Connect model: DIRECT charge on the connected account (unlike the online flow's
+  // destination charge), because the reader — the restaurant's own phone — belongs to
+  // the connected account, and Terminal requires the PaymentIntent to live on the same
+  // account the reader connects to. `application_fee_amount` still routes our
+  // commission back to the platform, and because it's the connected account's charge,
+  // Stripe's processing fee lands on the restaurant exactly like every other order.
+
+  /**
+   * A connection token the Terminal SDK exchanges to connect a reader. Minted on the
+   * connected account, since that's who owns the reader the staff phone becomes.
+   */
+  async createTerminalConnectionToken(restaurantId: string): Promise<{ secret: string }> {
+    const restaurant = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { stripeAccountId: true, stripeChargesEnabled: true },
+    });
+    if (!restaurant.stripeAccountId || !restaurant.stripeChargesEnabled) {
+      throw new BadRequestException('Connect a Stripe account with card payments enabled first');
+    }
+    const token = await this.stripe.terminal.connectionTokens.create(
+      {},
+      { stripeAccount: restaurant.stripeAccountId },
+    );
+    return { secret: token.secret };
+  }
+
+  /**
+   * Create the card-present PaymentIntent for an unpaid order and hand its client
+   * secret to the app, which collects the tap and confirms it on-device. We (re)compute
+   * the platform commission here and write it onto the payment, because an order that
+   * was placed as pay-at-desk carries a zero fee (it assumed cash) — paying it by card
+   * should still earn commission.
+   */
+  async createTerminalPaymentIntent(
+    restaurantId: string,
+    orderId: string,
+  ): Promise<{ clientSecret: string; paymentIntentId: string }> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { payment: true, restaurant: true },
+    });
+    if (!order?.payment) throw new NotFoundException('Order not found');
+    if (order.payment.status === 'PAID') throw new BadRequestException('This order is already paid');
+    if (!order.restaurant.stripeAccountId || !order.restaurant.stripeChargesEnabled) {
+      throw new BadRequestException('Connect a Stripe account with card payments enabled first');
+    }
+
+    const commissionBps = effectiveCommissionBps(order.restaurant);
+    const platformFeeCents = Math.round(
+      ((order.subtotalCents - order.discountCents) * commissionBps) / 10_000,
+    );
+    const applicationFee = platformFeeCents + (order.payment.courierCostCents ?? 0);
+
+    const intent = await this.stripe.paymentIntents.create(
+      {
+        amount: order.totalCents,
+        currency: order.currency.toLowerCase(),
+        payment_method_types: ['card_present'],
+        capture_method: 'automatic',
+        ...(applicationFee > 0 ? { application_fee_amount: applicationFee } : {}),
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          restaurantId: order.restaurantId,
+          channel: 'terminal',
+        },
+        description: `${order.restaurant.name} order #${order.orderNumber}`,
+      },
+      {
+        stripeAccount: order.restaurant.stripeAccountId,
+        idempotencyKey: `terminal:${order.id}`,
+      },
+    );
+
+    // Store the intent id (so settle can find it) and the freshly-computed commission,
+    // so the payout maths reconciles whether this order ends up paid by card or cash.
+    await this.prisma.payment.update({
+      where: { id: order.payment.id },
+      data: {
+        stripePaymentIntentId: intent.id,
+        platformFeeCents,
+        method: 'CARD_TERMINAL',
+      },
+    });
+
+    return { clientSecret: intent.client_secret!, paymentIntentId: intent.id };
+  }
+
+  /**
+   * After the app reports a successful tap, confirm it server-side and mark the order
+   * paid. Retrieving the intent from Stripe (rather than trusting the client) is the
+   * authorization — we only mark paid if Stripe says it succeeded. Also reads back the
+   * real processing fee for the payout, exactly like the online webhook.
+   */
+  async settleTerminalOrder(restaurantId: string, orderId: string): Promise<void> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { payment: true, restaurant: true },
+    });
+    if (!order?.payment) throw new NotFoundException('Order not found');
+    if (order.payment.status === 'PAID') return; // already settled
+    if (!order.payment.stripePaymentIntentId || !order.restaurant.stripeAccountId) {
+      throw new BadRequestException('No terminal payment was started for this order');
+    }
+
+    const intent = await this.stripe.paymentIntents.retrieve(
+      order.payment.stripePaymentIntentId,
+      { expand: ['latest_charge.balance_transaction'] },
+      { stripeAccount: order.restaurant.stripeAccountId },
+    );
+    if (intent.status !== 'succeeded') {
+      throw new BadRequestException(`Payment not complete (status: ${intent.status})`);
+    }
+
+    const charge = intent.latest_charge as Stripe.Charge | null;
+    const card = charge?.payment_method_details?.card_present;
+    const balanceTx = charge?.balance_transaction as Stripe.BalanceTransaction | null;
+
+    await this.markOrderPaid(orderId, {
+      paymentFields: {
+        method: 'CARD_TERMINAL',
+        stripeChargeId: charge?.id ?? null,
+        ...(balanceTx && typeof balanceTx.fee === 'number' ? { stripeFeeCents: balanceTx.fee } : {}),
+      },
+      cardBrand: card?.brand ?? null,
+      cardLast4: card?.last4 ?? null,
+      auditMeta: { channel: 'terminal', paymentIntentId: intent.id },
+    });
+  }
+
   // --- Webhook --------------------------------------------------------------
 
   /**

@@ -87,6 +87,31 @@ export class PaymentsController {
     return this.payments.refund(restaurantId, orderId, body, user.id);
   }
 
+  // --- Stripe Terminal (in-person / Tap to Pay, called by the native staff app) ---
+
+  /** A connection token the Terminal SDK exchanges to connect the reader. */
+  @Post('terminal/connection-token')
+  @Roles('STAFF')
+  terminalConnectionToken(@TenantId() restaurantId: string) {
+    return this.payments.createTerminalConnectionToken(restaurantId);
+  }
+
+  /** Start a card-present charge for an unpaid order; returns the intent client secret. */
+  @Post('terminal/orders/:orderId/intent')
+  @Roles('STAFF')
+  terminalIntent(@TenantId() restaurantId: string, @Param('orderId') orderId: string) {
+    return this.payments.createTerminalPaymentIntent(restaurantId, orderId);
+  }
+
+  /** Confirm the tap succeeded and mark the order paid. */
+  @Post('terminal/orders/:orderId/settle')
+  @Roles('STAFF')
+  @Audit('payment.terminal_settled', 'Order')
+  async terminalSettle(@TenantId() restaurantId: string, @Param('orderId') orderId: string) {
+    await this.payments.settleTerminalOrder(restaurantId, orderId);
+    return { ok: true };
+  }
+
   // --- Webhook ---------------------------------------------------------------
 
   /**
