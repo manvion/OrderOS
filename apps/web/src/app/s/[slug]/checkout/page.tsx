@@ -218,12 +218,17 @@ export default function CheckoutPage() {
     setTip(Math.round(((totals?.subtotalCents ?? 0) * percent) / 100));
   };
 
+  // The minimum applies to DELIVERY only. It's the last gate rather than a block on a
+  // previous screen, so switching to pickup here immediately lets the order through.
+  const belowMinimum = fulfillment === 'DELIVERY' && subtotalCents < restaurant.minOrderCents;
+
   const canSubmit =
     lines.length > 0 &&
     customer.name.trim().length > 0 &&
     customer.phone.trim().length >= 7 &&
     customer.email.includes('@') &&
     (fulfillment !== 'DELIVERY' || (addressComplete && quote?.deliverable === true)) &&
+    !belowMinimum &&
     !submitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -712,6 +717,15 @@ export default function CheckoutPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {belowMinimum && (
+        <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          Delivery orders have a {formatMoney(restaurant.minOrderCents, restaurant.currency)}{' '}
+          minimum. Add{' '}
+          {formatMoney(restaurant.minOrderCents - subtotalCents, restaurant.currency)} more, or
+          switch to pickup above.
+        </p>
       )}
 
       <Button type="submit" variant="brand" size="lg" className="w-full" disabled={!canSubmit}>

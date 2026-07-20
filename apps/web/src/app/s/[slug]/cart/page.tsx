@@ -212,6 +212,8 @@ export default function CartPage() {
         </Card>
       )}
 
+      {/* A delivery minimum is a hint here, never a block — the customer picks pickup
+          or delivery on the next screen, so we can't decide it for them yet. */}
       {belowMinimum && (
         <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
           {t.cart.minPrefix} {formatMoney(restaurant.minOrderCents, restaurant.currency)}{' '}
@@ -226,24 +228,14 @@ export default function CartPage() {
           <Button asChild variant="outline" className="hidden sm:flex">
             <Link href={href('/menu')}>{t.cart.addMore}</Link>
           </Button>
-          <Button
-            asChild={!belowMinimum}
-            variant="brand"
-            size="lg"
-            className="flex-1"
-            disabled={belowMinimum}
-          >
-            {belowMinimum ? (
-              <span>{t.cart.minimumNotMet}</span>
-            ) : (
-              <Link href={href('/checkout')}>
-                {t.cart.checkout} ·{' '}
-                {formatMoney(
-                  (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
-                  restaurant.currency,
-                )}
-              </Link>
-            )}
+          <Button asChild variant="brand" size="lg" className="flex-1">
+            <Link href={href('/checkout')}>
+              {t.cart.checkout} ·{' '}
+              {formatMoney(
+                (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
+                restaurant.currency,
+              )}
+            </Link>
           </Button>
         </div>
       </div>
