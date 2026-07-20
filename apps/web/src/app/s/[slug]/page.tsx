@@ -1,23 +1,10 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import {
-  ArrowRight,
-  Clock,
-  Flame,
-  MapPin,
-  Phone,
-  ShoppingBag,
-  Sparkles,
-  Star,
-  Truck,
-  UtensilsCrossed,
-} from 'lucide-react';
+import { ArrowRight, Clock, MapPin, Phone, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { storefrontApi, type StorefrontRestaurant } from '@/lib/api';
 import { previewTokenFor } from '@/lib/preview-token';
 import { Button } from '@/components/ui/button';
-import { Reveal } from '@/components/shared/reveal';
 import { StoryBand } from '@/components/storefront/story-band';
 import { MediaHero } from '@/components/storefront/media-hero';
 import { LogoMark } from '@/components/storefront/logo-mark';
@@ -76,10 +63,6 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
 
   const template = (() => {
     switch (restaurant.websiteTemplate) {
-      case 'BOLD':
-        return <BoldHome restaurant={restaurant} href={href} />;
-      case 'MINIMAL':
-        return <MinimalHome restaurant={restaurant} href={href} />;
       case 'RUSTIC':
         return <RusticHome restaurant={restaurant} href={href} />;
       case 'BUILDER':
@@ -90,8 +73,9 @@ export default async function StorefrontHome({ params }: { params: Promise<{ slu
         return <ElegantHome restaurant={restaurant} href={href} />;
       case 'PUNCHY':
         return <PunchyHome restaurant={restaurant} href={href} />;
-      case 'SIGNATURE':
-        return <SignatureHome restaurant={restaurant} href={href} />;
+      // BOLD, MINIMAL and SIGNATURE were retired — with the shared media hero they
+      // were indistinguishable from CLASSIC, so any restaurant still on them renders
+      // CLASSIC rather than a missing template.
       case 'CLASSIC':
       default:
         return <ClassicHome restaurant={restaurant} href={href} />;
@@ -148,188 +132,6 @@ function ClassicHome({ restaurant, href }: TemplateProps) {
 }
 
 /**
- * SIGNATURE. The DineDirect house style, brought to the storefront: a DARK hero
- * washed with a radial gradient in the restaurant's own brand colour, a pill status
- * badge, a big headline and brand-coloured CTAs — then clean light sections. It
- * mirrors the marketing landing page's look, so a restaurant that liked the site
- * they signed up on can have their own in the same register.
- */
-function SignatureHome({ restaurant, href }: TemplateProps) {
-  const options = fulfillmentOptions(restaurant);
-
-  return (
-    <div className="animate-rise">
-      <section className="relative isolate overflow-hidden bg-foreground text-background">
-        {/* The signature move: an ellipse of the brand colour bleeding from the
-            top-left, exactly like the landing hero. */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 1000px 600px at 15% 0%, color-mix(in srgb, var(--brand) 40%, transparent), transparent 60%)',
-          }}
-        />
-
-        <div className="container relative py-20 sm:py-28">
-          <div className="max-w-2xl">
-            <span className="rise-1 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm">
-              <span
-                className={`pulse-dot h-1.5 w-1.5 rounded-full ${
-                  restaurant.isOpen ? 'bg-emerald-300 text-emerald-300' : 'bg-white/70'
-                }`}
-              />
-              {restaurant.isOpen ? 'Open now' : 'Closed'}
-              {restaurant.isOpen && (
-                <>
-                  <span className="text-white/40">·</span>
-                  ready in ~{restaurant.prepTimeMinutes} min
-                </>
-              )}
-            </span>
-
-            {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
-              <LogoMark
-                url={restaurant.logoUrl}
-                name={restaurant.name}
-                color={restaurant.heroLogoColor}
-                maxHeight="140px"
-                maxWidth="min(76vw, 420px)"
-                align="left"
-                className="rise-2 mb-6 mt-8 drop-shadow-2xl"
-              />
-            )}
-            {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
-              <h1 className="rise-2 mt-6 font-display text-5xl font-semibold leading-[1.03] tracking-tight sm:text-6xl lg:text-7xl">
-                {restaurant.name}
-              </h1>
-            )}
-
-            {restaurant.description && (
-              <p className="rise-3 mt-5 max-w-xl text-lg leading-relaxed text-background/75">
-                {restaurant.description}
-              </p>
-            )}
-
-            <div className="rise-4 mt-9 flex flex-wrap items-center gap-3">
-              <Button asChild variant="brand" size="lg" className="rounded-xl px-8 text-base">
-                <Link href={href('/menu')} className="group">
-                  {restaurant.isOpen ? 'Order now' : 'View the menu'}
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="ghost"
-                className="rounded-xl px-6 text-base text-background hover:bg-white/10 hover:text-background"
-              >
-                <Link href={href('/menu')}>See the menu</Link>
-              </Button>
-            </div>
-
-            {options.length > 0 && (
-              <div className="rise-4 mt-8 flex flex-wrap items-center gap-2">
-                {options.map(({ icon: Icon, label }) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-background/85"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
-              <p className="mt-5 text-sm text-background/70">
-                We&apos;re closed right now — but you can schedule an order for later.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* A photo strip when they have one — the landing page pairs its dark hero
-          with a bright product shot; a gallery does the same job here. */}
-      {restaurant.galleryImages.length > 0 && (
-        <section className="border-b bg-muted/20">
-          <div className="container grid grid-cols-2 gap-3 py-10 sm:grid-cols-3 lg:grid-cols-4">
-            {restaurant.galleryImages.slice(0, 4).map((image, i) => (
-              <div
-                key={image.id}
-                className="img-zoom aspect-[4/3] overflow-hidden rounded-2xl shadow-soft"
-                style={{ animationDelay: `${i * 60}ms` }}
-              >
-                <Image
-                  src={image.url}
-                  alt={image.caption ?? restaurant.name}
-                  width={400}
-                  height={300}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <FactsRow restaurant={restaurant} />
-      <ClosingPitch restaurant={restaurant} href={href} />
-    </div>
-  );
-}
-
-/**
- * BOLD. No photo dependency at all -- a solid brand-colour hero, big confident
- * type, menu-forward. Built for a QR scan that should land on "order now" in
- * under a second, not a magazine spread. Skips the gallery entirely, even if
- * one exists: this template's whole identity is "fast", not "photo-forward".
- */
-function BoldHome({ restaurant, href }: TemplateProps) {
-  return (
-    <div className="animate-rise">
-      <MediaHero restaurant={restaurant} href={href} />
-      <FactsRow restaurant={restaurant} />
-      <ClosingPitch restaurant={restaurant} href={href} />
-    </div>
-  );
-}
-
-/**
- * MINIMAL. No photography anywhere -- the deliberate choice for a restaurant
- * with none yet, rather than CLASSIC's gradient-wash standing in for a photo it
- * doesn't have. Centered, generous whitespace, plain text facts. Quiet on
- * purpose: the menu button is the only thing asking for attention.
- */
-function MinimalHome({ restaurant, href }: TemplateProps) {
-  return (
-    <div className="animate-rise">
-      <MediaHero restaurant={restaurant} href={href} height="tall" />
-
-      {/* Plain text, no icons, no cards -- the quietest version of the same facts
-          every template shows. */}
-      <section className="border-t">
-        <div className="mx-auto max-w-2xl px-5 py-14 text-center text-sm text-muted-foreground sm:px-8">
-          <p>
-            {restaurant.street}, {restaurant.city}, {restaurant.state} {restaurant.postalCode}
-          </p>
-          <p className="mt-1.5">
-            <a href={`tel:${restaurant.phone}`} className="hover:underline">
-              {restaurant.phone}
-            </a>
-          </p>
-          <p className="mt-1.5">
-            About {restaurant.prepTimeMinutes} minutes
-            {restaurant.deliveryEnabled && <> · delivery adds ~15</>}
-          </p>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/**
  * RUSTIC. Warm cream palette, dark rounded "coupon card" hero, dashed borders
  * throughout. Artisanal and hand-made-feeling rather than corporate -- the
  * opposite instinct from BOLD's flat brand-colour confidence.
@@ -338,10 +140,6 @@ function RusticHome({ restaurant, href }: TemplateProps) {
   const options = fulfillmentOptions(restaurant);
   const mode = restaurant.themeMode;
   const page = tone(mode, '#f6ecd9', '#1a140d');
-  const cardBg = tone(mode, '#241a10', '#f3e6cc');
-  const cardText = tone(mode, '#ffffff', '#241a10');
-  const cardTextMuted = tone(mode, 'rgba(255,255,255,0.7)', 'rgba(36,26,16,0.7)');
-  const cardChipBg = tone(mode, 'rgba(255,255,255,0.1)', 'rgba(36,26,16,0.1)');
   const bodyText = tone(mode, '#241a10', '#f3e6cc');
   const bodyTextMuted = tone(mode, 'rgba(36,26,16,0.65)', 'rgba(243,230,204,0.65)');
   const dashBorder = tone(mode, 'rgba(36,26,16,0.2)', 'rgba(243,230,204,0.22)');
@@ -350,103 +148,7 @@ function RusticHome({ restaurant, href }: TemplateProps) {
 
   return (
     <div className="animate-rise" style={{ background: page }}>
-      <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8 sm:pt-14">
-        <div
-          className="grid gap-6 overflow-hidden rounded-[2rem] lg:grid-cols-2"
-          style={{ background: cardBg }}
-        >
-          <div className="p-8 sm:p-12">
-            {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
-              <LogoMark
-                url={restaurant.logoUrl}
-                name={restaurant.name}
-                color={restaurant.heroLogoColor}
-                maxHeight="108px"
-                maxWidth="min(70vw, 320px)"
-                align="left"
-                className="rise-1 mb-6 drop-shadow-lg"
-              />
-            )}
-            <div
-              className="rise-1 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium"
-              style={{ background: cardChipBg, color: cardText }}
-            >
-              <span
-                className={`pulse-dot h-1.5 w-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-400 text-emerald-400' : ''}`}
-                style={!restaurant.isOpen ? { background: cardTextMuted } : undefined}
-              />
-              {restaurant.isOpen ? 'Open now' : 'Closed'}
-            </div>
-
-            {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
-              <h1
-                className="rise-2 mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl"
-                style={{ color: cardText }}
-              >
-                {restaurant.name}
-              </h1>
-            )}
-
-            {restaurant.description && (
-              <p className="rise-3 mt-4 max-w-md" style={{ color: cardTextMuted }}>
-                {restaurant.description}
-              </p>
-            )}
-
-            <div className="rise-4 mt-8 flex flex-wrap items-center gap-3">
-              <Button
-                asChild
-                size="lg"
-                className="rounded-full px-7 shadow-floating"
-                style={{ background: restaurant.brandPrimaryColor, color: '#fff' }}
-              >
-                <Link href={href('/menu')}>
-                  {restaurant.isOpen ? 'Order online' : 'View the menu'}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <a
-                href={`tel:${restaurant.phone}`}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium"
-                style={{ background: cardChipBg, color: cardText }}
-              >
-                <Phone className="h-3.5 w-3.5" />
-                {restaurant.phone}
-              </a>
-            </div>
-
-            <div className="mt-8 flex items-center gap-5 text-sm" style={{ color: cardTextMuted }}>
-              <span className="inline-flex items-center gap-1.5">
-                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                Fresh, made to order
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Flame className="h-4 w-4 text-orange-400" />
-                Ready in ~{restaurant.prepTimeMinutes} min
-              </span>
-            </div>
-          </div>
-
-          <div className="relative min-h-[16rem]">
-            {restaurant.coverImageUrl ? (
-              <Image
-                src={restaurant.coverImageUrl}
-                alt=""
-                fill
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                className="object-cover"
-              />
-            ) : (
-              <div
-                className="absolute inset-0"
-                style={{
-                  background: `radial-gradient(120% 100% at 100% 0%, ${restaurant.brandAccentColor}, ${restaurant.brandPrimaryColor})`,
-                }}
-              />
-            )}
-          </div>
-        </div>
-      </section>
+      <MediaHero restaurant={restaurant} href={href} />
 
       <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
         <div className="grid gap-5 sm:grid-cols-3">
@@ -464,26 +166,6 @@ function RusticHome({ restaurant, href }: TemplateProps) {
           </RusticCard>
         </div>
       </section>
-
-      {/* Real photos, when there are any -- a template built around "hand-made"
-          rings hollow without evidence, and an empty gallery renders nothing. */}
-      {restaurant.galleryImages.length > 0 && (
-        <section className="mx-auto max-w-6xl px-5 pb-4 sm:px-8">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {restaurant.galleryImages.slice(0, 4).map((image) => (
-              <div key={image.id} className="img-zoom relative aspect-square rounded-2xl">
-                <Image
-                  src={image.url}
-                  alt={image.caption ?? ''}
-                  fill
-                  sizes="(max-width: 640px) 50vw, 25vw"
-                  className="rounded-2xl object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       <section className="px-5 py-16 sm:px-8">
         <div
@@ -554,116 +236,9 @@ function RusticCard({
  * choice. No photo dependency: the personality is in the type, not the plate.
  */
 function BuilderHome({ restaurant, href }: TemplateProps) {
-  const options = fulfillmentOptions(restaurant);
-
   return (
     <div className="animate-rise bg-background">
-      <section className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
-        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          <div>
-            {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl ? (
-              <LogoMark
-                url={restaurant.logoUrl}
-                name={restaurant.name}
-                color={restaurant.heroLogoColor}
-                maxHeight="104px"
-                maxWidth="min(70vw, 320px)"
-                align="left"
-                className="rise-1 mb-5"
-              />
-            ) : (
-              <p className="rise-1 text-sm font-semibold text-muted-foreground">{restaurant.name}</p>
-            )}
-            <h1 className="rise-2 mt-2 font-display text-5xl font-black leading-[0.95] tracking-tight text-foreground sm:text-6xl">
-              What are you craving today?
-            </h1>
-
-            {restaurant.description && (
-              <p className="rise-3 mt-5 max-w-md text-lg text-muted-foreground">
-                {restaurant.description}
-              </p>
-            )}
-
-            <div className="rise-4 mt-8 flex flex-wrap items-center gap-3">
-              {options.map(({ icon: Icon, label }) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-1.5 rounded-full border-2 border-foreground/10 px-4 py-2 text-sm font-semibold"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </span>
-              ))}
-            </div>
-
-            <div className="rise-4 mt-8">
-              <Button
-                asChild
-                size="lg"
-                className="rounded-full px-8 text-base font-bold shadow-floating"
-                style={{ background: restaurant.brandPrimaryColor, color: '#fff' }}
-              >
-                <Link href={href('/menu')} className="group">
-                  {restaurant.isOpen ? 'Start your order' : 'View the menu'}
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          {/* The floating status card -- the configurator-panel energy of the
-              reference, repurposed: instead of toppings, it shows the facts
-              that actually matter before ordering. A cover photo, when there
-              is one, sits right above it -- this template doesn't NEED a
-              photo, but it shouldn't hide one either. */}
-          <div className="rise-3 space-y-4">
-            {restaurant.coverImageUrl && (
-              <div className="relative aspect-[16/10] overflow-hidden rounded-3xl shadow-floating">
-                <Image
-                  src={restaurant.coverImageUrl}
-                  alt=""
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 40vw"
-                  className="object-cover"
-                />
-              </div>
-            )}
-            <div className="rounded-3xl border bg-card p-6 shadow-floating">
-              <div className="flex items-center justify-between">
-                <p className="font-display text-lg font-semibold">Right now</p>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    restaurant.isOpen ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {restaurant.isOpen ? 'Open' : 'Closed'}
-                </span>
-              </div>
-              <div className="mt-5 space-y-3 text-sm">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <span className="text-muted-foreground">Ready in</span>
-                  <span className="font-semibold tabular-nums">~{restaurant.prepTimeMinutes} min</span>
-                </div>
-                <div className="flex items-center justify-between border-b pb-3">
-                  <span className="text-muted-foreground">Location</span>
-                  <span className="font-medium">{restaurant.city}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Call</span>
-                  <a href={`tel:${restaurant.phone}`} className="font-medium hover:underline">
-                    {restaurant.phone}
-                  </a>
-                </div>
-              </div>
-              {!restaurant.isOpen && restaurant.scheduledOrdersEnabled && (
-                <p className="mt-4 text-xs text-muted-foreground">
-                  Closed now, but you can schedule an order for later.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+      <MediaHero restaurant={restaurant} href={href} />
 
       <FactsRow restaurant={restaurant} />
       <ClosingPitch restaurant={restaurant} href={href} />
@@ -677,92 +252,12 @@ function BuilderHome({ restaurant, href }: TemplateProps) {
  * restraint.
  */
 function BentoHome({ restaurant, href }: TemplateProps) {
-  const options = fulfillmentOptions(restaurant);
   const mode = restaurant.themeMode;
   const page = tone(mode, '#faf6ec', '#141210');
 
   return (
     <div className="animate-rise" style={{ background: page }}>
-      <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8 sm:pt-14">
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div
-            className="relative overflow-hidden rounded-[2rem] p-8 sm:p-10 lg:col-span-2"
-            style={{ background: restaurant.brandPrimaryColor }}
-          >
-            {/* A real photo, when there's one, reads better than a flat colour
-                block -- a dark wash keeps the white type legible over it. */}
-            {restaurant.coverImageUrl && (
-              <>
-                <Image
-                  src={restaurant.coverImageUrl}
-                  alt=""
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 66vw"
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
-              </>
-            )}
-            <div
-              className="pointer-events-none absolute inset-0 opacity-30"
-              style={{
-                background: `radial-gradient(ellipse 600px 400px at 90% 100%, ${restaurant.brandAccentColor}, transparent 70%)`,
-              }}
-            />
-            <div className="relative">
-              {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
-                <LogoMark
-                  url={restaurant.logoUrl}
-                  name={restaurant.name}
-                  color={restaurant.heroLogoColor}
-                  maxHeight="112px"
-                  maxWidth="min(70vw, 320px)"
-                  align="left"
-                  className="rise-1 mb-5 drop-shadow-lg"
-                />
-              )}
-              <div className="rise-1 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">
-                <Sparkles className="h-3 w-3" />
-                {restaurant.isOpen ? 'Open now' : 'Closed'}
-              </div>
-              {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
-                <h1 className="rise-2 mt-5 font-display text-5xl font-black uppercase leading-[0.9] tracking-tight text-white sm:text-6xl">
-                  {restaurant.name}
-                </h1>
-              )}
-              {restaurant.description && (
-                <p className="rise-3 mt-4 max-w-md text-white/85">{restaurant.description}</p>
-              )}
-              <Button
-                asChild
-                size="lg"
-                className="rise-4 mt-7 rounded-full bg-white px-7 font-bold text-black hover:bg-white/90"
-              >
-                <Link href={href('/menu')}>
-                  {restaurant.isOpen ? 'Order now' : 'View the menu'}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-5">
-            <div className="rounded-[2rem] bg-[#1c1c1c] p-6 text-white">
-              <p className="font-display text-2xl font-black uppercase tracking-tight">Ready in</p>
-              <p className="mt-1 text-3xl font-black tabular-nums">~{restaurant.prepTimeMinutes}m</p>
-            </div>
-            <div
-              className="rounded-[2rem] p-6 text-white"
-              style={{ background: restaurant.brandAccentColor }}
-            >
-              <p className="font-display text-xl font-black uppercase tracking-tight">
-                {options.map((o) => o.label).join(' + ') || 'Order direct'}
-              </p>
-              <p className="mt-1 text-sm text-white/85">No marketplace commission</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <MediaHero restaurant={restaurant} href={href} />
 
       <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
         <div className="grid gap-5 sm:grid-cols-3">
@@ -839,101 +334,10 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
   const mode = restaurant.themeMode;
   const page = tone(mode, '#f7f2e7', '#151310');
   const headline = tone(mode, '#2a2118', '#f2ead9');
-  const headlineMuted = tone(mode, 'rgba(42,33,24,0.7)', 'rgba(242,234,217,0.65)');
-  const band = tone(mode, '#161310', FOREST);
 
   return (
     <div className="animate-rise" style={{ background: page }}>
-      <section className="mx-auto max-w-4xl px-5 pt-20 text-center sm:px-8 sm:pt-28">
-        {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
-          <LogoMark
-            url={restaurant.logoUrl}
-            name={restaurant.name}
-            color={restaurant.heroLogoColor}
-            maxHeight="132px"
-            maxWidth="min(72vw, 380px)"
-            className="rise-1 mx-auto mb-8"
-          />
-        )}
-        <p className="rise-1 text-sm font-semibold uppercase tracking-[0.2em]" style={{ color: FOREST }}>
-          {restaurant.isOpen ? 'Open now' : 'Currently closed'}
-        </p>
-        {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
-          <h1
-            className="rise-2 mt-4 font-display text-4xl font-medium italic leading-tight tracking-tight sm:text-6xl"
-            style={{ color: headline }}
-          >
-            {restaurant.name}
-          </h1>
-        )}
-        {restaurant.description && (
-          <p className="rise-3 mx-auto mt-5 max-w-lg" style={{ color: headlineMuted }}>
-            {restaurant.description}
-          </p>
-        )}
-        <div className="rise-4 mt-8">
-          <Button
-            asChild
-            size="lg"
-            className="rounded-full px-8"
-            style={{ background: FOREST, color: '#fff' }}
-          >
-            <Link href={href('/menu')}>
-              {restaurant.isOpen ? 'Explore the menu' : 'View the menu'}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      </section>
-
-      <section className="relative mx-auto mt-14 max-w-5xl px-5 sm:px-8">
-        {/* The signature move: a dark band bleeding to both edges, the photo
-            floating on top of it -- the paint-smear device from the reference,
-            approximated without needing real illustration assets. */}
-        <div
-          className="absolute inset-x-0 top-1/2 h-2/3 -translate-y-1/2"
-          style={{ background: band }}
-          aria-hidden
-        />
-        <div className="relative aspect-[16/9] overflow-hidden rounded-[2rem] shadow-dramatic">
-          {restaurant.coverImageUrl ? (
-            <Image
-              src={restaurant.coverImageUrl}
-              alt=""
-              fill
-              sizes="(max-width: 1024px) 100vw, 1024px"
-              className="object-cover"
-            />
-          ) : (
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(140deg, ${restaurant.brandPrimaryColor}, ${FOREST})`,
-              }}
-            />
-          )}
-        </div>
-      </section>
-
-      {/* A gallery, when there is one -- an upscale menu with real photography
-          and no evidence of it is a missed pitch. */}
-      {restaurant.galleryImages.length > 0 && (
-        <section className="mx-auto max-w-5xl px-5 pt-14 sm:px-8">
-          <div className="grid grid-cols-3 gap-4">
-            {restaurant.galleryImages.slice(0, 3).map((image) => (
-              <div key={image.id} className="img-zoom relative aspect-[4/5] rounded-2xl">
-                <Image
-                  src={image.url}
-                  alt={image.caption ?? ''}
-                  fill
-                  sizes="(max-width: 640px) 33vw, 300px"
-                  className="rounded-2xl object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <MediaHero restaurant={restaurant} href={href} />
 
       <section className="mx-auto max-w-4xl px-5 py-16 sm:px-8">
         <dl className="grid gap-8 text-center sm:grid-cols-3">
@@ -998,108 +402,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
 
   return (
     <div className="animate-rise bg-background">
-      <section className="relative isolate overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-60"
-          style={{
-            background: `radial-gradient(ellipse 900px 500px at 50% 0%, ${restaurant.brandPrimaryColor}33, transparent 70%)`,
-          }}
-        />
-
-        <div className="relative mx-auto max-w-2xl px-5 pt-20 text-center sm:px-8 sm:pt-24">
-          {restaurant.logoDisplayMode !== 'NAME_ONLY' && restaurant.logoUrl && (
-            <LogoMark
-              url={restaurant.logoUrl}
-              name={restaurant.name}
-              color={restaurant.heroLogoColor}
-              maxHeight="128px"
-              maxWidth="min(72vw, 360px)"
-              className="rise-1 mx-auto mb-7 drop-shadow"
-            />
-          )}
-          <div
-            className="rise-1 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide"
-            style={{ background: `${restaurant.brandPrimaryColor}22`, color: restaurant.brandPrimaryColor }}
-          >
-            {restaurant.city} · {options.map((o) => o.label).join(' & ') || 'Order direct'}
-          </div>
-
-          {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
-            <h1 className="rise-2 mt-6 font-display text-4xl font-black leading-[1.05] tracking-tight text-foreground sm:text-6xl">
-              {restaurant.name}
-            </h1>
-          )}
-
-          {restaurant.description && (
-            <p className="rise-3 mx-auto mt-5 max-w-lg text-muted-foreground">{restaurant.description}</p>
-          )}
-
-          <div className="rise-4 mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button
-              asChild
-              size="lg"
-              className="rounded-full px-8 font-bold shadow-floating"
-              style={{ background: restaurant.brandPrimaryColor, color: '#111' }}
-            >
-              <Link href={href('/menu')}>
-                {restaurant.isOpen ? 'Start an order' : 'View the menu'}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="rounded-full px-8">
-              <Link href={href('/menu')}>View full menu</Link>
-            </Button>
-          </div>
-
-          <div className="rise-4 mt-8 flex flex-wrap items-center justify-center gap-2.5">
-            <PunchyPill accent={restaurant.brandPrimaryColor} label={restaurant.isOpen ? 'Open now' : 'Closed'}>
-              {restaurant.isOpen ? `ready in ~${restaurant.prepTimeMinutes}m` : 'schedule ahead'}
-            </PunchyPill>
-            <PunchyPill accent={restaurant.brandPrimaryColor} label="Fresh">
-              made to order
-            </PunchyPill>
-            <PunchyPill accent={restaurant.brandPrimaryColor} label="Direct">
-              no marketplace cut
-            </PunchyPill>
-          </div>
-        </div>
-
-        {/* The phone-framed product shot -- the reference's signature move. A
-            plain rectangle bezel reads as "device" without needing a real
-            phone-mockup asset. 4:5 (not a literal 9:16 phone ratio) crops a
-            normal landscape food photo far more gracefully -- a true phone
-            ratio sliced most real photos in half. */}
-        <div className="relative mx-auto mt-10 w-full max-w-[300px] px-5 pb-16 sm:px-8">
-          {restaurant.coverImageUrl && (
-            <span
-              className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-[#111]"
-              style={{ background: restaurant.brandPrimaryColor }}
-            >
-              Hot, fresh &amp; ready
-            </span>
-          )}
-          <div className="rounded-[2rem] border-[10px] border-[#0c0b0a] bg-[#0c0b0a] shadow-dramatic">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[1.4rem]">
-              {restaurant.coverImageUrl ? (
-                <Image
-                  src={restaurant.coverImageUrl}
-                  alt=""
-                  fill
-                  sizes="300px"
-                  className="object-cover"
-                />
-              ) : (
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: `linear-gradient(160deg, ${restaurant.brandPrimaryColor}, ${restaurant.brandAccentColor})`,
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+      <MediaHero restaurant={restaurant} href={href} />
 
       <section className="border-t px-5 py-16 sm:px-8">
         <div className="mx-auto max-w-3xl">

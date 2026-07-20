@@ -80,16 +80,7 @@ export function BrandingEditor() {
 
   const saveTemplate = useMutation({
     mutationFn: (
-      websiteTemplate:
-        | 'CLASSIC'
-        | 'BOLD'
-        | 'MINIMAL'
-        | 'RUSTIC'
-        | 'BUILDER'
-        | 'BENTO'
-        | 'ELEGANT'
-        | 'PUNCHY'
-        | 'SIGNATURE',
+      websiteTemplate: 'CLASSIC' | 'RUSTIC' | 'BUILDER' | 'BENTO' | 'ELEGANT' | 'PUNCHY',
     ) => api.updateCurrent({ websiteTemplate }),
     onSuccess: () => {
       void queryClient.invalidateQueries();
@@ -980,24 +971,6 @@ export function BrandingEditor() {
               accent={primary}
             />
             <TemplateOption
-              swatch="bold"
-              title="Bold"
-              description="Solid colour hero, menu-forward. Built for a fast QR scan-to-order."
-              active={restaurant.websiteTemplate === 'BOLD'}
-              onSelect={() => saveTemplate.mutate('BOLD')}
-              disabled={readOnly || saveTemplate.isPending}
-              accent={primary}
-            />
-            <TemplateOption
-              swatch="minimal"
-              title="Minimal"
-              description="Centered, text-first, no photo needed. Quiet and clean."
-              active={restaurant.websiteTemplate === 'MINIMAL'}
-              onSelect={() => saveTemplate.mutate('MINIMAL')}
-              disabled={readOnly || saveTemplate.isPending}
-              accent={primary}
-            />
-            <TemplateOption
               swatch="rustic"
               title="Rustic"
               description="Warm cream palette, dashed borders, a dark coupon-card hero. Artisanal."
@@ -1039,15 +1012,6 @@ export function BrandingEditor() {
               description="Dark charcoal, one bright accent, a phone-framed photo. Confident comfort food."
               active={restaurant.websiteTemplate === 'PUNCHY'}
               onSelect={() => saveTemplate.mutate('PUNCHY')}
-              disabled={readOnly || saveTemplate.isPending}
-              accent={primary}
-            />
-            <TemplateOption
-              swatch="signature"
-              title="Signature"
-              description="A dark hero washed with your brand colour and bold type — the DineDirect house style. Premium and modern."
-              active={restaurant.websiteTemplate === 'SIGNATURE'}
-              onSelect={() => saveTemplate.mutate('SIGNATURE')}
               disabled={readOnly || saveTemplate.isPending}
               accent={primary}
             />
