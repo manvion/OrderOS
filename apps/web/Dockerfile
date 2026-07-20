@@ -17,13 +17,21 @@ WORKDIR /app
 # Next.js inlines NEXT_PUBLIC_* into the client bundle at BUILD time. They must
 # be present here, not just at runtime, or the browser gets `undefined` for the
 # API URL and every request fails.
+#
+# This is also why setting NEXT_PUBLIC_MAPTILER_KEY as a runtime secret does
+# NOTHING: the client bundle is frozen at build. The delivery map falls back to the
+# free CARTO tiles (the paler look) unless the key is passed HERE, as a build arg.
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_APP_DOMAIN
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_MAPTILER_KEY
+ARG NEXT_PUBLIC_OSRM_URL
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_DOMAIN=$NEXT_PUBLIC_APP_DOMAIN
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_MAPTILER_KEY=$NEXT_PUBLIC_MAPTILER_KEY
+ENV NEXT_PUBLIC_OSRM_URL=$NEXT_PUBLIC_OSRM_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /app/node_modules ./node_modules

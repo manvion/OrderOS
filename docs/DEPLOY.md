@@ -231,10 +231,16 @@ vercel.com/new → import the repo, then:
 | `NEXT_PUBLIC_API_URL` | `https://api.dinedirect.manvion.ca` |
 | `NEXT_PUBLIC_APP_DOMAIN` | `dinedirect.manvion.ca` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` |
+| `NEXT_PUBLIC_MAPTILER_KEY` | `…` (optional — Google/Uber-grade delivery-map tiles) |
 | `CLERK_SECRET_KEY` | `sk_live_…` |
 
 `NEXT_PUBLIC_*` values are **inlined into the browser bundle at build time**. Changing
-one requires a redeploy, not a restart.
+one requires a redeploy, not a restart. On Vercel that happens automatically. **On a
+Docker deploy** (Fly/Render/self-hosted) a `NEXT_PUBLIC_*` set only as a runtime secret
+does nothing — it must be passed as a `--build-arg` to `docker build` (see the `args:`
+block in `docker-compose.yml`). `NEXT_PUBLIC_MAPTILER_KEY` is the one that bites people:
+set it at runtime and the delivery map still shows the paler free CARTO tiles, because
+the key was never in the build.
 
 Deploy. You now have `dinedirect-xxx.vercel.app`.
 
