@@ -96,6 +96,13 @@ export class PaymentsController {
     return this.payments.createTerminalConnectionToken(restaurantId);
   }
 
+  /** The Terminal Location (+ display name) the app connects the Tap-to-Pay reader to. */
+  @Get('terminal/location')
+  @Roles('STAFF')
+  terminalLocation(@TenantId() restaurantId: string) {
+    return this.payments.ensureTerminalLocation(restaurantId);
+  }
+
   /** Start a card-present charge for an unpaid order; returns the intent client secret. */
   @Post('terminal/orders/:orderId/intent')
   @Roles('STAFF')

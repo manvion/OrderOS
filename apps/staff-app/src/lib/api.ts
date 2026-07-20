@@ -59,6 +59,11 @@ export function fetchAwaitingPayment() {
   return call<AwaitingOrder[]>('/orders/awaiting-payment');
 }
 
+/** The Terminal Location (+ display name) to connect the Tap-to-Pay reader against. */
+export function fetchTerminalLocation() {
+  return call<{ locationId: string; merchantDisplayName: string }>('/payments/terminal/location');
+}
+
 /** A Terminal connection token — the SDK's tokenProvider calls this. */
 export async function fetchConnectionToken(): Promise<string> {
   const { secret } = await call<{ secret: string }>('/payments/terminal/connection-token', {

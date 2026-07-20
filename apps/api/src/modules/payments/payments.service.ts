@@ -496,6 +496,53 @@ export class PaymentsService {
   }
 
   /**
+   * The Terminal Location the app connects a Tap-to-Pay reader against. Stripe requires
+   * every reader (the staff phone included) to belong to a Location on the connected
+   * account. We reuse the account's first Location, creating one from the restaurant's
+   * address on first use — so staff never have to set one up.
+   */
+  async ensureTerminalLocation(
+    restaurantId: string,
+  ): Promise<{ locationId: string; merchantDisplayName: string }> {
+    const r = await this.prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: {
+        stripeAccountId: true,
+        stripeChargesEnabled: true,
+        name: true,
+        street: true,
+        city: true,
+        state: true,
+        postalCode: true,
+        country: true,
+      },
+    });
+    if (!r.stripeAccountId || !r.stripeChargesEnabled) {
+      throw new BadRequestException('Connect a Stripe account with card payments enabled first');
+    }
+
+    const opts = { stripeAccount: r.stripeAccountId };
+    const existing = await this.stripe.terminal.locations.list({ limit: 1 }, opts);
+    let location = existing.data[0];
+    if (!location) {
+      location = await this.stripe.terminal.locations.create(
+        {
+          display_name: r.name,
+          address: {
+            line1: r.street,
+            city: r.city,
+            state: r.state,
+            postal_code: r.postalCode,
+            country: r.country,
+          },
+        },
+        opts,
+      );
+    }
+    return { locationId: location.id, merchantDisplayName: r.name };
+  }
+
+  /**
    * Create the card-present PaymentIntent for an unpaid order and hand its client
    * secret to the app, which collects the tap and confirms it on-device. We (re)compute
    * the platform commission here and write it onto the payment, because an order that

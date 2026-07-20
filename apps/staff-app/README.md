@@ -84,7 +84,8 @@ Android. iOS must go through the App Store (Apple gives Tap-to-Pay apps no other
 - **Stripe**: the restaurant must have completed Stripe Connect onboarding with charges
   enabled (the same status the dashboard shows). Terminal must be enabled on your Stripe
   account.
-- **SDK version**: method names for Tap to Pay have shifted across `@stripe/stripe-terminal-react-native`
-  beta releases (`connectLocalMobileReader` → `connectReader(..., 'tapToPay')`). Pin the
-  version in `package.json` and adjust `connectReader`/`discoverReaders` calls to match if
-  you upgrade.
+- **SDK version**: pinned to `@stripe/stripe-terminal-react-native@0.0.1-beta.31` and the
+  app is typechecked against it (`connectReader({ discoveryMethod: 'tapToPay', reader,
+  locationId, ... })`). Tap to Pay's API shifts between beta releases, so re-typecheck if you
+  bump the version. `.npmrc` sets `legacy-peer-deps=true` (Clerk pulls a react-dom peer that
+  trips npm against Expo's react) — required for `npm install` and EAS to succeed.

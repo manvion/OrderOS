@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,7 +12,7 @@ import {
 import * as Location from 'expo-location';
 import { useAuth } from '@clerk/clerk-expo';
 import { useStripeTerminal, type Reader } from '@stripe/stripe-terminal-react-native';
-import { fetchAwaitingPayment, type AwaitingOrder } from './lib/api';
+import { fetchAwaitingPayment, fetchTerminalLocation, type AwaitingOrder } from './lib/api';
 import { ChargeSheet } from './ChargeSheet';
 import { theme } from './theme';
 
@@ -41,13 +41,23 @@ export function PosApp() {
   const [orders, setOrders] = useState<AwaitingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AwaitingOrder | null>(null);
+  // The Stripe Terminal Location the reader connects to — fetched before discovery, held
+  // in a ref so the discovered-readers callback reads the current value, not a stale one.
+  const locationRef = useRef<{ locationId: string; merchantDisplayName: string } | null>(null);
 
-  // Boot Tap to Pay: location permission (Stripe requires it), init, discover.
+  // Boot Tap to Pay: location permission (Stripe requires it), fetch the Terminal
+  // location, init, discover.
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setReaderStatus('Location permission is required to accept card payments.');
+        return;
+      }
+      try {
+        locationRef.current = await fetchTerminalLocation();
+      } catch {
+        setReaderStatus('Could not reach the payment service. Check your connection.');
         return;
       }
       await initialize();
@@ -59,7 +69,14 @@ export function PosApp() {
   }, []);
 
   async function connect(reader: Reader.Type) {
-    const { error } = await connectReader({ reader }, 'tapToPay');
+    const loc = locationRef.current;
+    if (!loc) return;
+    const { error } = await connectReader({
+      discoveryMethod: 'tapToPay',
+      reader,
+      locationId: loc.locationId,
+      merchantDisplayName: loc.merchantDisplayName,
+    });
     setReaderStatus(error ? `Reader error: ${error.message}` : 'Ready');
   }
 
