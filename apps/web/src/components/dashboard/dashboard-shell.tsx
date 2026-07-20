@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { UserButton } from '@clerk/nextjs';
+import { OfflineGuard } from '@/components/pwa/offline-guard';
 import {
   Banknote,
   BarChart3,
@@ -265,6 +266,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1">
+        {/* Offline resilience: registers the service worker (so the app loads offline)
+            and shows a banner when the connection drops. */}
+        <OfflineGuard />
         {/* Mobile nav. Kitchen staff run this on a phone as often as a tablet. */}
         <header className="flex items-center justify-between border-b bg-background p-4 lg:hidden">
           <span className="font-bold">DineDirect</span>

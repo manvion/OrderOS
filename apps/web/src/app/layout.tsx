@@ -34,6 +34,7 @@ export const metadata: Metadata = {
   title: 'DineDirect — Take orders on your own website',
   description:
     'Direct ordering for restaurants. Your website, your customers, your margins — without the marketplace commission.',
+  manifest: '/manifest.webmanifest',
 };
 
 /**
