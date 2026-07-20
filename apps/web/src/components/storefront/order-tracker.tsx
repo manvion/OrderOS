@@ -232,8 +232,7 @@ export function OrderTracker({
               {t.tracker.thanks} {order.restaurant.name}
             </p>
             <p className="mt-1 text-sm text-emerald-800">
-              No marketplace took a cut — more of what you paid stayed with the people who cooked
-              your food.
+              Thanks for ordering direct — we hope you enjoy every bite.
             </p>
             <Button asChild variant="brand" className="mt-4">
               <a href={href('/menu')}>{t.tracker.orderAgain}</a>

@@ -413,19 +413,20 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
             Why order here
           </p>
           <h2 className="mt-2 font-display text-2xl font-bold text-foreground sm:text-3xl">
-            Same food, same kitchen — none of it goes to a marketplace.
+            Order straight from {restaurant.name}.
           </h2>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
-            <PunchyFeature title="Freshly prepared">
-              Every order made when you place it, not reheated from a warmer.
+            <PunchyFeature title="Freshly made">
+              Every order is cooked when you place it — never reheated from a warmer.
             </PunchyFeature>
-            <PunchyFeature title="No commission">
-              No 30% cut to an app — more of what you pay reaches the kitchen.
+            <PunchyFeature title="Quick &amp; easy">
+              Order from your phone in a tap, ready in about {restaurant.prepTimeMinutes} minutes.
             </PunchyFeature>
             <PunchyFeature title={options.map((o) => o.label).join(' or ') || 'Order direct'}>
-              About {restaurant.prepTimeMinutes} minutes
-              {restaurant.deliveryEnabled && <>, delivery adds ~15</>}.
+              {restaurant.deliveryEnabled
+                ? 'Pick it up or have it delivered — track it on a live map.'
+                : 'Order ahead and skip the wait when you arrive.'}
             </PunchyFeature>
           </div>
         </div>

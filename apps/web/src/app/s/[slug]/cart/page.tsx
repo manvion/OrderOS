@@ -21,6 +21,7 @@ export default function CartPage() {
   const lines = useCart((s) => s.lines);
   const setQuantity = useCart((s) => s.setQuantity);
   const removeLine = useCart((s) => s.removeLine);
+  const fulfillment = useCart((s) => s.fulfillment);
   const promoCode = useCart((s) => s.promoCode);
   const promoDiscountCents = useCart((s) => s.promoDiscountCents);
   const setPromo = useCart((s) => s.setPromo);
@@ -63,7 +64,9 @@ export default function CartPage() {
     );
   }
 
-  const belowMinimum = (totals?.subtotalCents ?? 0) < restaurant.minOrderCents;
+  // The minimum only applies to DELIVERY — pickup and dine-in are never blocked.
+  const belowMinimum =
+    fulfillment === 'DELIVERY' && (totals?.subtotalCents ?? 0) < restaurant.minOrderCents;
 
   return (
     <div className="container max-w-2xl py-8 pb-32">

@@ -255,11 +255,13 @@ export class OrdersService {
       discountCents: discount?.discountCents ?? 0,
     });
 
-    if (pricing.subtotalCents < restaurant.minOrderCents) {
+    // A minimum order is a DELIVERY floor — it's there to make a driver worth
+    // dispatching. Pickup and dine-in have no such cost, so they're never blocked.
+    if (input.fulfillment === 'DELIVERY' && pricing.subtotalCents < restaurant.minOrderCents) {
       throw new BadRequestException({
         statusCode: 400,
         error: 'BelowMinimum',
-        message: `Minimum order is ${(restaurant.minOrderCents / 100).toFixed(2)} ${restaurant.currency}`,
+        message: `Minimum delivery order is ${(restaurant.minOrderCents / 100).toFixed(2)} ${restaurant.currency}`,
         minOrderCents: restaurant.minOrderCents,
         subtotalCents: pricing.subtotalCents,
       });
@@ -421,15 +423,8 @@ export class OrdersService {
       tipCents: 0,
     });
 
-    if (pricing.subtotalCents < restaurant.minOrderCents) {
-      throw new BadRequestException({
-        statusCode: 400,
-        error: 'BelowMinimum',
-        message: `Minimum order is ${(restaurant.minOrderCents / 100).toFixed(2)} ${restaurant.currency}`,
-        minOrderCents: restaurant.minOrderCents,
-        subtotalCents: pricing.subtotalCents,
-      });
-    }
+    // No minimum-order check here: a walk-in is only ever pickup or dine-in, and the
+    // minimum is a DELIVERY floor.
 
     const loyaltyPointsEarned =
       restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)

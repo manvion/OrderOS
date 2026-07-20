@@ -1,11 +1,10 @@
-import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
+import { ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import type { StorefrontRestaurant } from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { nameWordmarkStyle } from '@/lib/name-style';
 import { HeroSlideshow } from './hero-slideshow';
 import { LogoMark } from './logo-mark';
+import { OrderCta } from './order-cta';
 
 /** The hero tagline's inline style. Defaults to translucent white over the media. */
 function taglineStyle(r: StorefrontRestaurant): React.CSSProperties {
@@ -147,16 +146,10 @@ export function MediaHero({
         )}
 
         <div className="rise-4 mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Button
-            asChild
-            size="lg"
-            className="rounded-full bg-white px-8 text-base font-bold text-black shadow-floating hover:bg-white/90"
-          >
-            <Link href={href('/menu')} className="group">
-              {restaurant.isOpen ? 'Order now' : 'View the menu'}
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-            </Link>
-          </Button>
+          <OrderCta
+            label={restaurant.isOpen ? 'Order now' : 'View the menu'}
+            className="group inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-base font-bold text-black shadow-floating transition-colors hover:bg-white/90"
+          />
         </div>
 
         {options.length > 0 && (

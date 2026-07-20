@@ -17,6 +17,7 @@ export function EmbedCart({
   const lines = useCart((s) => s.lines);
   const setQuantity = useCart((s) => s.setQuantity);
   const removeLine = useCart((s) => s.removeLine);
+  const fulfillment = useCart((s) => s.fulfillment);
   const totals = useCartTotals(restaurant);
 
   if (lines.length === 0) {
@@ -32,7 +33,8 @@ export function EmbedCart({
   }
 
   const subtotal = totals?.subtotalCents ?? 0;
-  const belowMinimum = subtotal < restaurant.minOrderCents;
+  // Minimum applies to DELIVERY only.
+  const belowMinimum = fulfillment === 'DELIVERY' && subtotal < restaurant.minOrderCents;
 
   return (
     <div className="flex flex-col p-4">
