@@ -42,6 +42,7 @@ import { RedisService } from '../../common/redis/redis.service';
 import { ClerkService } from '../../common/auth/clerk.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { StorageService } from '../storage/storage.service';
+import { autoKnockoutLogo } from '../../common/image/logo-knockout';
 import { QrService } from '../qr/qr.service';
 import { PaymentsService } from '../payments/payments.service';
 import { VercelClient } from '../domains/vercel.client';
@@ -518,9 +519,16 @@ export class RestaurantsService {
   }
 
   async uploadLogo(restaurantId: string, file: Express.Multer.File, userId?: string) {
+    // Auto-knock out a solid background and trim tight, so the logo sits cleanly over
+    // a photo/video hero instead of in a white box. A no-op (null) for photographic or
+    // already-transparent logos — we never punch holes in something we're unsure of.
+    const knocked = await autoKnockoutLogo(file.buffer).catch(() => null);
+    const buffer = knocked ?? file.buffer;
+    const mimetype = knocked ? 'image/png' : file.mimetype;
+
     const { url } = await this.storage.upload(
-      file.buffer,
-      file.mimetype,
+      buffer,
+      mimetype,
       `restaurants/${restaurantId}/logo`,
     );
     const restaurant = await this.prisma.restaurant.update({
