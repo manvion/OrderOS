@@ -45,6 +45,7 @@ export function CourierMap({
   const mapRef = useRef<LeafletMap | null>(null);
   const courierMarkerRef = useRef<Marker | null>(null);
   const trailRef = useRef<Polyline | null>(null);
+  const trailCasingRef = useRef<Polyline | null>(null);
   const hasFittedRef = useRef(false);
 
   // Stable identity so the effect below doesn't re-run on every poll just because
@@ -71,9 +72,15 @@ export function CourierMap({
           scrollWheelZoom: false,
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap',
-          maxZoom: 19,
+        // CARTO Positron: a clean, muted, low-contrast basemap — the "Uber / Stripe"
+        // look — instead of OpenStreetMap's busy default tiles. Free, no API key, and
+        // `{r}`/detectRetina serves crisp @2x tiles on phones. The muted map is the
+        // point: it recedes so the route and the moving courier are what you see.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; OpenStreetMap &copy; CARTO',
+          subdomains: 'abcd',
+          detectRetina: true,
+          maxZoom: 20,
         }).addTo(map);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -86,25 +93,35 @@ export function CourierMap({
       // --- Static pins: where the food came from, where it's going ---
       if (restaurant) {
         L.marker([restaurant.latitude, restaurant.longitude], {
-          icon: dotIcon(L, '#0f172a', '🍔'),
+          icon: pickupIcon(L),
         }).addTo(map);
       }
       if (dropoff) {
         L.marker([dropoff.latitude, dropoff.longitude], {
-          icon: dotIcon(L, brandColor, '📍'),
+          icon: dropoffIcon(L, brandColor),
         }).addTo(map);
       }
 
       // --- The route so far ---
+      // A white "casing" under a solid brand line — the crisp, layered route look of a
+      // real ride-hailing map, and it keeps the line legible over any part of the map.
       if (trail.length > 1) {
         const latlngs = trail.map((p) => [p.latitude, p.longitude] as [number, number]);
-        if (trailRef.current) {
+        if (trailCasingRef.current && trailRef.current) {
+          trailCasingRef.current.setLatLngs(latlngs);
           trailRef.current.setLatLngs(latlngs);
         } else {
+          trailCasingRef.current = L.polyline(latlngs, {
+            color: '#ffffff',
+            weight: 8,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }).addTo(map);
           trailRef.current = L.polyline(latlngs, {
             color: brandColor,
-            weight: 4,
-            opacity: 0.65,
+            weight: 4.5,
+            opacity: 1,
             lineCap: 'round',
             lineJoin: 'round',
           }).addTo(map);
@@ -161,6 +178,7 @@ export function CourierMap({
       mapRef.current = null;
       courierMarkerRef.current = null;
       trailRef.current = null;
+      trailCasingRef.current = null;
     };
   }, []);
 
@@ -179,8 +197,8 @@ export function CourierMap({
       />
       <div
         ref={containerRef}
-        className="h-full w-full rounded-2xl"
-        style={{ minHeight: 260, zIndex: 0 }}
+        className="h-full w-full overflow-hidden rounded-2xl border border-border shadow-soft"
+        style={{ minHeight: 260, zIndex: 0, background: '#eaeaea' }}
         aria-label="Map showing your delivery driver's location"
         role="img"
       />
@@ -188,53 +206,79 @@ export function CourierMap({
   );
 }
 
-/** A small circular pin. Used for the restaurant and the drop-off. */
-function dotIcon(L: typeof import('leaflet'), color: string, emoji: string) {
+// Clean monochrome glyphs (Material-style paths), drawn in white inside the markers.
+const CAR_PATH =
+  'M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z';
+const FORK_PATH =
+  'M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z';
+
+function svg(path: string, color: string, size: number) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="${color}"><path d="${path}"/></svg>`;
+}
+
+/** Pickup — a solid dark disc with a utensils glyph. */
+function pickupIcon(L: typeof import('leaflet')) {
   return L.divIcon({
     className: '',
     html: `<div style="
-      width:34px;height:34px;border-radius:50%;
-      background:#fff;border:3px solid ${color};
+      width:30px;height:30px;border-radius:50%;
+      background:#111827;border:2.5px solid #fff;
       display:flex;align-items:center;justify-content:center;
-      font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,.25);
-    ">${emoji}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+      box-shadow:0 3px 10px rgba(0,0,0,.28);
+    ">${svg(FORK_PATH, '#fff', 15)}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+/** Drop-off — a teardrop pin in the brand colour, anchored at its tip. */
+function dropoffIcon(L: typeof import('leaflet'), color: string) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="filter:drop-shadow(0 3px 6px rgba(0,0,0,.3));">
+      <svg viewBox="0 0 24 34" width="30" height="42">
+        <path d="M12 0C5.9 0 1 4.9 1 11c0 7.7 9.5 21.3 10 22 .5-.7 10-14.3 10-22C21 4.9 18.1 0 12 0z"
+          fill="${color}" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="12" cy="11" r="4" fill="#fff"/>
+      </svg>
+    </div>`,
+    iconSize: [30, 42],
+    iconAnchor: [15, 40],
   });
 }
 
 /**
- * The courier pin, with a pulsing halo.
+ * The courier marker — a car glyph in a brand disc, with a pulsing halo.
  *
- * The pulse is the entire point: a static dot on a map reads as a stale
- * screenshot. A pulsing one reads as "this is happening right now", which is the
- * feeling a tracking page exists to create.
+ * The pulse is the point: a static dot reads as a stale screenshot; a pulsing one
+ * reads as "this is happening right now", which is the whole reason a tracking page
+ * exists.
  */
 function courierIcon(L: typeof import('leaflet'), color: string) {
   return L.divIcon({
     className: '',
     html: `
-      <div style="position:relative;width:44px;height:44px;">
+      <div style="position:relative;width:46px;height:46px;">
         <span style="
           position:absolute;inset:0;border-radius:50%;
-          background:${color};opacity:.28;
+          background:${color};opacity:.25;
           animation:dinedirect-pulse 1.8s ease-out infinite;
         "></span>
         <div style="
-          position:absolute;inset:6px;border-radius:50%;
+          position:absolute;inset:7px;border-radius:50%;
           background:${color};border:3px solid #fff;
           display:flex;align-items:center;justify-content:center;
-          font-size:15px;box-shadow:0 3px 10px rgba(0,0,0,.3);
-        ">🚗</div>
+          box-shadow:0 4px 12px rgba(0,0,0,.32);
+        ">${svg(CAR_PATH, '#fff', 17)}</div>
       </div>
       <style>
         @keyframes dinedirect-pulse {
           0%   { transform: scale(.7); opacity: .45; }
-          70%  { transform: scale(1.6); opacity: 0; }
-          100% { transform: scale(1.6); opacity: 0; }
+          70%  { transform: scale(1.7); opacity: 0; }
+          100% { transform: scale(1.7); opacity: 0; }
         }
       </style>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
+    iconSize: [46, 46],
+    iconAnchor: [23, 23],
   });
 }
