@@ -51,72 +51,118 @@ interface NavItem {
   capability?: PlanCapability;
 }
 
-const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true, minRole: 'MANAGER' },
-  { href: '/dashboard/setup', label: 'Get set up', icon: Rocket, minRole: 'MANAGER' },
-  // The screen staff actually live in, on a tablet by the pass. High in the list
-  // because during service it is the only one that matters.
-  { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' },
-  { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' },
-  { href: '/dashboard/cash', label: 'Cash drawer', icon: Banknote, minRole: 'STAFF' },
+/**
+ * The nav is GROUPED, not one flat list of nineteen links. A section header per
+ * theme — the service floor, the menu, the numbers, the admin — turns a wall of
+ * icons into "where would I look for that?": everything you set up once lives under
+ * Setup, everything you watch during service lives under Operations, and so on. A
+ * section renders only when the current role can see at least one item in it, so a
+ * line cook still sees a short, honest list rather than a page of locked headers.
+ */
+interface NavSection {
+  /** Undefined for the lead item(s) that sit above the first header. */
+  title?: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
   {
-    href: '/dashboard/order-history',
-    label: 'Order history',
-    icon: History,
-    minRole: 'STAFF',
-    capability: 'FULL_ANALYTICS',
-  },
-  // Staff see only their own shifts here; a manager sees and edits everyone's.
-  {
-    href: '/dashboard/schedule',
-    label: 'Schedule',
-    icon: CalendarDays,
-    minRole: 'STAFF',
-    capability: 'SHIFTS',
-  },
-  { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' },
-  {
-    href: '/dashboard/catering',
-    label: 'Catering',
-    icon: PartyPopper,
-    minRole: 'MANAGER',
-    capability: 'CATERING',
-  },
-  { href: '/dashboard/reservations', label: 'Reservations', icon: CalendarCheck, minRole: 'STAFF' },
-  { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' },
-  { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' },
-  {
-    href: '/dashboard/analytics',
-    label: 'Analytics',
-    icon: BarChart3,
-    minRole: 'MANAGER',
-    capability: 'FULL_ANALYTICS',
+    items: [
+      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true, minRole: 'MANAGER' },
+    ],
   },
   {
-    href: '/dashboard/tax-reports',
-    label: 'Tax reports',
-    icon: Landmark,
-    minRole: 'MANAGER',
-    capability: 'TAX_REPORTS',
+    title: 'Operations',
+    items: [
+      // The screens staff actually live in during service, on a tablet by the pass.
+      { href: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat, minRole: 'STAFF' },
+      { href: '/dashboard/orders', label: 'Orders', icon: Receipt, minRole: 'STAFF' },
+      { href: '/dashboard/cash', label: 'Cash drawer', icon: Banknote, minRole: 'STAFF' },
+      {
+        href: '/dashboard/reservations',
+        label: 'Reservations',
+        icon: CalendarCheck,
+        minRole: 'STAFF',
+      },
+      // Staff see only their own shifts here; a manager sees and edits everyone's.
+      {
+        href: '/dashboard/schedule',
+        label: 'Schedule',
+        icon: CalendarDays,
+        minRole: 'STAFF',
+        capability: 'SHIFTS',
+      },
+    ],
   },
-  { href: '/dashboard/qr', label: 'QR codes', icon: QrCode, minRole: 'MANAGER' },
   {
-    href: '/dashboard/website',
-    label: 'My website',
-    icon: Globe,
-    minRole: 'MANAGER',
-    capability: 'WEBSITE_STOREFRONT',
+    title: 'Menu',
+    items: [
+      { href: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed, minRole: 'MANAGER' },
+      {
+        href: '/dashboard/catering',
+        label: 'Catering',
+        icon: PartyPopper,
+        minRole: 'MANAGER',
+        capability: 'CATERING',
+      },
+    ],
   },
   {
-    href: '/dashboard/domain',
-    label: 'Domain',
-    icon: Link2,
-    minRole: 'OWNER',
-    capability: 'CUSTOM_DOMAIN',
+    title: 'Insights',
+    items: [
+      {
+        href: '/dashboard/order-history',
+        label: 'Order history',
+        icon: History,
+        minRole: 'STAFF',
+        capability: 'FULL_ANALYTICS',
+      },
+      { href: '/dashboard/customers', label: 'Customers', icon: Users, minRole: 'MANAGER' },
+      {
+        href: '/dashboard/analytics',
+        label: 'Analytics',
+        icon: BarChart3,
+        minRole: 'MANAGER',
+        capability: 'FULL_ANALYTICS',
+      },
+      {
+        href: '/dashboard/tax-reports',
+        label: 'Tax reports',
+        icon: Landmark,
+        minRole: 'MANAGER',
+        capability: 'TAX_REPORTS',
+      },
+    ],
   },
-  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard, minRole: 'OWNER' },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings, minRole: 'OWNER' },
+  {
+    title: 'Setup',
+    items: [
+      { href: '/dashboard/setup', label: 'Get set up', icon: Rocket, minRole: 'MANAGER' },
+      { href: '/dashboard/staff', label: 'Team', icon: UserCog, minRole: 'MANAGER' },
+      { href: '/dashboard/qr', label: 'QR codes', icon: QrCode, minRole: 'MANAGER' },
+      {
+        href: '/dashboard/website',
+        label: 'My website',
+        icon: Globe,
+        minRole: 'MANAGER',
+        capability: 'WEBSITE_STOREFRONT',
+      },
+      {
+        href: '/dashboard/domain',
+        label: 'Domain',
+        icon: Link2,
+        minRole: 'OWNER',
+        capability: 'CUSTOM_DOMAIN',
+      },
+      { href: '/dashboard/billing', label: 'Billing', icon: CreditCard, minRole: 'OWNER' },
+      { href: '/dashboard/settings', label: 'Settings', icon: Settings, minRole: 'OWNER' },
+    ],
+  },
 ];
+
+// Flat list — used for the mobile horizontal nav and the loading skeleton, where
+// section headers don't fit a single scrolling row.
+const NAV: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { restaurant, restaurants, isLoading, loadError, switchRestaurant, can, hasFeature } =
@@ -238,24 +284,40 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <nav className="flex-1 space-y-1 p-3">
-          {visibleNav.map(({ href, label, icon: Icon, exact, capability }) => {
-            const active = exact ? pathname === href : pathname.startsWith(href);
-            const locked = capability ? !hasFeature(capability) : false;
+        <nav className="flex-1 space-y-4 p-3">
+          {NAV_SECTIONS.map((section, i) => {
+            // A section a role can't see any of simply isn't drawn — no orphaned header.
+            const items = section.items.filter((n) => can(n.minRole));
+            if (items.length === 0) return null;
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-brand text-brand-foreground shadow-soft'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="flex-1">{label}</span>
-                {locked && <Lock className="h-3 w-3 opacity-60" aria-label="Upgrade to unlock" />}
-              </Link>
+              <div key={section.title ?? `section-${i}`} className="space-y-1">
+                {section.title && (
+                  <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    {section.title}
+                  </p>
+                )}
+                {items.map(({ href, label, icon: Icon, exact, capability }) => {
+                  const active = exact ? pathname === href : pathname.startsWith(href);
+                  const locked = capability ? !hasFeature(capability) : false;
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        active
+                          ? 'bg-brand text-brand-foreground shadow-soft'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="flex-1">{label}</span>
+                      {locked && (
+                        <Lock className="h-3 w-3 opacity-60" aria-label="Upgrade to unlock" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

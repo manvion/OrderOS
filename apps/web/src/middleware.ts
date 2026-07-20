@@ -140,9 +140,16 @@ async function routeTenant(req: NextRequest): Promise<NextResponse | null> {
   }
 
   if (slug) {
-    // A storefront host must never expose the dashboard: joes.dinedirect.manvion.ca/dashboard
-    // would otherwise render the platform UI under a tenant's brand.
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding')) {
+    // A storefront host must never expose the platform's own screens:
+    // joes.dinedirect.manvion.ca/dashboard would otherwise render the platform UI
+    // under a tenant's brand, and .../admin — the platform operator console — fell
+    // through to the storefront rewrite (/s/joes/admin) and 404'd instead of going
+    // to the apex where it lives. All three are apex-only; send them home.
+    if (
+      pathname.startsWith('/dashboard') ||
+      pathname.startsWith('/onboarding') ||
+      pathname.startsWith('/admin')
+    ) {
       const url = req.nextUrl.clone();
       url.host = APP_DOMAIN;
       url.pathname = pathname;
