@@ -47,11 +47,19 @@ export interface ListOrdersOptions {
 /** A staff-entered walk-in or phone order, paid in person. See createWalkIn. */
 export interface WalkInOrderInput {
   items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
-  fulfillment: 'PICKUP' | 'DINE_IN';
+  fulfillment: 'PICKUP' | 'DINE_IN' | 'DELIVERY';
   customerName?: string;
   customerPhone?: string;
   customerEmail?: string;
   tableNumber?: string;
+  /** Required when fulfillment is DELIVERY — where the phone order is going. */
+  deliveryAddress?: {
+    street: string;
+    city: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
   paymentMethod: 'CASH' | 'CARD_TERMINAL';
   notes?: string;
 }
@@ -459,18 +467,60 @@ export class OrdersService {
     this.assertFulfillmentAllowed(restaurant, { fulfillment: input.fulfillment });
     const lineItems = await this.resolveLineItems(restaurantId, { items: input.items });
 
+    /**
+     * A phone order that's being DELIVERED needs an address — to gate against the
+     * restaurant's delivery radius, to geocode for the courier and the tracking map,
+     * and a phone to reach the customer on. The radius check fails OPEN on a geocoder
+     * outage (same as a customer's own online order): we never block a real order over
+     * our own bad afternoon, but we do reject an address that's clearly out of range.
+     */
+    let deliveryCoords: { latitude: number; longitude: number } | null = null;
+    let deliveryFeeCents = 0;
+    let deliveryAddress: Required<NonNullable<WalkInOrderInput['deliveryAddress']>> | null = null;
+
+    if (input.fulfillment === 'DELIVERY') {
+      if (!input.deliveryAddress?.street?.trim()) {
+        throw new BadRequestException('A delivery address is required for a delivery order');
+      }
+      if (!input.customerPhone?.trim()) {
+        throw new BadRequestException('A phone number is required for a delivery order');
+      }
+
+      deliveryAddress = {
+        street: input.deliveryAddress.street,
+        city: input.deliveryAddress.city,
+        state: input.deliveryAddress.state ?? '',
+        postalCode: input.deliveryAddress.postalCode ?? '',
+        country: input.deliveryAddress.country || restaurant.country,
+      };
+
+      const radius = await this.geocoding.checkRadius(restaurant, deliveryAddress);
+      if (radius && !radius.withinRadius) {
+        const km = (radius.distanceMeters / 1000).toFixed(1);
+        const limitKm = (restaurant.deliveryRadiusMeters / 1000).toFixed(1);
+        throw new BadRequestException(
+          `That address is ${km}km away — outside ${restaurant.name}'s ${limitKm}km delivery range.`,
+        );
+      }
+
+      deliveryCoords = await this.geocoding.geocode(deliveryAddress);
+      // The restaurant's flat delivery fee is what the customer pays in person. The
+      // actual courier is priced and dispatched later, when staff mark it ready.
+      deliveryFeeCents = restaurant.deliveryFeeCents;
+    }
+
     const pricing = priceOrder({
       items: lineItems,
       taxRateBps: restaurant.taxRateBps,
       taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
       fulfillment: input.fulfillment,
-      deliveryFeeCents: 0,
+      deliveryFeeCents,
       serviceFeeCents: restaurant.serviceFeeCents,
       tipCents: 0,
     });
 
-    // No minimum-order check here: a walk-in is only ever pickup or dine-in, and the
-    // minimum is a DELIVERY floor.
+    // No minimum-order check: staff entering a phone order know what they're taking,
+    // and the delivery minimum is a self-service guard rail, not a rule for the counter.
 
     const loyaltyPointsEarned =
       restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)
@@ -507,7 +557,7 @@ export class OrdersService {
 
           subtotalCents: pricing.subtotalCents,
           taxCents: pricing.taxCents,
-          deliveryFeeCents: 0,
+          deliveryFeeCents: pricing.deliveryFeeCents,
           serviceFeeCents: pricing.serviceFeeCents,
           tipCents: 0,
           discountCents: pricing.discountCents,
@@ -523,6 +573,18 @@ export class OrdersService {
 
           notes: input.notes,
           tableNumber: input.tableNumber,
+
+          ...(deliveryAddress
+            ? {
+                deliveryStreet: deliveryAddress.street,
+                deliveryCity: deliveryAddress.city,
+                deliveryState: deliveryAddress.state,
+                deliveryPostalCode: deliveryAddress.postalCode,
+                deliveryCountry: deliveryAddress.country,
+                deliveryLatitude: deliveryCoords?.latitude,
+                deliveryLongitude: deliveryCoords?.longitude,
+              }
+            : {}),
 
           items: {
             create: lineItems.map((item) => {

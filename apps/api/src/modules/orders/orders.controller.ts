@@ -50,13 +50,23 @@ const walkInItemSchema = z.object({
   modifierIds: z.array(z.string().cuid()).max(50).default([]),
 });
 
+const walkInAddressSchema = z.object({
+  street: z.string().min(1).max(200),
+  city: z.string().min(1).max(120),
+  state: z.string().max(120).optional(),
+  postalCode: z.string().max(20).optional(),
+  country: z.string().max(60).optional(),
+});
+
 const walkInOrderSchema = z.object({
   items: z.array(walkInItemSchema).min(1).max(100),
-  fulfillment: z.enum(['PICKUP', 'DINE_IN']),
+  fulfillment: z.enum(['PICKUP', 'DINE_IN', 'DELIVERY']),
   customerName: z.string().max(120).optional(),
   customerPhone: z.string().max(20).optional(),
   customerEmail: z.string().email().max(160).optional(),
   tableNumber: z.string().max(20).optional(),
+  // Required by the service when fulfillment is DELIVERY (a phone order to be delivered).
+  deliveryAddress: walkInAddressSchema.optional(),
   paymentMethod: z.enum(['CASH', 'CARD_TERMINAL']),
   notes: z.string().max(500).optional(),
 });

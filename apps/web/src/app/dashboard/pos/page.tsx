@@ -133,11 +133,19 @@ function OrderTerminal() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [lines, setLines] = useState<ConfiguredLine[]>([]);
   const [configuring, setConfiguring] = useState<Product | null>(null);
-  const [fulfillment, setFulfillment] = useState<'PICKUP' | 'DINE_IN'>('PICKUP');
+  const [fulfillment, setFulfillment] = useState<'PICKUP' | 'DINE_IN' | 'DELIVERY'>('PICKUP');
   const [tableNumber, setTableNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [address, setAddress] = useState({ street: '', city: '', state: '', postalCode: '' });
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD_TERMINAL'>('CASH');
+
+  // A delivery ticket can't be sent without somewhere to send it and someone to call.
+  const deliveryReady =
+    fulfillment !== 'DELIVERY' ||
+    (address.street.trim().length > 2 &&
+      address.city.trim().length > 1 &&
+      customerPhone.trim().length > 4);
 
   const grouped = useMemo(() => {
     if (!categories || !products) return [];
@@ -208,6 +216,15 @@ function OrderTerminal() {
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
+        deliveryAddress:
+          fulfillment === 'DELIVERY'
+            ? {
+                street: address.street.trim(),
+                city: address.city.trim(),
+                state: address.state.trim() || undefined,
+                postalCode: address.postalCode.trim() || undefined,
+              }
+            : undefined,
         paymentMethod,
       }),
     onSuccess: (order) => {
@@ -219,6 +236,7 @@ function OrderTerminal() {
       setCustomerName('');
       setCustomerPhone('');
       setTableNumber('');
+      setAddress({ street: '', city: '', state: '', postalCode: '' });
     },
     onError: (err) =>
       toast.error(
@@ -340,7 +358,7 @@ function OrderTerminal() {
           </div>
 
           <div className="space-y-3 border-t p-4">
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${restaurant.deliveryEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <Button
                 type="button"
                 variant={fulfillment === 'PICKUP' ? 'brand' : 'outline'}
@@ -359,6 +377,17 @@ function OrderTerminal() {
                 <UtensilsCrossed className="h-3.5 w-3.5" />
                 Dine in
               </Button>
+              {restaurant.deliveryEnabled && (
+                <Button
+                  type="button"
+                  variant={fulfillment === 'DELIVERY' ? 'brand' : 'outline'}
+                  size="sm"
+                  onClick={() => setFulfillment('DELIVERY')}
+                >
+                  <Bike className="h-3.5 w-3.5" />
+                  Delivery
+                </Button>
+              )}
             </div>
 
             {fulfillment === 'DINE_IN' && (
@@ -369,6 +398,32 @@ function OrderTerminal() {
               />
             )}
 
+            {fulfillment === 'DELIVERY' && (
+              <div className="space-y-2 rounded-xl border border-brand-subtle bg-brand-subtle p-2.5">
+                <Input
+                  placeholder="Street address"
+                  value={address.street}
+                  onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="City"
+                    value={address.city}
+                    onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="Postal code"
+                    value={address.postalCode}
+                    onChange={(e) => setAddress((a) => ({ ...a, postalCode: e.target.value }))}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Delivery fee {formatMoney(restaurant.deliveryFeeCents, restaurant.currency)} added.
+                  Assign a courier from the Delivery tab once it&apos;s ready.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <Input
                 placeholder="Name (optional)"
@@ -377,7 +432,7 @@ function OrderTerminal() {
               />
               <Input
                 type="tel"
-                placeholder="Phone (optional)"
+                placeholder={fulfillment === 'DELIVERY' ? 'Phone (required)' : 'Phone (optional)'}
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
               />
@@ -410,7 +465,7 @@ function OrderTerminal() {
             <Button
               className="w-full"
               size="lg"
-              disabled={lines.length === 0 || create.isPending}
+              disabled={lines.length === 0 || !deliveryReady || create.isPending}
               onClick={() => create.mutate()}
             >
               {create.isPending ? 'Sending to kitchen…' : 'Confirm — paid, send to kitchen'}

@@ -698,14 +698,23 @@ export function createDashboardApi(
         method: 'PATCH',
         body: JSON.stringify({ minutesFromNow }),
       }),
-    /** A walk-in or phone order, paid at the counter -- cash or a card terminal. */
+    /** A walk-in or phone order, paid at the counter -- cash or a card terminal.
+     *  DELIVERY is a phone order to be delivered: it needs a deliveryAddress and a
+     *  phone, and is dispatched to a courier later when staff mark it ready. */
     createWalkInOrder: (body: {
       items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
-      fulfillment: 'PICKUP' | 'DINE_IN';
+      fulfillment: 'PICKUP' | 'DINE_IN' | 'DELIVERY';
       customerName?: string;
       customerPhone?: string;
       customerEmail?: string;
       tableNumber?: string;
+      deliveryAddress?: {
+        street: string;
+        city: string;
+        state?: string;
+        postalCode?: string;
+        country?: string;
+      };
       paymentMethod: 'CASH' | 'CARD_TERMINAL';
       notes?: string;
     }) => call<Order>('/orders/walk-in', { method: 'POST', body: JSON.stringify(body) }),
