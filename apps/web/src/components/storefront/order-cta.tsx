@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ChevronRight, ShoppingBag, Truck, UtensilsCrossed, X } from 'lucide-react';
 import { useTenant, useTenantHref } from './tenant-provider';
@@ -86,9 +87,13 @@ export function OrderCta({ label, className }: { label: string; className?: stri
         <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
       </button>
 
-      {open && (
+      {/* Portalled to <body>: the hero's animated/transformed ancestors would otherwise
+          become the containing block for `position: fixed`, clipping the sheet and
+          pinning it under the header instead of over the whole viewport. */}
+      {open &&
+        createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center"
+          className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center"
           role="dialog"
           aria-modal="true"
         >
@@ -138,8 +143,9 @@ export function OrderCta({ label, className }: { label: string; className?: stri
               ))}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }

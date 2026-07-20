@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
-import { formatMoney } from '@dinedirect/shared';
+import { formatMoney, type BusinessHours } from '@dinedirect/shared';
 import { toast } from 'sonner';
+import { scheduleSlots } from '@/lib/schedule-slots';
 import {
   storefrontApi,
   ApiRequestError,
@@ -84,6 +85,24 @@ export default function CheckoutPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const subtotalCents = useCart((s) => s.subtotalCents());
+
+  // Real "schedule for later" slots — only times the kitchen is open, in the
+  // restaurant's own timezone, from ~prep-time out to the 14-day horizon. Replaces a
+  // free datetime picker that let people choose closed times (and read them in the
+  // customer's timezone, not the restaurant's).
+  const slots = useMemo(
+    () =>
+      scheduleSlots(restaurant.businessHours as BusinessHours | null, restaurant.timezone, {
+        leadMinutes: Math.max(30, restaurant.prepTimeMinutes),
+      }),
+    [restaurant.businessHours, restaurant.timezone, restaurant.prepTimeMinutes],
+  );
+
+  // Closed right now? An ASAP order can't happen, so default to the first real slot
+  // instead of leaving them on an "as soon as possible" that the kitchen would reject.
+  useEffect(() => {
+    if (!restaurant.isOpen && !scheduledFor && slots.length > 0) setScheduledFor(slots[0].iso);
+  }, [restaurant.isOpen, scheduledFor, slots]);
 
   // Once a real Uber quote lands, price the order with THAT fee rather than the
   // restaurant's default — otherwise the total shown here wouldn't match the one
@@ -599,19 +618,27 @@ export default function CheckoutPage() {
           <CardContent className="space-y-2">
             <Select
               value={scheduledFor ? 'later' : 'asap'}
-              onChange={(e) => setScheduledFor(e.target.value === 'asap' ? '' : nextSlot())}
+              onChange={(e) => setScheduledFor(e.target.value === 'asap' ? '' : (slots[0]?.iso ?? ''))}
             >
-              <option value="asap">{t.checkout.asap}</option>
-              <option value="later">{t.checkout.scheduleLater}</option>
+              {/* ASAP only makes sense while they're open. */}
+              {restaurant.isOpen && <option value="asap">{t.checkout.asap}</option>}
+              {slots.length > 0 && <option value="later">{t.checkout.scheduleLater}</option>}
             </Select>
 
-            {scheduledFor && (
-              <Input
-                type="datetime-local"
-                value={scheduledFor}
-                min={nextSlot()}
-                onChange={(e) => setScheduledFor(e.target.value)}
-              />
+            {scheduledFor && slots.length > 0 && (
+              <Select value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)}>
+                {slots.map((s) => (
+                  <option key={s.iso} value={s.iso}>
+                    {s.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+
+            {!restaurant.isOpen && slots.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No upcoming times are available right now.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -756,12 +783,6 @@ function Row({ label, cents, currency }: { label: string; cents: number; currenc
 }
 
 /** The earliest slot the API will accept: 30 minutes out, formatted for datetime-local. */
-function nextSlot(): string {
-  const d = new Date(Date.now() + 30 * 60_000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 // --- Razorpay (India) checkout modal ---------------------------------------
 
 declare global {
