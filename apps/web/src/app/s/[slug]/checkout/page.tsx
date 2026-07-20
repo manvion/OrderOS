@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
+import { Loader2, Plus, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import { formatMoney, type BusinessHours } from '@dinedirect/shared';
 import { toast } from 'sonner';
 import { scheduleSlots } from '@/lib/schedule-slots';
@@ -341,7 +341,15 @@ export default function CheckoutPage() {
 
   return (
     <form onSubmit={handleSubmit} className="container max-w-2xl space-y-6 py-8">
-      <h1 className="text-2xl font-bold tracking-tight">{t.checkout.title}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{t.checkout.title}</h1>
+        <Button asChild variant="ghost" size="sm">
+          <a href={href('/menu')}>
+            <Plus className="h-4 w-4" />
+            {t.cart.addMore}
+          </a>
+        </Button>
+      </div>
 
       {/* Fulfillment */}
       <Card>
@@ -720,8 +728,14 @@ export default function CheckoutPage() {
       {/* Summary */}
       {totals && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">{t.checkout.summary}</CardTitle>
+            <Button asChild variant="ghost" size="sm" className="-my-1">
+              <a href={href('/menu')}>
+                <Plus className="h-4 w-4" />
+                {t.cart.addMore}
+              </a>
+            </Button>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label={t.checkout.subtotal} cents={totals.subtotalCents} currency={restaurant.currency} />
@@ -772,6 +786,14 @@ export default function CheckoutPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* One last chance to add something before paying — right next to Pay. */}
+      <Button asChild variant="outline" size="lg" className="w-full">
+        <a href={href('/menu')}>
+          <Plus className="h-4 w-4" />
+          {t.cart.addMore}
+        </a>
+      </Button>
 
       {belowMinimum && (
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
