@@ -86,24 +86,38 @@ export function CourierMap({
           scrollWheelZoom: false,
         });
 
-        // Basemap. Default: CARTO Voyager — clean and modern but with legible roads,
-        // labels and subtle colour (Google/Uber-style), free and no API key. If a
-        // MapTiler key is set (NEXT_PUBLIC_MAPTILER_KEY), use MapTiler Streets for a
-        // crisper, premium basemap instead — a drop-in upgrade with no code change.
-        // `{r}` + detectRetina serve @2x tiles on phones either way.
+        // Basemap. When a MapTiler key is set (NEXT_PUBLIC_MAPTILER_KEY) we use
+        // MapTiler Streets — the crisp, high-contrast, Google/Uber-grade tiles.
+        // Otherwise CARTO Voyager: free, no key, clean but paler.
+        //
+        // CRITICAL: MapTiler serves 512px raster tiles, but Leaflet assumes 256px.
+        // Point Leaflet at MapTiler with the default options and every tile renders
+        // at DOUBLE scale — street labels huge and blurry, the map zoomed in on the
+        // wrong thing. That is the "looks bad even with a key" bug. `tileSize: 512`
+        // + `zoomOffset: -1` is MapTiler's documented Leaflet setup, and the `@2x`
+        // tiles keep it sharp on retina. CARTO stays on the normal 256px path with
+        // detectRetina, which is correct for its tiles.
         const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-        const tileUrl = maptilerKey
-          ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}{r}.png?key=${maptilerKey}`
-          : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-
-        L.tileLayer(tileUrl, {
-          attribution: maptilerKey
-            ? '&copy; MapTiler &copy; OpenStreetMap'
-            : '&copy; OpenStreetMap &copy; CARTO',
-          subdomains: 'abcd',
-          detectRetina: true,
-          maxZoom: 20,
-        }).addTo(map);
+        if (maptilerKey) {
+          L.tileLayer(
+            `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}@2x.png?key=${maptilerKey}`,
+            {
+              attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
+              tileSize: 512,
+              zoomOffset: -1,
+              minZoom: 1,
+              maxZoom: 20,
+              crossOrigin: true,
+            },
+          ).addTo(map);
+        } else {
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            detectRetina: true,
+            maxZoom: 20,
+          }).addTo(map);
+        }
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
