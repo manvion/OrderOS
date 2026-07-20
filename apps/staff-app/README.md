@@ -19,14 +19,25 @@ account:
 > retrieves the PaymentIntent from Stripe and only flips the order to PAID if Stripe itself
 > says it succeeded. The app is a UI over Stripe's own SDK.
 
-## Payment flow (see `src/PaymentScreen.tsx`)
+## App flow
 
-1. `initialize()` + `discoverReaders({ discoveryMethod: 'tapToPay' })` — the phone becomes the reader.
-2. `createTerminalIntent(orderId)` → our API → `clientSecret`.
-3. `retrievePaymentIntent(clientSecret)`.
-4. `collectPaymentMethod(...)` — **the customer taps their card.**
-5. `confirmPaymentIntent(...)` — captures.
-6. `settleTerminalOrder(orderId)` → our API marks the order paid.
+1. **Sign in** (`src/SignInScreen.tsx`) — the staff member's existing DineDirect account
+   (Clerk). The API resolves which restaurant they act for from that session.
+2. **Pick an unpaid order** (`src/PosApp.tsx`) — a live list from `GET /orders/awaiting-payment`,
+   scoped to their restaurant. Tap to Pay connects once, up front.
+3. **Charge** (`src/ChargeSheet.tsx`) — the five-step Terminal dance for that order:
+   - `createTerminalIntent(orderId)` → our API → `clientSecret`
+   - `retrievePaymentIntent(clientSecret)`
+   - `collectPaymentMethod(...)` — **the customer taps their card**
+   - `confirmPaymentIntent(...)` — captures
+   - `settleTerminalOrder(orderId)` → our API re-reads the intent from Stripe and marks the
+     order paid (the app never marks anything paid itself).
+
+## How staff get the app
+
+Each restaurant has a **"Payment app" QR** on its dashboard (Staff access). Staff scan it
+and land on `/get-app?r=<restaurant-slug>`, which detects their phone and hands them the
+right install (Android download, or the App Store on iPhone), then they sign in.
 
 ## Setup
 
@@ -42,14 +53,27 @@ npx expo prebuild
 npx expo run:ios      # or: npx expo run:android
 ```
 
-Configure at runtime before charging:
+Environment (set in `.env` / EAS secrets — both are baked at build for Expo public vars):
 
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — the **same** Clerk key the web app uses (`pk_…`).
 - `EXPO_PUBLIC_API_URL` — your API base (defaults to `https://api.dinedirect.manvion.ca`).
-- `setAuthTokenProvider(fn)` — return the signed-in staff member's Clerk bearer token.
-- `setRestaurant(slug)` — the restaurant whose till this device rings up.
 
-(Sign-in and restaurant selection are intentionally left out of this scaffold — wire them
-in `App.tsx` before shipping. Everything payment-related is done.)
+Sign-in and the order list are wired. Multi-restaurant staff (a person at more than one
+location) still need a location picker — `setActiveRestaurant(id)` exists in `src/lib/api.ts`
+for that; single-restaurant staff need nothing, since the API defaults to their one membership.
+
+## Cloud builds (EAS — no Mac needed)
+
+`eas.json` defines the profiles. Build in Expo's cloud and install the result:
+
+```bash
+npm install -g eas-cli && eas login
+eas build --platform android --profile preview   # → an installable .apk (host it, QR to it)
+eas build --platform ios --profile production     # → App Store (needs Apple Dev + Tap-to-Pay entitlement)
+```
+
+Android `preview` produces a direct-install APK — the file the `/get-app` page serves for
+Android. iOS must go through the App Store (Apple gives Tap-to-Pay apps no other route).
 
 ## Requirements / caveats
 

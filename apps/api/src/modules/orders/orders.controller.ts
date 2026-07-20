@@ -16,7 +16,7 @@ import type { OrderStatus } from '@prisma/client';
 import { tabItemsSchema, type TabItemsInput } from '@dinedirect/shared';
 import { z } from 'zod';
 import { ClerkAuthGuard } from '../../common/auth/clerk-auth.guard';
-import { Audit, CurrentUser, TenantId } from '../../common/auth/decorators';
+import { Audit, CurrentUser, Roles, TenantId } from '../../common/auth/decorators';
 import type { AuthUser } from '../../common/auth/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -81,6 +81,13 @@ export class OrdersController {
   @Get('active')
   listActive(@TenantId() restaurantId: string) {
     return this.orders.listActive(restaurantId);
+  }
+
+  /** Unpaid open orders — the staff payment app lists these to take a card in person. */
+  @Get('awaiting-payment')
+  @Roles('STAFF')
+  listAwaitingPayment(@TenantId() restaurantId: string) {
+    return this.orders.listAwaitingPayment(restaurantId);
   }
 
   @Get()

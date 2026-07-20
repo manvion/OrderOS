@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { ChefHat, LayoutDashboard, Printer } from 'lucide-react';
+import { ChefHat, CreditCard, LayoutDashboard, Printer } from 'lucide-react';
 import { useDashboard } from '@/components/dashboard/dashboard-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,15 +36,33 @@ const TARGETS = [
   },
 ] as const;
 
+type Target = { path: string; label: string; icon: typeof ChefHat; hint: string };
+
 export function StaffAccessQrs() {
   const { restaurant } = useDashboard();
   const [images, setImages] = useState<Record<string, string>>({});
+
+  // The payment-app code is per-restaurant: it carries this restaurant's slug so the
+  // install page knows whose account staff will sign into. Built here (not in the static
+  // list) because it needs the live slug.
+  const targets = useMemo<Target[]>(() => {
+    const list: Target[] = [...TARGETS];
+    if (restaurant?.slug) {
+      list.push({
+        path: `/get-app?r=${restaurant.slug}`,
+        label: 'Payment app',
+        icon: CreditCard,
+        hint: 'Tap to Pay on a staff phone. Scan to install, sign in, and take card payments in person — no reader.',
+      });
+    }
+    return list;
+  }, [restaurant?.slug]);
 
   useEffect(() => {
     let cancelled = false;
 
     void Promise.all(
-      TARGETS.map(async (t) => {
+      targets.map(async (t) => {
         const url = `${window.location.origin}${t.path}`;
         // Medium error correction and a quiet zone: these get printed on office
         // paper and laminated over, not professionally produced.
@@ -58,7 +76,7 @@ export function StaffAccessQrs() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [targets]);
 
   /**
    * A branded page, not a bare printout -- and critically, no raw URL. The
@@ -111,7 +129,7 @@ export function StaffAccessQrs() {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6 sm:grid-cols-2">
-        {TARGETS.map(({ path, label, icon: Icon, hint }) => (
+        {targets.map(({ path, label, icon: Icon, hint }) => (
           <div key={path} className="card-interactive space-y-3 p-4">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand">

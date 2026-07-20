@@ -1119,6 +1119,23 @@ export class OrdersService {
     });
   }
 
+  /**
+   * Open orders still waiting to be paid — what the staff payment app lists so a
+   * member can pick one and take the card in person. Pay-at-desk tables and any other
+   * unpaid-but-live order (a walk-in staff want to charge by card) both qualify.
+   */
+  async listAwaitingPayment(restaurantId: string) {
+    return this.prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'] },
+        payment: { status: 'PENDING' },
+      },
+      include: this.orderInclude(),
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findById(restaurantId: string, id: string) {
     const order = await this.prisma.order.findFirst({
       where: { id, restaurantId },

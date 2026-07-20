@@ -1,23 +1,27 @@
 /**
  * The thin API layer the staff app uses to talk to the DineDirect API — only the few
- * endpoints in-person payments need. Everything is authenticated with the staff member's
- * bearer token (the same Clerk session the dashboard uses); wire `getAuthToken` to your
- * auth of choice.
+ * endpoints in-person payments need. Every call carries the signed-in staff member's
+ * Clerk bearer token; the API resolves WHICH restaurant from that token's membership,
+ * exactly like the web dashboard, so a staff member only ever sees their own orders.
  */
 
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL ?? 'https://api.dinedirect.manvion.ca';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.dinedirect.manvion.ca';
 
-/** Supply the signed-in staff member's bearer token. Replace with your auth integration. */
+/** Supply the signed-in staff member's Clerk token. Wired from App.tsx via Clerk's getToken. */
 let authTokenProvider: () => Promise<string | null> = async () => null;
 export function setAuthTokenProvider(fn: () => Promise<string | null>) {
   authTokenProvider = fn;
 }
 
-/** The tenant (restaurant) whose till this device is ringing up. */
-let restaurantSlug: string | null = null;
-export function setRestaurant(slug: string) {
-  restaurantSlug = slug;
+/**
+ * Only needed when a staff member works at more than one restaurant — then the app picks
+ * one and passes it as X-Restaurant-Id (the same header the web dashboard's location
+ * switcher sends). Left unset for single-restaurant staff, where the API defaults to
+ * their one membership.
+ */
+let activeRestaurantId: string | null = null;
+export function setActiveRestaurant(id: string | null) {
+  activeRestaurantId = id;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -27,7 +31,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(restaurantSlug ? { 'x-restaurant-slug': restaurantSlug } : {}),
+      ...(activeRestaurantId ? { 'X-Restaurant-Id': activeRestaurantId } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -36,6 +40,23 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(body.message ?? `Request failed (${res.status})`);
   }
   return res.json() as Promise<T>;
+}
+
+export interface AwaitingOrder {
+  id: string;
+  orderNumber: string;
+  tableNumber: string | null;
+  fulfillment: string;
+  totalCents: number;
+  currency: string;
+  customerName: string;
+  createdAt: string;
+  items: Array<{ id: string; name: string; quantity: number }>;
+}
+
+/** Open orders still waiting to be paid — what the payment list shows. */
+export function fetchAwaitingPayment() {
+  return call<AwaitingOrder[]>('/orders/awaiting-payment');
 }
 
 /** A Terminal connection token — the SDK's tokenProvider calls this. */

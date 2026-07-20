@@ -12,9 +12,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/clerk-expo": "^2.2.0",
     "@stripe/stripe-terminal-react-native": "^0.0.1-beta.24",
     "expo": "~51.0.0",
     "expo-location": "~17.0.0",
+    "expo-secure-store": "~13.0.0",
     "react": "18.2.0",
     "react-native": "0.74.5"
   },
