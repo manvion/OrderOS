@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/shared/reveal';
 import { StoryBand } from '@/components/storefront/story-band';
 import { MediaHero } from '@/components/storefront/media-hero';
+import { logoColorFilter } from '@/lib/name-style';
 import { LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
 
 export const revalidate = 60;
@@ -192,7 +193,7 @@ function SignatureHome({ restaurant, href }: TemplateProps) {
                 src={restaurant.logoUrl}
                 alt={restaurant.name}
                 className="rise-2 mb-6 mt-8 h-auto w-auto object-contain drop-shadow-2xl"
-                style={{ maxHeight: '140px', maxWidth: 'min(76vw, 420px)' }}
+                style={{ maxHeight: '140px', maxWidth: 'min(76vw, 420px)', filter: logoColorFilter(restaurant.logoColor) }}
               />
             )}
             {(restaurant.logoDisplayMode !== 'LOGO_ONLY' || !restaurant.logoUrl) && (
@@ -359,7 +360,7 @@ function RusticHome({ restaurant, href }: TemplateProps) {
                 src={restaurant.logoUrl}
                 alt={restaurant.name}
                 className="rise-1 mb-6 h-auto w-auto object-contain drop-shadow-lg"
-                style={{ maxHeight: '108px', maxWidth: 'min(70vw, 320px)' }}
+                style={{ maxHeight: '108px', maxWidth: 'min(70vw, 320px)', filter: logoColorFilter(restaurant.logoColor) }}
               />
             )}
             <div
@@ -562,7 +563,7 @@ function BuilderHome({ restaurant, href }: TemplateProps) {
                 src={restaurant.logoUrl}
                 alt={restaurant.name}
                 className="rise-1 mb-5 h-auto w-auto object-contain"
-                style={{ maxHeight: '104px', maxWidth: 'min(70vw, 320px)' }}
+                style={{ maxHeight: '104px', maxWidth: 'min(70vw, 320px)', filter: logoColorFilter(restaurant.logoColor) }}
               />
             ) : (
               <p className="rise-1 text-sm font-semibold text-muted-foreground">{restaurant.name}</p>
@@ -709,7 +710,7 @@ function BentoHome({ restaurant, href }: TemplateProps) {
                   src={restaurant.logoUrl}
                   alt={restaurant.name}
                   className="rise-1 mb-5 h-auto w-auto object-contain drop-shadow-lg"
-                  style={{ maxHeight: '112px', maxWidth: 'min(70vw, 320px)' }}
+                  style={{ maxHeight: '112px', maxWidth: 'min(70vw, 320px)', filter: logoColorFilter(restaurant.logoColor) }}
                 />
               )}
               <div className="rise-1 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">
@@ -842,7 +843,7 @@ function ElegantHome({ restaurant, href }: TemplateProps) {
             src={restaurant.logoUrl}
             alt={restaurant.name}
             className="rise-1 mx-auto mb-8 h-auto w-auto object-contain"
-            style={{ maxHeight: '132px', maxWidth: 'min(72vw, 380px)' }}
+            style={{ maxHeight: '132px', maxWidth: 'min(72vw, 380px)', filter: logoColorFilter(restaurant.logoColor) }}
           />
         )}
         <p className="rise-1 text-sm font-semibold uppercase tracking-[0.2em]" style={{ color: FOREST }}>
@@ -1003,7 +1004,7 @@ function PunchyHome({ restaurant, href }: TemplateProps) {
               src={restaurant.logoUrl}
               alt={restaurant.name}
               className="rise-1 mx-auto mb-7 h-auto w-auto object-contain drop-shadow"
-              style={{ maxHeight: '128px', maxWidth: 'min(72vw, 360px)' }}
+              style={{ maxHeight: '128px', maxWidth: 'min(72vw, 360px)', filter: logoColorFilter(restaurant.logoColor) }}
             />
           )}
           <div

@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { ArrowRight, ShoppingBag, Truck, UtensilsCrossed } from 'lucide-react';
 import type { StorefrontRestaurant } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { nameWordmarkStyle } from '@/lib/name-style';
+import { nameWordmarkStyle, logoColorFilter } from '@/lib/name-style';
 import { HeroSlideshow } from './hero-slideshow';
 
 /** The hero tagline's inline style. Defaults to translucent white over the media. */
@@ -121,7 +121,11 @@ export function MediaHero({
               src={restaurant.logoUrl!}
               alt={restaurant.name}
               className="h-auto w-auto object-contain drop-shadow-2xl"
-              style={{ maxHeight: '160px', maxWidth: 'min(80vw, 460px)' }}
+              style={{
+                maxHeight: '160px',
+                maxWidth: 'min(80vw, 460px)',
+                filter: logoColorFilter(restaurant.logoColor),
+              }}
             />
           </span>
         )}

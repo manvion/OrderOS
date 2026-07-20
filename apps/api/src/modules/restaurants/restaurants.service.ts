@@ -291,6 +291,7 @@ export class RestaurantsService {
         websiteTemplate: true,
         themeMode: true,
         logoDisplayMode: true,
+        logoColor: true,
         logoScale: true,
         logoBackdrop: true,
         nameFont: true,

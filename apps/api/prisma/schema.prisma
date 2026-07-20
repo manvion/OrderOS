@@ -273,6 +273,10 @@ model Restaurant {
   /// as a typo the moment the text name repeats right next to it. LOGO_ONLY and
   /// NAME_ONLY exist so the header shows exactly one, not always both.
   logoDisplayMode   LogoDisplayMode @default(LOGO_AND_NAME)
+  /// Recolour the logo mark to sit over media: ORIGINAL keeps it as uploaded, WHITE
+  /// and BLACK render it as a solid silhouette (via a CSS filter) so it reads over a
+  /// dark or light hero. Pairs with the auto background removal.
+  logoColor         String          @default("ORIGINAL")
   /// How large the logo renders in the header, as a percentage of the default size.
   /// Lets a wide wordmark logo ("logo + name" baked into one image) be shown big
   /// instead of being capped small. 100 = default; clamped 50–250 by the API.

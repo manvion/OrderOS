@@ -222,6 +222,8 @@ export const updateRestaurantSchema = z.object({
     .optional(),
   themeMode: z.enum(['LIGHT', 'DARK']).optional(),
   logoDisplayMode: z.enum(['LOGO_AND_NAME', 'LOGO_ONLY', 'NAME_ONLY']).optional(),
+  /** Recolour the logo mark to read over the hero media. */
+  logoColor: z.enum(['ORIGINAL', 'WHITE', 'BLACK']).optional(),
   /** How big the logo renders in the header, as a percentage of the default. */
   logoScale: z.number().int().min(50).max(250).optional(),
   /** Show a soft brand-coloured backdrop behind the header logo. */

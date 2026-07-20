@@ -1,6 +1,20 @@
 import type { CSSProperties } from 'react';
 
 /**
+ * Recolour the logo mark. WHITE/BLACK turn the (background-removed) logo into a solid
+ * silhouette that reads over dark/light media; ORIGINAL leaves it untouched.
+ *
+ * `brightness(0)` collapses every visible pixel to black; the extra `invert(1)` then
+ * flips that to white. Because the background is already transparent, only the mark
+ * itself is recoloured.
+ */
+export function logoColorFilter(logoColor?: string | null): string | undefined {
+  if (logoColor === 'WHITE') return 'brightness(0) invert(1)';
+  if (logoColor === 'BLACK') return 'brightness(0)';
+  return undefined;
+}
+
+/**
  * Turn a restaurant's saved name-wordmark settings (nameFont / nameColor /
  * nameTransform) into inline CSS.
  *

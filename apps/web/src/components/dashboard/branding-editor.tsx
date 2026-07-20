@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
 import { BrandIdeasGenerator } from './brand-ideas';
 import { ApiRequestError } from '@/lib/api';
-import { nameWordmarkStyle } from '@/lib/name-style';
+import { nameWordmarkStyle, logoColorFilter } from '@/lib/name-style';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -124,6 +124,15 @@ export function BrandingEditor() {
       toast.success('Logo size updated');
     },
     onError: () => toast.error('Could not update the logo size'),
+  });
+
+  const saveLogoColor = useMutation({
+    mutationFn: (logoColor: 'ORIGINAL' | 'WHITE' | 'BLACK') => api.updateCurrent({ logoColor }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+      toast.success('Logo colour updated');
+    },
+    onError: () => toast.error('Could not update the logo colour'),
   });
 
   const removeLogoBg = useMutation({
@@ -262,7 +271,12 @@ export function BrandingEditor() {
             <img
               src={restaurant.logoUrl}
               alt=""
-              className="h-16 w-auto max-w-[220px] rounded-2xl border bg-white object-contain p-1.5"
+              className="h-16 w-auto max-w-[220px] rounded-2xl border object-contain p-1.5"
+              style={{
+                filter: logoColorFilter(restaurant.logoColor),
+                // A brand-coloured pad so a white OR black recolour is visible here.
+                background: restaurant.logoColor === 'ORIGINAL' ? '#fff' : primary,
+              }}
             />
           ) : (
             <div
@@ -312,6 +326,33 @@ export function BrandingEditor() {
               Square works best. PNG, JPG, WebP or SVG, up to 5MB. New uploads have their
               background removed automatically; use “Remove background” to redo it.
             </p>
+
+            {restaurant.logoUrl && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs font-medium text-muted-foreground">Logo colour</span>
+                {(
+                  [
+                    { value: 'ORIGINAL', label: 'Original' },
+                    { value: 'WHITE', label: 'White' },
+                    { value: 'BLACK', label: 'Black' },
+                  ] as const
+                ).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={readOnly || saveLogoColor.isPending}
+                    onClick={() => saveLogoColor.mutate(value)}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      (restaurant.logoColor ?? 'ORIGINAL') === value
+                        ? 'border-brand-subtle bg-brand-subtle'
+                        : 'hover:bg-accent/50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
