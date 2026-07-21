@@ -21,6 +21,8 @@ import type { AuthUser } from '../../common/auth/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { DeliveryService } from '../delivery/delivery.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { PaymentsService } from '../payments/payments.service';
 import { OrdersService } from './orders.service';
 
 const transitionSchema = z.object({
@@ -71,6 +73,21 @@ const walkInOrderSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+/**
+ * A counter phone order the customer pays online via a texted/emailed link, instead
+ * of at the desk. Phone is required — it's the link's primary channel and the
+ * customer key; email is optional (adds the email copy). Pickup / dine-in only for
+ * now; delivery-by-link needs the address + courier path and is a separate step.
+ */
+const paymentLinkOrderSchema = z.object({
+  items: z.array(walkInItemSchema).min(1).max(100),
+  fulfillment: z.enum(['PICKUP', 'DINE_IN']),
+  customerName: z.string().max(120).optional(),
+  customerPhone: z.string().min(7).max(20),
+  customerEmail: z.string().email().max(160).optional(),
+  tableNumber: z.string().max(20).optional(),
+});
+
 /** Restaurant-facing order management. Customers use StorefrontController. */
 @ApiTags('orders')
 @Controller('orders')
@@ -85,6 +102,10 @@ export class OrdersController {
     // machine from Uber webhooks) and we need to dispatch couriers from here.
     @Inject(forwardRef(() => DeliveryService))
     private readonly delivery: DeliveryService,
+    // Mint + send a Stripe payment link for a counter phone order. One-way dep
+    // (payments never imports orders), so no forwardRef needed.
+    private readonly payments: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** The kitchen board. Polled by the dashboard every few seconds. */
@@ -255,6 +276,47 @@ export class OrdersController {
     @Body(new ZodValidationPipe(walkInOrderSchema)) body: z.infer<typeof walkInOrderSchema>,
   ) {
     return this.orders.createWalkIn(restaurantId, body, user.id);
+  }
+
+  /**
+   * A counter phone order the customer pays by link. The order is created UNPAID —
+   * exactly the storefront online path (orders.create + a Stripe checkout session) —
+   * so it does NOT reach the kitchen or touch stock until the customer actually pays;
+   * the Stripe webhook flips it and fires the usual "new order" alerts then. The link
+   * is texted/emailed to the customer AND returned to the POS to show and read out.
+   */
+  @Post('payment-link')
+  @Roles('STAFF')
+  @Audit('order.payment_link_created', 'Order')
+  async createPaymentLinkOrder(
+    @TenantId() restaurantId: string,
+    @Body(new ZodValidationPipe(paymentLinkOrderSchema)) body: z.infer<typeof paymentLinkOrderSchema>,
+  ) {
+    const order = await this.orders.create(restaurantId, {
+      items: body.items,
+      fulfillment: body.fulfillment,
+      customer: {
+        name: body.customerName?.trim() || 'Customer',
+        phone: body.customerPhone,
+        email: body.customerEmail ?? '',
+      },
+      tipCents: 0,
+      ...(body.tableNumber ? { tableNumber: body.tableNumber } : {}),
+    });
+
+    // Same unpaid-order → Stripe checkout pair the storefront uses. Throws a clean
+    // BadRequest if the restaurant hasn't finished Stripe onboarding.
+    const { checkoutUrl } = await this.payments.createCheckoutSession(order.id);
+
+    // Send it both ways (best-effort); it's also returned for the POS to show/QR.
+    const restaurant = await this.prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (restaurant) {
+      await this.notifications.sendPaymentLink(order, restaurant, checkoutUrl).catch(() => {
+        // A failed text/email doesn't lose the order or the link — the POS still has it.
+      });
+    }
+
+    return { orderId: order.id, orderNumber: order.orderNumber, checkoutUrl };
   }
 
   /**

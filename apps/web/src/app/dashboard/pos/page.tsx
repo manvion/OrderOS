@@ -1,11 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import QRCode from 'qrcode';
 import {
   Bike,
   Check,
   ClipboardList,
+  Copy,
+  Link2,
   Minus,
   Plus,
   Receipt,
@@ -26,7 +29,7 @@ import { DeliveryActions } from '@/components/dashboard/delivery-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge, Skeleton } from '@/components/ui/primitives';
+import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Skeleton } from '@/components/ui/primitives';
 
 /**
  * The front-desk POS — a full-screen, touch-first ordering terminal.
@@ -180,7 +183,31 @@ function OrderTerminal() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [address, setAddress] = useState({ street: '', city: '', state: '', postalCode: '' });
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD_TERMINAL'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD_TERMINAL' | 'LINK'>('CASH');
+  // The just-created payment link, shown for staff to read out / let the customer scan.
+  const [linkResult, setLinkResult] = useState<{ orderNumber: string; url: string } | null>(null);
+  const [linkQr, setLinkQr] = useState<string | null>(null);
+
+  // The payment link is an online charge (pickup / dine-in only) and can't ride on a
+  // delivery ticket — snap back to Cash if the fulfillment moves to delivery.
+  useEffect(() => {
+    if (fulfillment === 'DELIVERY' && paymentMethod === 'LINK') setPaymentMethod('CASH');
+  }, [fulfillment, paymentMethod]);
+
+  // Render the link as a QR so a customer standing at the counter can just scan to pay.
+  useEffect(() => {
+    if (!linkResult) {
+      setLinkQr(null);
+      return;
+    }
+    let cancelled = false;
+    void QRCode.toDataURL(linkResult.url, { width: 320, margin: 1 })
+      .then((d) => !cancelled && setLinkQr(d))
+      .catch(() => !cancelled && setLinkQr(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [linkResult]);
 
   // A delivery ticket can't be sent without somewhere to send it and someone to call.
   const deliveryReady =
@@ -188,6 +215,9 @@ function OrderTerminal() {
     (address.street.trim().length > 2 &&
       address.city.trim().length > 1 &&
       customerPhone.trim().length > 4);
+
+  // A payment link is texted/emailed — it needs a phone (its primary channel).
+  const linkReady = paymentMethod !== 'LINK' || customerPhone.trim().length > 4;
 
   const grouped = useMemo(() => {
     if (!categories || !products) return [];
@@ -268,25 +298,58 @@ function OrderTerminal() {
                 postalCode: address.postalCode.trim() || undefined,
               }
             : undefined,
-        paymentMethod,
+        // create() only runs for the in-person methods; LINK goes through sendLink.
+        paymentMethod: paymentMethod === 'CARD_TERMINAL' ? 'CARD_TERMINAL' : 'CASH',
       }),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       toast.success(
         `Order #${order.orderNumber} sent to the kitchen — code ${order.orderNumber.slice(-3)}`,
       );
-      setLines([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerEmail('');
-      setTableNumber('');
-      setAddress({ street: '', city: '', state: '', postalCode: '' });
+      resetTicket();
     },
     onError: (err) =>
       toast.error(
         err instanceof ApiRequestError ? err.body.message : 'Could not create the order',
       ),
   });
+
+  // Create an UNPAID order and text/email the customer a Stripe link to pay. It only
+  // reaches the kitchen once they pay; the link is also shown here to read out or scan.
+  const sendLink = useMutation({
+    mutationFn: () =>
+      api.createPaymentLinkOrder({
+        items: lines.map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+          modifierIds: l.modifierIds,
+        })),
+        fulfillment: fulfillment === 'DINE_IN' ? 'DINE_IN' : 'PICKUP',
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim(),
+        customerEmail: customerEmail.trim() || undefined,
+        tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
+      }),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success(`Payment link created for #${res.orderNumber} and sent to the customer`);
+      setLinkResult({ orderNumber: res.orderNumber, url: res.checkoutUrl });
+      resetTicket();
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not create the payment link',
+      ),
+  });
+
+  function resetTicket() {
+    setLines([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setTableNumber('');
+    setAddress({ street: '', city: '', state: '', postalCode: '' });
+  }
 
   if (!restaurant) return null;
 
@@ -497,7 +560,9 @@ function OrderTerminal() {
               </p>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* Payment link isn't an in-person method and doesn't apply to a delivery
+                ticket, so it's offered only for pickup / dine-in. */}
+            <div className={`grid gap-2 ${fulfillment === 'DELIVERY' ? 'grid-cols-2' : 'grid-cols-3'}`}>
               <Button
                 type="button"
                 variant={paymentMethod === 'CASH' ? 'brand' : 'outline'}
@@ -512,8 +577,19 @@ function OrderTerminal() {
                 size="sm"
                 onClick={() => setPaymentMethod('CARD_TERMINAL')}
               >
-                Card terminal
+                Card
               </Button>
+              {fulfillment !== 'DELIVERY' && (
+                <Button
+                  type="button"
+                  variant={paymentMethod === 'LINK' ? 'brand' : 'outline'}
+                  size="sm"
+                  onClick={() => setPaymentMethod('LINK')}
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  Link
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center justify-between text-base font-semibold">
@@ -521,17 +597,44 @@ function OrderTerminal() {
               <span className="tabular-nums">{formatMoney(totalCents, restaurant.currency)}</span>
             </div>
 
-            <Button
-              className="w-full"
-              size="lg"
-              disabled={lines.length === 0 || !deliveryReady || create.isPending}
-              onClick={() => create.mutate()}
-            >
-              {create.isPending ? 'Sending to kitchen…' : 'Confirm — paid, send to kitchen'}
-            </Button>
+            {paymentMethod === 'LINK' ? (
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={lines.length === 0 || !linkReady || sendLink.isPending}
+                onClick={() => sendLink.mutate()}
+              >
+                {sendLink.isPending ? 'Creating link…' : 'Create & send payment link'}
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={lines.length === 0 || !deliveryReady || create.isPending}
+                onClick={() => create.mutate()}
+              >
+                {create.isPending ? 'Sending to kitchen…' : 'Confirm — paid, send to kitchen'}
+              </Button>
+            )}
+            {paymentMethod === 'LINK' && (
+              <p className="text-[11px] text-muted-foreground">
+                The order is placed <span className="font-medium">unpaid</span> and only reaches the
+                kitchen once the customer pays. We text{customerEmail.trim() ? ' & email' : ''} them
+                the link.
+              </p>
+            )}
           </div>
         </Card>
       </div>
+
+      {linkResult && (
+        <PaymentLinkResult
+          orderNumber={linkResult.orderNumber}
+          url={linkResult.url}
+          qr={linkQr}
+          onClose={() => setLinkResult(null)}
+        />
+      )}
 
       {configuring && (
         <ModifierConfigurator
@@ -545,6 +648,59 @@ function OrderTerminal() {
         />
       )}
     </>
+  );
+}
+
+/** The just-created payment link — QR to scan, URL to copy, for staff to hand over. */
+function PaymentLinkResult({
+  orderNumber,
+  url,
+  qr,
+  onClose,
+}: {
+  orderNumber: string;
+  url: string;
+  qr: string | null;
+  onClose: () => void;
+}) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy — long-press the link instead');
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Payment link · #{orderNumber}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Sent to the customer. They can also scan this to pay right now.
+          </p>
+          {qr ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qr} alt="Scan to pay" className="mx-auto h-48 w-48 rounded-lg border bg-white" />
+          ) : (
+            <div className="mx-auto h-48 w-48 animate-pulse rounded-lg bg-muted" />
+          )}
+          <div className="flex items-center gap-2">
+            <Input readOnly value={url} className="text-xs" onFocus={(e) => e.target.select()} />
+            <Button size="sm" variant="outline" className="shrink-0" onClick={copy}>
+              <Copy className="h-3.5 w-3.5" />
+              Copy
+            </Button>
+          </div>
+          <Button className="w-full" onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

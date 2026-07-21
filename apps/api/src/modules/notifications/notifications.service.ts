@@ -7,6 +7,7 @@ import type {
   OrderStatus,
   Restaurant,
 } from '@prisma/client';
+import { formatMoney } from '@dinedirect/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { storefrontBaseUrl } from '../../common/tenant-url';
 import { EmailService } from './email.service';
@@ -96,6 +97,72 @@ export class NotificationsService {
       this.sendRestaurantSms(order, restaurant, status, ctx),
       this.sendRestaurantEmail(order, restaurant, status, ctx),
     ]);
+  }
+
+  /**
+   * Text and/or email a customer a link to pay for a staff-created (phone) order.
+   *
+   * Best-effort per channel — a failed SMS must not lose the order or the link (the
+   * POS shows it too, for staff to read out). Every attempt is logged, like the rest.
+   */
+  async sendPaymentLink(order: OrderWithItems, restaurant: Restaurant, url: string): Promise<void> {
+    const amount = formatMoney(order.totalCents, order.currency);
+    const tasks: Promise<void>[] = [];
+
+    const phone = order.customerPhone;
+    if (phone) {
+      const body = `${restaurant.name}: order #${order.orderNumber} for ${amount} is ready to pay. Pay securely here: ${url}`;
+      tasks.push(
+        this.sms.send(phone, body).then((r) =>
+          this.log({
+            restaurantId: restaurant.id,
+            orderId: order.id,
+            channel: 'SMS',
+            audience: 'CUSTOMER',
+            status: r.ok ? 'SENT' : 'FAILED',
+            template: 'order.payment_link',
+            recipient: phone,
+            providerId: r.id,
+            error: r.error,
+          }),
+        ),
+      );
+    }
+
+    const emailTo = order.customerEmail;
+    if (emailTo) {
+      const body = `
+        <p style="font-size:16px;">Your order <strong>#${order.orderNumber}</strong> is ready to pay.</p>
+        <p style="font-size:16px;">Amount due: <strong>${amount}</strong></p>
+        <p style="margin:24px 0;">
+          <a href="${url}" style="background:#111827;color:#ffffff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600;display:inline-block;">Pay now</a>
+        </p>
+        <p style="font-size:13px;color:#64748b;">Or open this link: <a href="${url}">${url}</a></p>`;
+      tasks.push(
+        this.email
+          .sendRaw({
+            to: emailTo,
+            subject: `Pay for your ${restaurant.name} order #${order.orderNumber}`,
+            body,
+            restaurant,
+          })
+          .then((r) =>
+            this.log({
+              restaurantId: restaurant.id,
+              orderId: order.id,
+              channel: 'EMAIL',
+              audience: 'CUSTOMER',
+              status: r.ok ? 'SENT' : 'FAILED',
+              template: 'order.payment_link',
+              recipient: emailTo,
+              providerId: r.id,
+              error: r.error,
+            }),
+          ),
+      );
+    }
+
+    await Promise.allSettled(tasks);
   }
 
   // --- Customer --------------------------------------------------------------

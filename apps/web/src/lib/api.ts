@@ -719,6 +719,22 @@ export function createDashboardApi(
       notes?: string;
     }) => call<Order>('/orders/walk-in', { method: 'POST', body: JSON.stringify(body) }),
 
+    /** A counter phone order the customer pays via a texted/emailed Stripe link.
+     *  Created UNPAID — it reaches the kitchen only once they pay. Pickup / dine-in;
+     *  phone required. Returns the link so the POS can show/QR it too. */
+    createPaymentLinkOrder: (body: {
+      items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
+      fulfillment: 'PICKUP' | 'DINE_IN';
+      customerName?: string;
+      customerPhone: string;
+      customerEmail?: string;
+      tableNumber?: string;
+    }) =>
+      call<{ orderId: string; orderNumber: string; checkoutUrl: string }>('/orders/payment-link', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
     // Cash drawer (Z-report)
     /** The drawer open right now (with movements + live totals), or null if none. */
     getCashDrawer: () => call<CashSession | null>('/cash/current'),
