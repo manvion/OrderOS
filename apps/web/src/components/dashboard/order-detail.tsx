@@ -385,10 +385,11 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
                 />
               </dl>
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Deposited to your Stripe account
-                {payment.stripeFeeCents == null
-                  ? ' once the card settles (the exact processing fee is deducted then).'
-                  : ', net of the card processing fee shown above.'}
+                {payment.method === 'CASH'
+                  ? 'Collected in cash at the counter — no card processing fee.'
+                  : payment.stripeFeeCents == null
+                    ? 'Deposited to your Stripe account once the card settles — Stripe’s processing fee comes out of your account then (you’re the merchant of record).'
+                    : 'Deposited to your Stripe account, net of the card processing fee shown above.'}
               </p>
             </section>
           )}
