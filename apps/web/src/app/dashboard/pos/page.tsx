@@ -18,7 +18,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatMoney } from '@dinedirect/shared';
+import { formatMoney, priceOrder } from '@dinedirect/shared';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
 import { ApiRequestError, type Order, type Product } from '@/lib/api';
 import {
@@ -65,7 +65,7 @@ export default function PosPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="no-scrollbar mb-4 flex items-center gap-2 overflow-x-auto">
         <TabButton active={tab === 'order'} onClick={() => setTab('order')} icon={Receipt}>
           New order
         </TabButton>
@@ -113,7 +113,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+      className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
         active
           ? 'bg-brand text-brand-foreground shadow-soft'
           : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -237,9 +237,28 @@ function OrderTerminal() {
   const shownGroups =
     activeCategoryId === null ? grouped : grouped.filter((g) => g.category.id === activeCategoryId);
 
-  const totalCents = lines.reduce(
-    (sum, l) => sum + (l.unitPriceCents + l.modifiersCents) * l.quantity,
-    0,
+  // The ticket total is computed by the SAME priceOrder the API bills with, so what
+  // staff read out — subtotal, tax, service fee, and (for delivery) the delivery fee —
+  // matches the amount actually charged. The old code summed only the food line items,
+  // so a delivery ticket quoted the customer LESS than they were charged, and tax /
+  // service fee never showed at all.
+  const pricing = useMemo(
+    () =>
+      priceOrder({
+        items: lines.map((l) => ({
+          productId: l.productId,
+          name: l.name,
+          unitPriceCents: l.unitPriceCents + l.modifiersCents,
+          quantity: l.quantity,
+          modifiers: [],
+        })),
+        taxRateBps: restaurant?.taxRateBps ?? 0,
+        taxComponents: restaurant?.taxComponents ?? undefined,
+        fulfillment,
+        deliveryFeeCents: restaurant?.deliveryFeeCents ?? 0,
+        serviceFeeCents: restaurant?.serviceFeeCents ?? 0,
+      }),
+    [lines, fulfillment, restaurant],
   );
 
   const addLine = (product: Product) => {
@@ -355,7 +374,7 @@ function OrderTerminal() {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_1fr]">
         {/* Menu */}
         <Card className="overflow-hidden">
           <div className="no-scrollbar flex gap-2 overflow-x-auto border-b p-3">
@@ -373,7 +392,7 @@ function OrderTerminal() {
             ))}
           </div>
 
-          <div className="max-h-[calc(100vh-16rem)] space-y-6 overflow-y-auto p-4">
+          <div className="space-y-6 p-4 md:max-h-[calc(100dvh_-_13rem)] md:overflow-y-auto">
             {grouped.length === 0 && (
               <p className="py-16 text-center text-sm text-muted-foreground">Loading the menu…</p>
             )}
@@ -382,7 +401,7 @@ function OrderTerminal() {
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   {category.name}
                 </h3>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                   {items.map((product) => (
                     <button
                       key={product.id}
@@ -406,14 +425,14 @@ function OrderTerminal() {
         </Card>
 
         {/* Ticket */}
-        <Card className="flex max-h-[calc(100vh-11rem)] flex-col">
+        <Card className="flex flex-col md:max-h-[calc(100dvh_-_11rem)]">
           <div className="border-b p-4">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Ticket
             </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 p-4 md:overflow-y-auto">
             {lines.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
                 Tap items to build the order.
@@ -525,8 +544,8 @@ function OrderTerminal() {
                   />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Delivery fee {formatMoney(restaurant.deliveryFeeCents, restaurant.currency)} added.
-                  Assign a courier from the Delivery tab once it&apos;s ready.
+                  The delivery fee is added to the total below. Assign a courier from the Delivery
+                  tab once it&apos;s ready.
                 </p>
               </div>
             )}
@@ -592,9 +611,29 @@ function OrderTerminal() {
               )}
             </div>
 
-            <div className="flex items-center justify-between text-base font-semibold">
-              <span>Total</span>
-              <span className="tabular-nums">{formatMoney(totalCents, restaurant.currency)}</span>
+            <div className="space-y-1 text-sm">
+              {/* Only break the total down when there's more to it than the food — an
+                  all-in pickup order with no tax stays a single clean "Total" line. */}
+              {pricing.totalCents !== pricing.subtotalCents && (
+                <>
+                  <TicketRow label="Subtotal" value={pricing.subtotalCents} currency={restaurant.currency} />
+                  {pricing.serviceFeeCents > 0 && (
+                    <TicketRow label="Service fee" value={pricing.serviceFeeCents} currency={restaurant.currency} />
+                  )}
+                  {pricing.deliveryFeeCents > 0 && (
+                    <TicketRow label="Delivery fee" value={pricing.deliveryFeeCents} currency={restaurant.currency} />
+                  )}
+                  {pricing.taxLines.map((t) => (
+                    <TicketRow key={t.name} label={t.name} value={t.amountCents} currency={restaurant.currency} />
+                  ))}
+                </>
+              )}
+              <div className="flex items-center justify-between pt-1 text-base font-semibold">
+                <span>Total</span>
+                <span className="tabular-nums">
+                  {formatMoney(pricing.totalCents, restaurant.currency)}
+                </span>
+              </div>
             </div>
 
             {paymentMethod === 'LINK' ? (
@@ -701,6 +740,24 @@ function PaymentLinkResult({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One right-aligned money line in the ticket total breakdown (subtotal, fee, tax). */
+function TicketRow({
+  label,
+  value,
+  currency,
+}: {
+  label: string;
+  value: number;
+  currency: string;
+}) {
+  return (
+    <div className="flex items-center justify-between text-muted-foreground">
+      <span>{label}</span>
+      <span className="tabular-nums">{formatMoney(value, currency)}</span>
+    </div>
   );
 }
 
