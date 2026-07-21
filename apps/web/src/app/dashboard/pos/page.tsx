@@ -26,6 +26,8 @@ import {
   type ConfiguredLine,
 } from '@/components/dashboard/walk-in-order-dialog';
 import { DeliveryActions } from '@/components/dashboard/delivery-actions';
+import { OrderSoundControl } from '@/components/dashboard/order-sound-control';
+import { useNewOrderChime } from '@/lib/order-chime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,7 +67,8 @@ export default function PosPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="no-scrollbar mb-4 flex items-center gap-2 overflow-x-auto">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">
         <TabButton active={tab === 'order'} onClick={() => setTab('order')} icon={Receipt}>
           New order
         </TabButton>
@@ -85,6 +88,8 @@ export default function PosPage() {
             </Badge>
           )}
         </TabButton>
+        </div>
+        <OrderSoundControl />
       </div>
 
       {tab === 'order' ? (
@@ -134,6 +139,9 @@ function useActiveBadges(): { counterBadge: number; deliveriesBadge: number } {
     refetchInterval: 10_000,
   });
   const orders = data ?? [];
+  // The POS terminal beeps for new orders too — this hook is mounted the whole time
+  // the POS is open, whichever tab is showing.
+  useNewOrderChime(data);
   return {
     counterBadge: orders.filter(
       (o) => o.fulfillment !== 'DELIVERY' && ACTIVE_STATUSES.includes(o.status),

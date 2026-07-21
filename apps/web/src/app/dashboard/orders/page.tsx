@@ -13,6 +13,8 @@ import { Badge, Skeleton } from '@/components/ui/primitives';
 import { OrderDetail } from '@/components/dashboard/order-detail';
 import { DeliveryActions } from '@/components/dashboard/delivery-actions';
 import { WalkInOrderDialog } from '@/components/dashboard/walk-in-order-dialog';
+import { OrderSoundControl } from '@/components/dashboard/order-sound-control';
+import { useNewOrderChime } from '@/lib/order-chime';
 
 /**
  * The next action for each status. Exactly one primary button per order — a
@@ -55,6 +57,9 @@ export default function OrdersPage() {
     // enough that staff trust the board, cheap enough that it's one indexed read.
     refetchInterval: 10_000,
   });
+
+  // Beep when a new order lands, so nobody has to watch the screen. Per-device.
+  useNewOrderChime(orders);
 
   const transition = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.setOrderStatus(id, status),
@@ -124,7 +129,10 @@ export default function OrdersPage() {
               : `${list.length} order${list.length === 1 ? '' : 's'} in flight`}
           </p>
         </div>
-        <Button onClick={() => setCreatingWalkIn(true)}>New order</Button>
+        <div className="flex items-center gap-2">
+          <OrderSoundControl />
+          <Button onClick={() => setCreatingWalkIn(true)}>New order</Button>
+        </div>
       </div>
 
       <WalkInOrderDialog open={creatingWalkIn} onOpenChange={setCreatingWalkIn} />
@@ -269,11 +277,21 @@ export default function OrdersPage() {
                   {/* Who carries it, the pickup code, and the handoff check. */}
                   <DeliveryActions order={order} />
 
-                  {order.delivery?.lastError && (
-                    <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
-                      Uber: {order.delivery.lastError} — retrying automatically.
-                    </p>
-                  )}
+                  {/* Only say "retrying" when it actually is. A permanent decline
+                      (FAILED / escalated — a bad address or phone Uber will reject
+                      every time) is NOT retried, and telling staff to wait for a
+                      retry that never comes leaves a paid order sitting unmoved. */}
+                  {order.delivery?.lastError &&
+                    (order.delivery.status === 'FAILED' || order.delivery.escalatedAt ? (
+                      <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
+                        Uber wouldn&apos;t take this order: {order.delivery.lastError}. Assign your own
+                        driver or fix the address, then try again.
+                      </p>
+                    ) : (
+                      <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
+                        Uber: {order.delivery.lastError} — retrying automatically.
+                      </p>
+                    ))}
 
                   {order.delivery?.trackingUrl && (
                     <a

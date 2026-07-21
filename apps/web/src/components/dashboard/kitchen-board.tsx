@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bell,
-  BellOff,
   Check,
   ChefHat,
   Clock,
@@ -15,6 +13,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi, useDashboard } from './dashboard-provider';
+import { OrderSoundControl } from './order-sound-control';
+import { useChimeSettings, useNewOrderChime } from '@/lib/order-chime';
 import { ApiRequestError, type Order } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useContentLocale } from '@/lib/i18n/use-content-locale';
@@ -120,7 +120,7 @@ export function KitchenBoard() {
   const { restaurant } = useDashboard();
   const { t, locale, canToggle, setLocale } = useContentLocale(restaurant?.menuLanguage);
 
-  const [soundOn, setSoundOn] = useState(true);
+  const [chimeSettings] = useChimeSettings();
   const seenIds = useRef<Set<string>>(new Set());
   const primed = useRef(false);
 
@@ -133,6 +133,12 @@ export function KitchenBoard() {
     // someone actually looks at it, so the board is never stale in front of a human.
     refetchOnWindowFocus: true,
   });
+
+  // The alert sound, shared with Orders and POS: one per-device preference, one
+  // autoplay-unlocked audio context. (This replaced a local chime that made a fresh,
+  // suspended AudioContext on every poll — which the browser's autoplay policy kept
+  // silent, so the kitchen often heard nothing at all.)
+  useNewOrderChime(orders);
 
   /**
    * Ring the bell for genuinely NEW orders.
@@ -154,12 +160,12 @@ export function KitchenBoard() {
     const fresh = incoming.filter((o) => !seenIds.current.has(o.id));
     for (const o of fresh) seenIds.current.add(o.id);
 
-    if (fresh.length > 0 && soundOn) {
-      chime();
-      // A toast as well as a sound: the extractor fan is louder than a tablet.
+    if (fresh.length > 0) {
+      // A toast as well as the sound: the extractor fan is louder than a tablet, and
+      // the toast still lands even when the sound is muted.
       toast.info(`${fresh.length} ${t.kitchen.newOrders}`);
     }
-  }, [orders, soundOn, t]);
+  }, [orders, t]);
 
   const advance = useMutation({
     mutationFn: ({ id, to }: { id: string; to: string }) => api.setOrderStatus(id, to),
@@ -242,19 +248,7 @@ export function KitchenBoard() {
             </div>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setSoundOn((s) => !s);
-              // Play it when switching ON, so they know it works before service.
-              if (!soundOn) chime();
-            }}
-            title={soundOn ? t.kitchen.soundOnTitle : t.kitchen.soundOffTitle}
-          >
-            {soundOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4 text-destructive" />}
-            {soundOn ? t.kitchen.soundOn : t.kitchen.soundOff}
-          </Button>
+          <OrderSoundControl />
 
           <Button
             variant="outline"
@@ -267,7 +261,7 @@ export function KitchenBoard() {
         </div>
       </div>
 
-      {!soundOn && (
+      {!chimeSettings.enabled && (
         <p className="mb-3 rounded-lg bg-destructive/10 p-2.5 text-center text-sm font-medium text-destructive">
           {t.kitchen.soundOffBanner}
         </p>
@@ -483,33 +477,3 @@ function useElapsed(iso: string) {
  * it works offline — which a kitchen tablet regularly is. Two quick tones, because
  * one is easy to mistake for a notification from something else.
  */
-function chime() {
-  try {
-    const Ctx =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-
-    [880, 1320].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.frequency.value = freq;
-      osc.type = 'sine';
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      const start = ctx.currentTime + i * 0.18;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.35, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
-
-      osc.start(start);
-      osc.stop(start + 0.18);
-    });
-  } catch {
-    // Browsers block audio until the user has interacted with the page. Failing here
-    // must never take the board down — the toast still fires, and the visual card
-    // still appears. Silence is a degraded kitchen, not a broken one.
-  }
-}
