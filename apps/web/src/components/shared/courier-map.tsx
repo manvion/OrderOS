@@ -61,6 +61,11 @@ export function CourierMap({
   // re-routing on every 4s poll and only fetch again once the driver has genuinely
   // moved on (see ROUTE_REFETCH_M) — one OSRM call per meaningful move, not per tick.
   const routedFromRef = useRef<string | null>(null);
+  // Smooth courier motion. Leaflet's setLatLng TELEPORTS the marker, so between the
+  // 4s polls the car sat dead still and then jumped — the "car isn't moving" bug.
+  // We instead glide it frame-by-frame from where it is to each new fix.
+  const courierAnimRef = useRef<number | null>(null);
+  const courierPosRef = useRef<[number, number] | null>(null);
 
   // Stable identity so the effect below doesn't re-run on every poll just because
   // the parent handed us a new array with the same contents.
@@ -178,18 +183,18 @@ export function CourierMap({
 
       // --- The courier ---
       if (courier) {
-        const position: [number, number] = [courier.latitude, courier.longitude];
+        const target: [number, number] = [courier.latitude, courier.longitude];
 
         if (courierMarkerRef.current) {
-          // Move the existing marker. Leaflet interpolates nothing for us, but
-          // reusing the marker lets CSS transition the icon smoothly instead of
-          // the pin vanishing and reappearing.
-          courierMarkerRef.current.setLatLng(position);
+          // Glide to the new fix over ~the poll interval, so the car is almost
+          // always in visible motion instead of teleporting once every 4 seconds.
+          animateCourier(courierMarkerRef.current, courierPosRef, courierAnimRef, target);
         } else {
-          courierMarkerRef.current = L.marker(position, {
+          courierMarkerRef.current = L.marker(target, {
             icon: courierIcon(L, brandColor),
             zIndexOffset: 1000, // always on top of the static pins
           }).addTo(map);
+          courierPosRef.current = target;
         }
       }
 
@@ -229,6 +234,9 @@ export function CourierMap({
   // the whole thing (and refetch every tile) four times a minute.
   useEffect(() => {
     return () => {
+      if (courierAnimRef.current !== null) cancelAnimationFrame(courierAnimRef.current);
+      courierAnimRef.current = null;
+      courierPosRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       courierMarkerRef.current = null;
@@ -260,6 +268,58 @@ export function CourierMap({
       />
     </div>
   );
+}
+
+/**
+ * Glide the courier marker from where it currently is to a new fix.
+ *
+ * Leaflet's `setLatLng` jumps. Instead we interpolate at a constant speed over a
+ * window just under the 4s "driver moving" poll, so a fresh fix arrives about when
+ * the previous glide finishes and the car reads as continuously on the move — the
+ * difference between a live map and a screenshot. A negligible delta (a stopped car,
+ * GPS jitter at a light) settles in place rather than crawling.
+ */
+function animateCourier(
+  marker: Marker,
+  posRef: React.MutableRefObject<[number, number] | null>,
+  animRef: React.MutableRefObject<number | null>,
+  target: [number, number],
+): void {
+  if (animRef.current !== null) {
+    cancelAnimationFrame(animRef.current);
+    animRef.current = null;
+  }
+
+  const cur = marker.getLatLng();
+  const from: [number, number] = posRef.current ?? [cur.lat, cur.lng];
+  const dLat = target[0] - from[0];
+  const dLng = target[1] - from[1];
+
+  // ~1e-6 deg ≈ 0.1m: below this it's noise, not travel.
+  if (Math.abs(dLat) < 1e-6 && Math.abs(dLng) < 1e-6) {
+    marker.setLatLng(target);
+    posRef.current = target;
+    return;
+  }
+
+  const DURATION_MS = 3500;
+  const start = performance.now();
+
+  const step = (now: number) => {
+    const p = Math.min(1, (now - start) / DURATION_MS);
+    const lat = from[0] + dLat * p;
+    const lng = from[1] + dLng * p;
+    marker.setLatLng([lat, lng]);
+    posRef.current = [lat, lng];
+    if (p < 1) {
+      animRef.current = requestAnimationFrame(step);
+    } else {
+      animRef.current = null;
+      posRef.current = target;
+    }
+  };
+
+  animRef.current = requestAnimationFrame(step);
 }
 
 // Re-route only once the driver has moved on by roughly this much — enough to be a
