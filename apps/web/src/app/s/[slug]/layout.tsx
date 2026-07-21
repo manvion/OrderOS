@@ -13,6 +13,7 @@ import { LanguageToggle } from '@/components/storefront/language-toggle';
 import { getDictionary, LOCALE_COOKIE, toLocale, type Locale } from '@/lib/i18n/dictionaries';
 import { nameWordmarkStyle } from '@/lib/name-style';
 import { LogoMark } from '@/components/storefront/logo-mark';
+import { MobileNav } from '@/components/storefront/mobile-nav';
 import { SiteFooter } from '@/components/storefront/site-footer';
 
 /**
@@ -142,6 +143,17 @@ export default async function StorefrontLayout({
    */
   const themeClass = restaurant.themeMode === 'DARK' ? 'storefront-dark' : '';
 
+  // The same links the header shows inline on sm+, handed to the mobile hamburger so
+  // a phone customer can still reach them. Feature flags mirror the inline links below.
+  const navLinks = [
+    { href: href('/menu'), label: t.nav.menu },
+    ...(restaurant.cateringEnabled ? [{ href: href('/catering'), label: t.nav.catering }] : []),
+    ...(!isQrOnly && restaurant.reservationsEnabled
+      ? [{ href: href('/reserve'), label: t.nav.reserve }]
+      : []),
+    { href: href('/orders'), label: t.nav.myOrders },
+  ];
+
   const content = (
     <TenantProvider restaurant={restaurant} basePath={basePath}>
       <I18nProvider initialLocale={locale} canToggle={canToggle}>
@@ -253,6 +265,10 @@ export default async function StorefrontLayout({
             </Link>
 
             <nav className="flex items-center gap-1">
+              {/* Phone-sized nav: the inline links below are hidden on mobile, so
+                  without this the customer loses every route (including back to an
+                  in-progress order). Renders nothing at sm+. */}
+              <MobileNav links={navLinks} />
               <Link
                 href={href('/menu')}
                 className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:block"
