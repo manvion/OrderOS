@@ -11,6 +11,7 @@ import type { DeliveryProvider, DeliveryStatus, Order, Restaurant } from '@prism
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { toE164 } from '../../common/phone';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SmsService } from '../notifications/sms.service';
 import { OrdersService } from '../orders/orders.service';
@@ -388,9 +389,13 @@ export class DeliveryService {
       // already exists instead of sending a SECOND courier to the same bag of food.
       externalId: order.id,
       restaurantName: restaurant.name,
-      restaurantPhone: restaurant.phone,
+      // Couriers reject anything but E.164 with a 400 — normalise both phones to
+      // +<cc><number> so a number typed as "514-555-1234" dispatches instead of
+      // erroring. Fall back to the raw value if it's too mangled to normalise (the
+      // courier gives the final verdict; better to send something than an empty field).
+      restaurantPhone: toE164(restaurant.phone, restaurant.country) ?? restaurant.phone,
       customerName: order.customerName,
-      customerPhone: order.customerPhone,
+      customerPhone: toE164(order.customerPhone, restaurant.country) ?? order.customerPhone,
       orderNumber: order.orderNumber,
       dropoffNotes: order.deliveryNotes ?? order.notes,
       pickupCode,
@@ -443,7 +448,14 @@ export class DeliveryService {
     order: Order,
     err: Error,
   ): Promise<void> {
-    const isPermanent = err instanceof UberClientError;
+    // By the time a dispatch error reaches here it's been TRANSLATED (see
+    // uber.courier.translate): a 4xx becomes CourierDeclinedError, a 5xx/network/outage
+    // becomes CourierUnavailableError. The old check was `err instanceof UberClientError`,
+    // which is the RAW pre-translation type and therefore never matched — so a permanent
+    // 400 (bad phone, undeliverable address) was queued for retry and re-failed
+    // MAX_ATTEMPTS times, showing staff "retrying automatically" for something retrying
+    // can never fix. A decline is permanent; only "courier unavailable" is worth a retry.
+    const isPermanent = err instanceof CourierDeclinedError;
 
     const delivery = await this.prisma.delivery.update({
       where: { id: deliveryId },
