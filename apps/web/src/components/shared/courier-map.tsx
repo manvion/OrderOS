@@ -110,7 +110,20 @@ export function CourierMap({
         // + `zoomOffset: -1` is MapTiler's documented Leaflet setup, and the `@2x`
         // tiles keep it sharp on retina. CARTO stays on the normal 256px path with
         // detectRetina, which is correct for its tiles.
-        const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+        // Prefer the RUNTIME key from our API (set once as an env var, no rebuild);
+        // fall back to the build-time NEXT_PUBLIC key, then to keyless CARTO. This is
+        // why "I set the MapTiler key but the map didn't change" is finally fixed:
+        // the key no longer has to have been present when the bundle was built.
+        let maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+        if (slug) {
+          try {
+            const cfg = await storefrontApi.getMapConfig(slug);
+            if (cfg.maptilerKey) maptilerKey = cfg.maptilerKey;
+          } catch {
+            // API unreachable — keep whatever the build-time key was (or none).
+          }
+          if (cancelled || !containerRef.current) return;
+        }
         if (maptilerKey) {
           L.tileLayer(
             `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}@2x.png?key=${maptilerKey}`,

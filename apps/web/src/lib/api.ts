@@ -287,6 +287,13 @@ export const storefrontApi = {
     storefrontApi.request<TrackedOrder>(`/storefront/track/${token}`, slug),
 
   /**
+   * The courier map's basemap key, from the API's runtime env (MAPTILER_KEY). Lets a
+   * self-host get crisp tiles without rebuilding the web bundle — see the endpoint.
+   */
+  getMapConfig: (slug: string) =>
+    storefrontApi.request<{ maptilerKey: string | null }>('/storefront/map-config', slug),
+
+  /**
    * Road-following driving geometry for the courier map, proxied through our API
    * (see StorefrontController.route) so it reliably follows the streets instead of
    * the browser hitting a rate-limited public router and getting a straight line.

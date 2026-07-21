@@ -145,6 +145,15 @@ const envSchema = z.object({
   MAPBOX_TOKEN: z.string().optional(),
 
   /**
+   * MapTiler key for the courier map's basemap. Served to the browser at RUNTIME via
+   * GET /storefront/map-config, so a self-host gets crisp tiles by setting this one
+   * env var and restarting the API — no web rebuild. Unset, the map uses the free
+   * (paler) CARTO tiles. This deliberately sidesteps NEXT_PUBLIC_MAPTILER_KEY, which
+   * only applies if it was present when the web bundle was BUILT.
+   */
+  MAPTILER_KEY: z.string().optional(),
+
+  /**
    * OpenRouter, for reading menus out of photographs and web pages (menu
    * import) with free vision models. Optional: unset, the dashboard hides the
    * import buttons and menus are typed by hand, exactly as before the feature

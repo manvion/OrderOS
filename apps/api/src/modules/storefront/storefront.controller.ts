@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -131,7 +132,22 @@ export class StorefrontController {
     private readonly prisma: PrismaService,
     private readonly accounts: CustomerAccountService,
     private readonly promotions: PromotionsService,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * The courier map's basemap key, delivered at RUNTIME.
+   *
+   * Read from the API's MAPTILER_KEY env so a self-host gets crisp MapTiler tiles by
+   * setting one env var and restarting the API — no web rebuild. This sidesteps
+   * NEXT_PUBLIC_MAPTILER_KEY, which only takes effect if it was set when the web
+   * bundle was built (the footgun that made "I set the key but the map didn't change"
+   * a recurring surprise). Null → the map falls back to the free CARTO tiles.
+   */
+  @Get('map-config')
+  mapConfig() {
+    return { maptilerKey: this.config.get<string>('MAPTILER_KEY') ?? null };
+  }
 
   /** Homepage: branding, hours, whether they're open right now. */
   @Get('restaurant')
