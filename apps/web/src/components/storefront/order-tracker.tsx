@@ -189,6 +189,7 @@ export function OrderTracker({
           <div className="h-72 sm:h-80">
             <CourierMap
               className="h-full"
+              slug={slug}
               brandColor={order.restaurant.brandPrimaryColor}
               restaurant={
                 order.restaurant.latitude && order.restaurant.longitude

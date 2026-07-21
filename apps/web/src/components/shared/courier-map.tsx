@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import type { LatLngExpression, Map as LeafletMap, Marker, Polyline } from 'leaflet';
+import { storefrontApi } from '@/lib/api';
 
 export interface MapPoint {
   latitude: number;
@@ -41,6 +42,7 @@ export function CourierMap({
   trail,
   brandColor,
   className,
+  slug,
 }: {
   restaurant: MapPoint | null;
   dropoff: MapPoint | null;
@@ -49,6 +51,12 @@ export function CourierMap({
   trail: MapPoint[];
   brandColor: string;
   className?: string;
+  /**
+   * The tenant slug. When set, the route is fetched through our own API (reliable,
+   * cached, street-following). Without it the map falls back to calling the public
+   * router directly — kept only so contexts without a slug still draw something.
+   */
+  slug?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -174,7 +182,7 @@ export function CourierMap({
 
         if (moved) {
           routedFromRef.current = fromKey;
-          const latlngs = await fetchRoute(routeStart, dropoff);
+          const latlngs = await fetchRoute(routeStart, dropoff, slug);
           if (cancelled || !mapRef.current) return;
 
           drawRoute(L, map, routeCasingRef, routeRef, latlngs, brandColor);
@@ -228,7 +236,7 @@ export function CourierMap({
     return () => {
       cancelled = true;
     };
-  }, [restaurant, dropoff, courier, trailKey, brandColor, trail]);
+  }, [restaurant, dropoff, courier, trailKey, brandColor, trail, slug]);
 
   // Tear the map down only on unmount — not on every prop change, or we'd rebuild
   // the whole thing (and refetch every tile) four times a minute.
@@ -343,7 +351,11 @@ function roundKey(p: MapPoint): string {
  * a straight line between the two points, so the customer always sees a track to
  * their door rather than a blank map.
  */
-async function fetchRoute(from: MapPoint, to: MapPoint): Promise<Array<[number, number]>> {
+async function fetchRoute(
+  from: MapPoint,
+  to: MapPoint,
+  slug?: string,
+): Promise<Array<[number, number]>> {
   const straightLine: Array<[number, number]> = [
     [from.latitude, from.longitude],
     [to.latitude, to.longitude],
@@ -353,12 +365,29 @@ async function fetchRoute(from: MapPoint, to: MapPoint): Promise<Array<[number, 
   const cached = routeCache.get(cacheKey);
   if (cached) return cached;
 
-  const base = process.env.NEXT_PUBLIC_OSRM_URL ?? 'https://router.project-osrm.org';
-  // OSRM wants lng,lat — the opposite order to everything else here.
-  const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
-  const url = `${base}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
-
   try {
+    // Preferred path: through our own API — cached server-side, and it follows the
+    // streets reliably because the routing provider only ever sees our one server,
+    // not thousands of rate-limited browsers. Falls back to a straight line on any
+    // failure so the map always shows a track to the door.
+    if (slug) {
+      const { geometry } = await storefrontApi.route(
+        slug,
+        `${from.latitude},${from.longitude}`,
+        `${to.latitude},${to.longitude}`,
+      );
+      if (!geometry || geometry.length < 2) return straightLine;
+      routeCache.set(cacheKey, geometry);
+      return geometry;
+    }
+
+    // No slug (a context that can't reach the tenant API): call the public router
+    // directly, exactly as before.
+    const base = process.env.NEXT_PUBLIC_OSRM_URL ?? 'https://router.project-osrm.org';
+    // OSRM wants lng,lat — the opposite order to everything else here.
+    const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
+    const url = `${base}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!res.ok) return straightLine;
 

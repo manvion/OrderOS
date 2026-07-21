@@ -55,6 +55,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AddressAutocompleteService } from '../delivery/address-autocomplete.service';
 import { DeliveryService } from '../delivery/delivery.service';
+import { RoutingService } from '../delivery/routing.service';
 import { MenuService } from '../menu/menu.service';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -93,6 +94,21 @@ const resolveSchema = z.object({
   session: z.string().min(1).max(100),
 });
 
+/** "lat,lng" as the courier map sends it. Kept as a string so both come in one query param. */
+const pointSchema = z
+  .string()
+  .regex(/^-?\d{1,3}(\.\d+)?,-?\d{1,3}(\.\d+)?$/, 'expected "lat,lng"');
+
+const routeSchema = z.object({
+  from: pointSchema,
+  to: pointSchema,
+});
+
+function parsePoint(raw: string): { latitude: number; longitude: number } {
+  const [lat, lng] = raw.split(',').map(Number);
+  return { latitude: lat, longitude: lng };
+}
+
 /**
  * Everything a customer's browser talks to. No Clerk session — the tenant is
  * resolved from the subdomain by PublicTenantGuard, and only published,
@@ -110,6 +126,7 @@ export class StorefrontController {
     private readonly payments: PaymentsService,
     private readonly razorpay: RazorpayService,
     private readonly delivery: DeliveryService,
+    private readonly routing: RoutingService,
     private readonly addresses: AddressAutocompleteService,
     private readonly prisma: PrismaService,
     private readonly accounts: CustomerAccountService,
@@ -263,6 +280,22 @@ export class StorefrontController {
     @Query(new ZodValidationPipe(resolveSchema)) query: z.infer<typeof resolveSchema>,
   ) {
     return { address: await this.addresses.resolve(query.id, query.session) };
+  }
+
+  /**
+   * The road-following driving geometry for the courier map.
+   *
+   * Proxied through us rather than called from the browser so the route reliably
+   * follows the streets: the public routing server rate-limits per-IP browser
+   * traffic, which is what left the tracking map drawing a straight line "flying"
+   * over the roads. Server-side it's one cached call per leg. Returns `null`
+   * geometry when no route is available, and the map falls back to a straight line.
+   */
+  @Get('route')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async route(@Query(new ZodValidationPipe(routeSchema)) query: z.infer<typeof routeSchema>) {
+    const geometry = await this.routing.route(parsePoint(query.from), parsePoint(query.to));
+    return { geometry };
   }
 
   /**

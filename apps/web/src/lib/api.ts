@@ -286,6 +286,18 @@ export const storefrontApi = {
   track: (slug: string, token: string) =>
     storefrontApi.request<TrackedOrder>(`/storefront/track/${token}`, slug),
 
+  /**
+   * Road-following driving geometry for the courier map, proxied through our API
+   * (see StorefrontController.route) so it reliably follows the streets instead of
+   * the browser hitting a rate-limited public router and getting a straight line.
+   * `from`/`to` are "lat,lng"; geometry is [lat,lng] pairs, or null if no route.
+   */
+  route: (slug: string, from: string, to: string) =>
+    storefrontApi.request<{ geometry: Array<[number, number]> | null }>(
+      `/storefront/route?from=${from}&to=${to}`,
+      slug,
+    ),
+
   /** The public "now serving" board -- no customer PII, safe for a TV or a QR. */
   getStatusBoard: (slug: string) =>
     storefrontApi.request<StatusBoardEntry[]>('/storefront/order-status-board', slug),

@@ -5,6 +5,7 @@ import { DeliveryRetryProcessor } from './delivery-retry.processor';
 import { DeliveryWatchdog } from './delivery-watchdog.processor';
 import { DeliveryService } from './delivery.service';
 import { GeocodingService } from './geocoding.service';
+import { RoutingService } from './routing.service';
 import { AddressAutocompleteService } from './address-autocomplete.service';
 import { CourierRouter } from './courier.router';
 import { DoorDashClient } from './doordash.client';
@@ -23,6 +24,7 @@ import { UberCourier } from './uber.courier';
     PorterCourier,
     CourierRouter,
     GeocodingService,
+    RoutingService,
     AddressAutocompleteService,
     DeliveryService,
     DeliveryRetryProcessor,
@@ -33,6 +35,7 @@ import { UberCourier } from './uber.courier';
     UberClient,
     CourierRouter,
     GeocodingService,
+    RoutingService,
     AddressAutocompleteService,
   ],
 })

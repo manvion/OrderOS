@@ -88,6 +88,7 @@ export function EmbedTracking({ order }: { order: TrackedOrder }) {
           <div className="h-56">
             <CourierMap
               className="h-full"
+              slug={order.restaurant.slug}
               brandColor={order.restaurant.brandPrimaryColor}
               restaurant={
                 order.restaurant.latitude && order.restaurant.longitude
