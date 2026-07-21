@@ -45,7 +45,8 @@
           }
         }
       ],
-      "./plugins/withRecyclerViewPin.js"
+      "./plugins/withRecyclerViewPin.js",
+      "./plugins/withSplashScreenColor.js"
     ],
     "extra": {
       "eas": {
