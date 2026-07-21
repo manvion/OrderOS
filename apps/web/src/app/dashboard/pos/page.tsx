@@ -2,7 +2,18 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bike, Minus, Plus, Receipt, ShoppingBag, Trash2, Truck, UtensilsCrossed } from 'lucide-react';
+import {
+  Bike,
+  Check,
+  ClipboardList,
+  Minus,
+  Plus,
+  Receipt,
+  ShoppingBag,
+  Trash2,
+  Truck,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { formatMoney } from '@dinedirect/shared';
 import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider';
@@ -37,13 +48,13 @@ import { Badge, Skeleton } from '@/components/ui/primitives';
  * from the rest of the dashboard.
  */
 
-type PosTab = 'order' | 'delivery';
+type PosTab = 'order' | 'orders' | 'delivery';
 
 export default function PosPage() {
   const { restaurant } = useDashboard();
   const [tab, setTab] = useState<PosTab>('order');
 
-  const deliveriesBadge = usePendingDeliveryCount();
+  const { counterBadge, deliveriesBadge } = useActiveBadges();
 
   if (!restaurant) {
     return <Skeleton className="h-[70vh] w-full rounded-2xl" />;
@@ -55,6 +66,14 @@ export default function PosPage() {
         <TabButton active={tab === 'order'} onClick={() => setTab('order')} icon={Receipt}>
           New order
         </TabButton>
+        <TabButton active={tab === 'orders'} onClick={() => setTab('orders')} icon={ClipboardList}>
+          Orders
+          {counterBadge > 0 && (
+            <Badge variant="warning" className="ml-1.5 text-[10px]">
+              {counterBadge}
+            </Badge>
+          )}
+        </TabButton>
         <TabButton active={tab === 'delivery'} onClick={() => setTab('delivery')} icon={Truck}>
           Delivery
           {deliveriesBadge > 0 && (
@@ -65,7 +84,13 @@ export default function PosPage() {
         </TabButton>
       </div>
 
-      {tab === 'order' ? <OrderTerminal /> : <DeliveryDispatch />}
+      {tab === 'order' ? (
+        <OrderTerminal />
+      ) : tab === 'orders' ? (
+        <ActiveOrders />
+      ) : (
+        <DeliveryDispatch />
+      )}
     </div>
   );
 }
@@ -97,20 +122,36 @@ function TabButton({
   );
 }
 
-/** How many delivery orders are waiting on a human — used for the tab badge. */
-function usePendingDeliveryCount(): number {
+/** Live counts for the tab badges: counter orders needing action, deliveries to move. */
+function useActiveBadges(): { counterBadge: number; deliveriesBadge: number } {
   const api = useApi();
   const { data } = useQuery({
     queryKey: ['orders', 'active'],
     queryFn: () => api.listActiveOrders(),
     refetchInterval: 10_000,
   });
-  return (data ?? []).filter(
-    (o) =>
-      o.fulfillment === 'DELIVERY' &&
-      ['READY', 'DRIVER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(o.status),
-  ).length;
+  const orders = data ?? [];
+  return {
+    counterBadge: orders.filter(
+      (o) => o.fulfillment !== 'DELIVERY' && ACTIVE_STATUSES.includes(o.status),
+    ).length,
+    deliveriesBadge: orders.filter(
+      (o) =>
+        o.fulfillment === 'DELIVERY' &&
+        ['READY', 'DRIVER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(o.status),
+    ).length,
+  };
 }
+
+// The next status each counter order advances to when staff tap its one button.
+const COUNTER_NEXT_ACTION: Record<string, { label: string; status: string } | undefined> = {
+  PENDING: { label: 'Accept', status: 'ACCEPTED' },
+  ACCEPTED: { label: 'Start preparing', status: 'PREPARING' },
+  PREPARING: { label: 'Mark ready', status: 'READY' },
+  READY: { label: 'Complete', status: 'COMPLETED' },
+};
+
+const ACTIVE_STATUSES = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'];
 
 // ---------------------------------------------------------------------------
 // The order terminal: menu grid + running ticket
@@ -137,6 +178,7 @@ function OrderTerminal() {
   const [tableNumber, setTableNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [address, setAddress] = useState({ street: '', city: '', state: '', postalCode: '' });
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD_TERMINAL'>('CASH');
 
@@ -215,6 +257,7 @@ function OrderTerminal() {
         fulfillment,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
         tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
         deliveryAddress:
           fulfillment === 'DELIVERY'
@@ -235,6 +278,7 @@ function OrderTerminal() {
       setLines([]);
       setCustomerName('');
       setCustomerPhone('');
+      setCustomerEmail('');
       setTableNumber('');
       setAddress({ street: '', city: '', state: '', postalCode: '' });
     },
@@ -438,6 +482,21 @@ function OrderTerminal() {
               />
             </div>
 
+            <Input
+              type="email"
+              placeholder="Email (optional — emails a receipt)"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+            />
+            {(customerPhone.trim() || customerEmail.trim()) && (
+              <p className="text-[11px] text-muted-foreground">
+                A receipt & order updates go to the customer
+                {customerPhone.trim() ? ' by text' : ''}
+                {customerPhone.trim() && customerEmail.trim() ? ' and' : ''}
+                {customerEmail.trim() ? ' by email' : ''}.
+              </p>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
@@ -508,6 +567,105 @@ function CategoryChip({
     >
       {children}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Active counter orders — pickup & dine-in, moved through the kitchen flow
+// ---------------------------------------------------------------------------
+
+function ActiveOrders() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  const { restaurant } = useDashboard();
+
+  const { data: orders, isLoading } = useQuery({
+    queryKey: ['orders', 'active'],
+    queryFn: () => api.listActiveOrders(),
+    refetchInterval: 8_000,
+  });
+
+  const advance = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => api.setOrderStatus(id, status),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the order'),
+  });
+
+  // Delivery has its own tab (dispatch is a different job); this is the counter flow.
+  const counter = (orders ?? []).filter(
+    (o) => o.fulfillment !== 'DELIVERY' && ACTIVE_STATUSES.includes(o.status),
+  );
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (counter.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
+          <ClipboardList className="h-8 w-8 text-muted-foreground" />
+          <p className="font-medium">No open pickup or dine-in orders</p>
+          <p className="text-sm text-muted-foreground">
+            New orders — from the counter, the customer&apos;s phone, or the website — appear here to
+            accept, prepare and hand over.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {counter.map((order) => {
+        const next = COUNTER_NEXT_ACTION[order.status];
+        return (
+          <Card key={order.id}>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">#{order.orderNumber}</p>
+                  <p className="text-xs capitalize text-muted-foreground">
+                    {order.fulfillment.replace('_', ' ').toLowerCase()}
+                    {order.tableNumber ? ` · Table ${order.tableNumber}` : ''}
+                    {order.customerName ? ` · ${order.customerName}` : ''}
+                  </p>
+                </div>
+                <Badge variant={order.status === 'READY' ? 'success' : 'info'}>
+                  {order.status.toLowerCase()}
+                </Badge>
+              </div>
+
+              <p className="line-clamp-2 text-xs text-muted-foreground">
+                {order.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}
+              </p>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold tabular-nums">
+                  {formatMoney(order.totalCents, restaurant?.currency ?? 'CAD')}
+                </span>
+                {next && (
+                  <Button
+                    size="sm"
+                    disabled={advance.isPending}
+                    onClick={() => advance.mutate({ id: order.id, status: next.status })}
+                  >
+                    {order.status === 'READY' && <Check className="h-3.5 w-3.5" />}
+                    {next.label}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
