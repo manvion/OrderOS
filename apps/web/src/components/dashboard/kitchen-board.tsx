@@ -388,21 +388,36 @@ function OrderCard({
         </div>
       </div>
 
-      <ul className="mt-3 space-y-1 border-t pt-3">
-        {order.items.map((item) => (
-          <li key={item.id} className="flex gap-2 text-sm">
-            <span className="font-bold tabular-nums">{item.quantity}×</span>
-            <span className="min-w-0">
-              <span className="font-medium">{item.name}</span>
-              {item.modifiers?.length > 0 && (
-                <span className="block text-xs text-muted-foreground">
-                  {item.modifiers.map((m) => m.name).join(', ')}
+      {(() => {
+        // A round added to an already-served tab arrives un-prepared, while the earlier
+        // items are done. Show only what's left to cook; a done order (READY) has no
+        // un-prepared items, so it falls back to showing everything.
+        const toCook = order.items.filter((i) => !i.preparedAt);
+        const done = order.items.filter((i) => i.preparedAt);
+        const showItems = toCook.length > 0 ? toCook : order.items;
+        return (
+          <ul className="mt-3 space-y-1 border-t pt-3">
+            {showItems.map((item) => (
+              <li key={item.id} className="flex gap-2 text-sm">
+                <span className="font-bold tabular-nums">{item.quantity}×</span>
+                <span className="min-w-0">
+                  <span className="font-medium">{item.name}</span>
+                  {item.modifiers?.length > 0 && (
+                    <span className="block text-xs text-muted-foreground">
+                      {item.modifiers.map((m) => m.name).join(', ')}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
+              </li>
+            ))}
+            {toCook.length > 0 && done.length > 0 && (
+              <li className="pt-1 text-xs italic text-muted-foreground">
+                + {done.reduce((n, i) => n + i.quantity, 0)} already served
+              </li>
+            )}
+          </ul>
+        );
+      })()}
 
       {/*
         The countdown customers see on the public status board -- defaulted

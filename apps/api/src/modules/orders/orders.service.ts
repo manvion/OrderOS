@@ -1462,16 +1462,11 @@ export class OrdersService {
       throw new ConflictException('Cannot accept an order that has not been paid');
     }
 
-    // A table can be cooked while unpaid (pay-at-desk), but it must NOT be closed until
-    // the bill is settled -- completing an order is the last step, and doing it on a
-    // still-unpaid tab would lose the money. Staff settle it (Take payment) first.
-    if (to === 'COMPLETED' && order.payment?.status === 'PENDING') {
-      throw new ConflictException({
-        statusCode: 409,
-        error: 'Unpaid',
-        message: 'Settle the bill before completing this order',
-      });
-    }
+    // Note: we deliberately DON'T block completing an unpaid pay-at-desk order. The
+    // kitchen handing food to the table ("Picked up") is a food step, not a money step,
+    // and a customer who pays at the counter on the way out hasn't paid yet when the
+    // food leaves the pass. The unpaid bill stays visible (the paid/unpaid badge and the
+    // "Take payment" action on the Orders board) so the front desk still collects it.
 
     const now = new Date();
     const timestamps: Partial<Record<OrderStatus, Prisma.OrderUpdateInput>> = {
@@ -1503,6 +1498,16 @@ export class OrdersService {
         },
         include: this.orderInclude(),
       });
+
+      // Mark the current round done. Every item still un-prepared is what the kitchen
+      // just finished; stamping preparedAt now means a later round added to this tab
+      // (which arrives un-prepared) shows on the board as the only thing left to cook.
+      if (to === 'READY') {
+        await tx.orderItem.updateMany({
+          where: { orderId, preparedAt: null },
+          data: { preparedAt: now },
+        });
+      }
 
       // Roll up customer lifetime value exactly once, when the order lands.
       if (to === 'COMPLETED' || to === 'DELIVERED') {

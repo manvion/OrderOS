@@ -1672,6 +1672,8 @@ export interface Order {
     quantity: number;
     totalCents: number;
     notes: string | null;
+    /** When the kitchen marked this item done. Null = still to cook (this round). */
+    preparedAt: string | null;
     modifiers: Array<{ name: string; priceCents: number }>;
   }>;
   payment: {

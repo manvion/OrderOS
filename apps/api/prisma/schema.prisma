@@ -1199,6 +1199,9 @@ model OrderItem {
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+  /// When the kitchen marked this item done (set when the order is moved to READY). Lets a
+  /// round added to an already-served tab show as "to cook" while the earlier items stay done.
+  preparedAt DateTime?
 
   modifiers OrderItemModifier[]
 
