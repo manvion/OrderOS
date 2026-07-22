@@ -1020,6 +1020,7 @@ function ActiveOrders() {
     id: string;
     orderNumber: string;
     totalCents: number;
+    amountPaidCents: number;
   } | null>(null);
 
   // Delivery has its own tab (dispatch is a different job); this is the counter flow.
@@ -1060,6 +1061,9 @@ function ActiveOrders() {
         const next = COUNTER_NEXT_ACTION[order.status];
         const paid =
           order.payment?.status === 'PAID' || order.payment?.status === 'PARTIALLY_REFUNDED';
+        const partiallyPaid = order.payment?.status === 'PARTIALLY_PAID';
+        const paidCents = order.payment?.amountPaidCents ?? 0;
+        const remainingCents = order.totalCents - paidCents;
         // An open dine-in table whose bill isn't settled yet: staff can add another round
         // and take the payment. A pay-at-desk table is the common case, but any unpaid
         // dine-in tab qualifies.
@@ -1082,7 +1086,7 @@ function ActiveOrders() {
                     {order.status.toLowerCase()}
                   </Badge>
                   <Badge variant={paid ? 'success' : 'warning'} className="text-[10px]">
-                    {paid ? 'paid' : 'unpaid'}
+                    {paid ? 'paid' : partiallyPaid ? 'part paid' : 'unpaid'}
                   </Badge>
                 </div>
               </div>
@@ -1090,6 +1094,13 @@ function ActiveOrders() {
               <p className="line-clamp-2 text-xs text-muted-foreground">
                 {order.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}
               </p>
+
+              {partiallyPaid && (
+                <p className="text-xs font-medium text-amber-600">
+                  {formatMoney(paidCents, currency)} paid · {formatMoney(remainingCents, currency)}{' '}
+                  remaining
+                </p>
+              )}
 
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold tabular-nums">
@@ -1133,11 +1144,12 @@ function ActiveOrders() {
                           id: order.id,
                           orderNumber: order.orderNumber,
                           totalCents: order.totalCents,
+                          amountPaidCents: paidCents,
                         })
                       }
                     >
                       <Banknote className="h-3.5 w-3.5" />
-                      Take payment
+                      {partiallyPaid ? 'Take rest of payment' : 'Take payment'}
                     </Button>
                   )}
                 </div>
@@ -1157,6 +1169,7 @@ function ActiveOrders() {
           orderId={settleFor.id}
           orderNumber={settleFor.orderNumber}
           totalCents={settleFor.totalCents}
+          amountPaidCents={settleFor.amountPaidCents}
           currency={currency}
           onClose={() => setSettleFor(null)}
         />
@@ -1174,18 +1187,25 @@ function SettleDialog({
   orderId,
   orderNumber,
   totalCents,
+  amountPaidCents,
   currency,
   onClose,
 }: {
   orderId: string;
   orderNumber: string;
   totalCents: number;
+  amountPaidCents: number;
   currency: string;
   onClose: () => void;
 }) {
   const api = useApi();
   const queryClient = useQueryClient();
   const [link, setLink] = useState<{ url: string; qr: string | null } | null>(null);
+  // What's still owed after any cash already taken. Cash can settle a part of it; card
+  // and link always clear the whole remaining.
+  const remaining = Math.max(0, totalCents - amountPaidCents);
+  // Cash received now — blank means "the whole remaining balance".
+  const [cashAmount, setCashAmount] = useState('');
   // Card is a REAL tap, not an honour-system "mark paid": we hand off to the Staff app
   // and wait for the charge to actually land (like the new-order Tap to Pay flow).
   const [cardWaiting, setCardWaiting] = useState(false);
@@ -1213,17 +1233,26 @@ function SettleDialog({
     openStaffAppCharge(orderId);
   };
 
-  // Cash is collected in person, so it settles at the desk immediately. (Card no longer
-  // routes through here — it takes a real tap via the Staff app.)
+  // Cash is collected in person and settles at the desk immediately. An entered amount
+  // below the remaining is a PART payment (leaves the bill open); blank clears it all.
+  // (Card no longer routes through here — it takes a real tap via the Staff app.)
   const settle = useMutation({
-    mutationFn: () => api.settleAtDesk(orderId, 'CASH'),
-    onSuccess: () => {
+    mutationFn: () => {
+      const cents = cashAmount.trim() ? Math.round(parseFloat(cashAmount) * 100) : undefined;
+      return api.settleAtDesk(orderId, 'CASH', cents);
+    },
+    onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      toast.success(`Order #${orderNumber} marked paid`);
+      const fully = order.payment?.status === 'PAID';
+      toast.success(
+        fully
+          ? `Order #${orderNumber} paid`
+          : `Part payment taken — ${formatMoney(order.totalCents - (order.payment?.amountPaidCents ?? 0), currency)} still due`,
+      );
       onClose();
     },
     onError: (err) =>
-      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not mark paid'),
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not take payment'),
   });
 
   const sendLink = useMutation({
@@ -1322,13 +1351,38 @@ function SettleDialog({
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-center text-3xl font-bold tabular-nums">
-              {formatMoney(totalCents, currency)}
-            </p>
+            <div className="text-center">
+              <p className="text-3xl font-bold tabular-nums">{formatMoney(remaining, currency)}</p>
+              {amountPaidCents > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {formatMoney(amountPaidCents, currency)} of {formatMoney(totalCents, currency)}{' '}
+                  already paid
+                </p>
+              )}
+            </div>
+            {/* Cash can be a PART payment: type a smaller amount to take some now and leave
+                the rest owing. Blank = the whole balance. Card and link clear it all. */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Cash received</label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  {currency}
+                </span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="pl-12 tabular-nums"
+                  placeholder={(remaining / 100).toFixed(2)}
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" disabled={busy} onClick={() => settle.mutate()}>
                 <Banknote className="h-4 w-4" />
-                Cash
+                {settle.isPending ? 'Saving…' : 'Take cash'}
               </Button>
               <Button variant="outline" disabled={busy} onClick={startCard}>
                 <CreditCard className="h-4 w-4" />

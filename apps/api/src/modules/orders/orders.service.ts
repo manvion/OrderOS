@@ -730,13 +730,16 @@ export class OrdersService {
    * re-notify the kitchen -- it only marks the money in and credits loyalty, which was
    * deliberately held back until the bill was actually settled.
    *
-   * `method` lets staff record how it was collected (cash vs terminal). Idempotent: a
-   * second click on an already-settled order is a no-op.
+   * `method` records how it was collected (cash vs terminal). `amountCents` lets the
+   * counter take a PARTIAL payment -- some cash now, the rest later -- leaving the order
+   * PARTIALLY_PAID until the running balance reaches the total. Omit it to settle the
+   * whole remaining balance in one go. Loyalty is credited (once) only when the bill is
+   * fully covered. Idempotent: settling an already-paid order is a no-op.
    */
   async settleAtDesk(
     restaurantId: string,
     orderId: string,
-    opts: { userId: string; method?: 'CASH' | 'CARD_TERMINAL' },
+    opts: { userId: string; method?: 'CASH' | 'CARD_TERMINAL'; amountCents?: number },
   ) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
@@ -746,32 +749,45 @@ export class OrdersService {
     if (!order.payAtDesk) {
       throw new BadRequestException('This order was not placed to pay at the desk');
     }
-    if (order.payment?.status === 'PAID') {
+    if (!order.payment || order.payment.status === 'PAID') {
       // Already settled -- return the current order rather than double-crediting loyalty.
       return this.findById(restaurantId, orderId);
     }
+
+    const total = order.payment.amountCents;
+    const alreadyPaid = order.payment.amountPaidCents;
+    const remaining = Math.max(0, total - alreadyPaid);
+    // Default to clearing the whole remaining balance; a smaller amount is a part payment.
+    // Never take more than what's owed (overpayment belongs in a tip, not a bill).
+    const collect = Math.min(remaining, Math.max(1, Math.round(opts.amountCents ?? remaining)));
+    const newPaid = alreadyPaid + collect;
+    const fullyPaid = newPaid >= total;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { orderId },
         data: {
-          status: 'PAID',
-          paidAt: new Date(),
+          amountPaidCents: newPaid,
+          status: fullyPaid ? 'PAID' : 'PARTIALLY_PAID',
+          ...(fullyPaid ? { paidAt: new Date() } : {}),
           ...(opts.method ? { method: opts.method } : {}),
         },
       });
-      // Held back at creation so an abandoned table never banks points; the bill is
-      // real now, so credit them.
-      await applyLoyaltyDelta(tx, order.customerId, order.loyaltyPointsEarned, 1);
-      // If it was settled in cash, drop it into the open till (no-op if none is open).
+      // Loyalty is held back until the bill is ACTUALLY settled in full, so a table that
+      // pays half and walks never banks points on the unpaid half.
+      if (fullyPaid) {
+        await applyLoyaltyDelta(tx, order.customerId, order.loyaltyPointsEarned, 1);
+      }
+      // Cash goes into the open till as it's collected (no-op if no drawer is open) --
+      // the amount actually handed over, not the whole bill.
       if (opts.method === 'CASH') {
         await recordCashMovement(tx, {
           restaurantId,
           type: 'SALE',
-          amountCents: order.totalCents,
+          amountCents: collect,
           createdById: opts.userId,
           orderId,
-          reason: `Order #${order.orderNumber}`,
+          reason: `Order #${order.orderNumber}${fullyPaid ? '' : ' (part payment)'}`,
         });
       }
       await tx.orderEvent.create({
@@ -779,7 +795,9 @@ export class OrdersService {
           orderId,
           status: order.status,
           source: 'restaurant',
-          note: `Settled at desk (${opts.method === 'CASH' ? 'cash' : 'card terminal'})`,
+          note: fullyPaid
+            ? `Settled at desk (${opts.method === 'CASH' ? 'cash' : 'card terminal'})`
+            : `Part payment ${(collect / 100).toFixed(2)} ${order.currency} (${opts.method === 'CASH' ? 'cash' : 'card terminal'}) — ${((total - newPaid) / 100).toFixed(2)} remaining`,
         },
       });
     });
@@ -787,13 +805,15 @@ export class OrdersService {
     await this.audit.log({
       restaurantId,
       userId: opts.userId,
-      action: 'order.settled_at_desk',
+      action: fullyPaid ? 'order.settled_at_desk' : 'order.part_payment',
       entityType: 'Order',
       entityId: orderId,
-      metadata: { orderNumber: order.orderNumber, totalCents: order.totalCents },
+      metadata: { orderNumber: order.orderNumber, collectedCents: collect, paidCents: newPaid, totalCents: total },
     });
 
-    this.logger.log(`Order ${order.orderNumber} settled at desk (${order.totalCents} ${order.currency})`);
+    this.logger.log(
+      `Order ${order.orderNumber} ${fullyPaid ? 'settled' : 'part-paid'} at desk (${collect}/${total} ${order.currency})`,
+    );
     return this.findById(restaurantId, orderId);
   }
 

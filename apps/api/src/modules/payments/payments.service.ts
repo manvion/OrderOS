@@ -358,11 +358,32 @@ export class PaymentsService {
       discounts = [{ coupon: coupon.id }];
     }
 
+    // A partially-paid order (some cash already taken at the desk) charges ONLY the
+    // remaining balance, as a single line -- the itemised breakdown above sums to the
+    // full total, and the discount is already baked into that remaining, so both are
+    // replaced here.
+    let finalLineItems = lineItems;
+    let finalDiscounts = discounts;
+    if (order.payment.amountPaidCents > 0) {
+      const remaining = Math.max(1, order.payment.amountCents - order.payment.amountPaidCents);
+      finalLineItems = [
+        {
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: remaining,
+            product_data: { name: `Balance for order #${order.orderNumber}` },
+          },
+        },
+      ];
+      finalDiscounts = undefined;
+    }
+
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: 'payment',
-        line_items: lineItems,
-        ...(discounts ? { discounts } : {}),
+        line_items: finalLineItems,
+        ...(finalDiscounts ? { discounts: finalDiscounts } : {}),
         customer_email: order.customerEmail,
         client_reference_id: order.id,
 
@@ -563,15 +584,24 @@ export class PaymentsService {
       throw new BadRequestException('Connect a Stripe account with card payments enabled first');
     }
 
+    // Charge only what's still owed -- the card clears the remaining balance after any
+    // partial cash already taken at the desk (usually the whole total, if none was).
+    const remaining = Math.max(1, order.payment.amountCents - order.payment.amountPaidCents);
+
     const commissionBps = effectiveCommissionBps(order.restaurant);
     const platformFeeCents = Math.round(
       ((order.subtotalCents - order.discountCents) * commissionBps) / 10_000,
     );
-    const applicationFee = platformFeeCents + (order.payment.courierCostCents ?? 0);
+    // application_fee_amount can never exceed the charge, or Stripe rejects it -- cap it
+    // at the remaining when a partial cash payment has shrunk what's left on the card.
+    const applicationFee = Math.min(
+      platformFeeCents + (order.payment.courierCostCents ?? 0),
+      remaining,
+    );
 
     const intent = await this.stripe.paymentIntents.create(
       {
-        amount: order.totalCents,
+        amount: remaining,
         currency: order.currency.toLowerCase(),
         payment_method_types: ['card_present'],
         capture_method: 'automatic',
@@ -586,7 +616,9 @@ export class PaymentsService {
       },
       {
         stripeAccount: order.restaurant.stripeAccountId,
-        idempotencyKey: `terminal:${order.id}`,
+        // Keyed by the remaining too: a fresh balance (after a part payment) is a fresh
+        // intent, not the earlier full-amount one.
+        idempotencyKey: `terminal:${order.id}:${remaining}`,
       },
     );
 
@@ -999,6 +1031,10 @@ export class PaymentsService {
       data: {
         status: 'PAID',
         paidAt: new Date(),
+        // A card/link payment clears the whole remaining balance, so the order is now
+        // fully covered — record it, whether it was paid in one go or finished off a
+        // partial cash payment taken earlier at the desk.
+        amountPaidCents: order.payment.amountCents,
         cardBrand: opts.cardBrand ?? null,
         cardLast4: opts.cardLast4 ?? null,
         ...(opts.paymentFields ?? {}),

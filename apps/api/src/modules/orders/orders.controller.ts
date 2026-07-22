@@ -43,6 +43,8 @@ const etaSchema = z.object({ minutesFromNow: z.number().int().min(0).max(180) })
 const settleAtDeskSchema = z.object({
   /** How the counter collected. Defaults to card terminal if unspecified. */
   method: z.enum(['CASH', 'CARD_TERMINAL']).optional(),
+  /** A PARTIAL amount to collect now (cents). Omit to clear the whole remaining balance. */
+  amountCents: z.number().int().min(1).max(1_000_000).optional(),
 });
 
 const walkInItemSchema = z.object({
@@ -335,7 +337,11 @@ export class OrdersController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(settleAtDeskSchema)) body: z.infer<typeof settleAtDeskSchema>,
   ) {
-    return this.orders.settleAtDesk(restaurantId, id, { userId: user.id, method: body.method });
+    return this.orders.settleAtDesk(restaurantId, id, {
+      userId: user.id,
+      method: body.method,
+      amountCents: body.amountCents,
+    });
   }
 
   /**

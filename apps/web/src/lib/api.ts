@@ -696,11 +696,12 @@ export function createDashboardApi(
       }),
     cancelOrder: (id: string, reason: string) =>
       call<Order>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
-    /** Settle a pay-at-desk dine-in order at the counter — marks it paid, credits loyalty. */
-    settleAtDesk: (id: string, method?: 'CASH' | 'CARD_TERMINAL') =>
+    /** Settle a pay-at-desk order at the counter. Pass amountCents for a PARTIAL payment
+     *  (some now, the rest later); omit it to clear the whole remaining balance. */
+    settleAtDesk: (id: string, method?: 'CASH' | 'CARD_TERMINAL', amountCents?: number) =>
       call<Order>(`/orders/${id}/settle-at-desk`, {
         method: 'POST',
-        body: JSON.stringify(method ? { method } : {}),
+        body: JSON.stringify({ ...(method ? { method } : {}), ...(amountCents ? { amountCents } : {}) }),
       }),
     /** Text/email the customer a Stripe link to pay an existing unpaid order; returns the
      *  link so the POS can show a QR to scan too. Webhook flips the order to paid. */
@@ -1681,6 +1682,8 @@ export interface Order {
   payment: {
     status: string;
     amountCents: number;
+    /** How much has been collected so far — equals amountCents once fully paid. */
+    amountPaidCents: number;
     refundedAmountCents: number;
     cardBrand: string | null;
     cardLast4: string | null;

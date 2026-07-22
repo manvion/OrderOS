@@ -264,22 +264,25 @@ export default function CartPage() {
         </p>
       )}
 
-      {/* This table already has a tab running — offer to add to it rather than checkout. */}
+      {/* This table already has a tab running. Two groups can share a table, so ask
+          plainly whose order this is instead of silently merging bills. */}
       {tab && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-brand/30 bg-brand-subtle/40 p-4">
-          <Utensils className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
-          <div className="text-sm">
-            <p className="font-semibold">
-              Table {tab.tableNumber} has an open tab
-              {tab.customerFirstName ? ` started by ${tab.customerFirstName}` : ''} (order #
-              {tab.orderNumber})
-            </p>
-            <p className="text-muted-foreground">
-              If you&apos;re with {tab.customerFirstName ? `${tab.customerFirstName}'s` : 'this'}{' '}
-              party, add these to the same bill — {formatMoney(tab.totalCents, restaurant.currency)}{' '}
-              so far, settle it all at the end. A separate party can start their own bill below.
-            </p>
+        <div className="mb-4 rounded-xl border border-brand/30 bg-brand-subtle/40 p-4">
+          <div className="flex items-start gap-3">
+            <Utensils className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
+            <div className="text-sm">
+              <p className="font-semibold">This table already has an open order</p>
+              <p className="text-muted-foreground">
+                {tab.customerFirstName ? `${tab.customerFirstName}` : 'Someone'} at Table{' '}
+                {tab.tableNumber} started a bill ({formatMoney(tab.totalCents, restaurant.currency)}{' '}
+                so far). Are these items for the same group, or a separate one?
+              </p>
+            </div>
           </div>
+          <p className="mt-2 pl-8 text-xs text-muted-foreground">
+            Choose below: <span className="font-medium">same group</span> = one shared bill ·{' '}
+            <span className="font-medium">separate group</span> = your own bill.
+          </p>
         </div>
       )}
 
@@ -301,15 +304,17 @@ export default function CartPage() {
               >
                 {addingToTab
                   ? 'Adding…'
-                  : `Add to Table ${tab.tableNumber} tab · ${formatMoney(
+                  : `Same group — add to ${
+                      tab.customerFirstName ? `${tab.customerFirstName}'s` : 'the'
+                    } bill · ${formatMoney(
                       (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
                       restaurant.currency,
                     )}`}
               </Button>
               {/* A different party sharing the same table shouldn't be forced onto the
-                  first party's bill — let them start their own separate order. */}
-              <Button asChild variant="ghost" size="sm" className="w-full">
-                <Link href={href('/checkout')}>Not your table&apos;s order? Start a separate bill</Link>
+                  first party's bill — give them an equally clear button for their own. */}
+              <Button asChild variant="outline" size="lg" className="w-full" disabled={addingToTab}>
+                <Link href={href('/checkout')}>Separate group — start our own bill</Link>
               </Button>
             </div>
           ) : (

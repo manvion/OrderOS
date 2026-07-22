@@ -131,6 +131,7 @@ enum OrderingMode {
 
 enum PaymentStatus {
   PENDING
+  PARTIALLY_PAID
   PAID
   FAILED
   REFUNDED
@@ -1253,6 +1254,10 @@ model Payment {
   method PaymentMethod @default(STRIPE)
 
   amountCents         Int
+  /// How much of amountCents has actually been collected so far. Lets a dine-in tab be
+  /// settled in parts (some cash now, the rest later) — PARTIALLY_PAID until it reaches
+  /// amountCents, then PAID. Full-payment flows just set this to amountCents in one go.
+  amountPaidCents     Int    @default(0)
   refundedAmountCents Int    @default(0)
   currency            String @default("USD")
 
