@@ -457,15 +457,24 @@ function OrderCard({
         </p>
       )}
 
-      {action && (
-        <Button
-          className="mt-3 h-14 w-full text-base font-bold"
-          onClick={() => onAdvance(action.to)}
-        >
-          <Check className="h-5 w-5" />
-          {t.kitchen[action.labelKey]}
-        </Button>
-      )}
+      {action &&
+        // "Picked up" closes the order, which the bill must be settled first for. An
+        // unpaid (or part-paid) pay-at-desk table can't be closed from here — the front
+        // desk takes payment on the Orders tab, then it can be picked up.
+        (action.to === 'COMPLETED' &&
+        (order.payment?.status === 'PENDING' || order.payment?.status === 'PARTIALLY_PAID') ? (
+          <div className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-md border border-dashed border-amber-400 bg-amber-50 text-sm font-semibold text-amber-900">
+            Settle the bill at the desk to close
+          </div>
+        ) : (
+          <Button
+            className="mt-3 h-14 w-full text-base font-bold"
+            onClick={() => onAdvance(action.to)}
+          >
+            <Check className="h-5 w-5" />
+            {t.kitchen[action.labelKey]}
+          </Button>
+        ))}
     </div>
   );
 }

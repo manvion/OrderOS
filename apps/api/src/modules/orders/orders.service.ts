@@ -1482,11 +1482,17 @@ export class OrdersService {
       throw new ConflictException('Cannot accept an order that has not been paid');
     }
 
-    // Note: we deliberately DON'T block completing an unpaid pay-at-desk order. The
-    // kitchen handing food to the table ("Picked up") is a food step, not a money step,
-    // and a customer who pays at the counter on the way out hasn't paid yet when the
-    // food leaves the pass. The unpaid bill stays visible (the paid/unpaid badge and the
-    // "Take payment" action on the Orders board) so the front desk still collects it.
+    // Don't let an order close while the bill is still unpaid -- completing/"picking up"
+    // is the last step, and doing it on an unpaid tab loses the money. The front desk
+    // settles it first (Take payment, on the Orders tab); only then can it be closed. A
+    // PARTIALLY_PAID tab is still owed money, so it's blocked too.
+    if (to === 'COMPLETED' && (order.payment?.status === 'PENDING' || order.payment?.status === 'PARTIALLY_PAID')) {
+      throw new ConflictException({
+        statusCode: 409,
+        error: 'Unpaid',
+        message: 'Take payment on the Orders tab before closing this order',
+      });
+    }
 
     const now = new Date();
     const timestamps: Partial<Record<OrderStatus, Prisma.OrderUpdateInput>> = {
