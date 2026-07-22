@@ -367,6 +367,10 @@ model Restaurant {
   taxCountry              String?
   /// State / province, used to resolve the default rates.
   taxRegion               String?
+  /// Whether the delivery fee is part of the taxable base. Jurisdiction-specific:
+  /// a restaurant's own delivery charge on taxable food is generally taxable in
+  /// Canada, but not in many US states. Off by default; the owner turns it on.
+  taxDeliveryFee          Boolean @default(false)
   prepTimeMinutes         Int     @default(20)
 
   // Stripe Connect — each restaurant is paid directly; we never hold their funds.

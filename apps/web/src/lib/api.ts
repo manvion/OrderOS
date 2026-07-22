@@ -735,6 +735,8 @@ export function createDashboardApi(
         country?: string;
       };
       paymentMethod: 'CASH' | 'CARD_TERMINAL';
+      /** Create the order UNPAID for the Terminal (Tap to Pay) to charge. Pickup / dine-in. */
+      deferPayment?: boolean;
       notes?: string;
     }) => call<Order>('/orders/walk-in', { method: 'POST', body: JSON.stringify(body) }),
 
@@ -1242,6 +1244,8 @@ export interface StorefrontRestaurant {
   taxRateBps: number;
   /** Named tax components (GST/QST, …). Preferred over taxRateBps when present. */
   taxComponents: Array<{ name: string; rateBps: number }> | null;
+  /** Whether the delivery fee is taxed (so the checkout preview matches the charge). */
+  taxDeliveryFee: boolean;
   prepTimeMinutes: number;
   businessHours: unknown;
   loyaltyEnabled: boolean;
@@ -1526,6 +1530,8 @@ export interface Restaurant {
   taxComponents: TaxComponent[] | null;
   taxCountry: string | null;
   taxRegion: string | null;
+  /** Whether the delivery fee is part of the taxable base (jurisdiction-specific). */
+  taxDeliveryFee: boolean;
   isPublished: boolean;
   onboardingStep: string;
   stripeChargesEnabled: boolean;

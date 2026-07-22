@@ -216,6 +216,7 @@ export function useCartTotals(
     // Named components (GST/QST) win when present, so the preview itemises tax the
     // same way the receipt does; taxRateBps stays as the single-rate fallback.
     taxComponents: restaurant.taxComponents ?? undefined,
+    taxDeliveryFee: restaurant.taxDeliveryFee,
     fulfillment,
     deliveryFeeCents: deliveryFeeOverrideCents ?? restaurant.deliveryFeeCents,
     serviceFeeCents: restaurant.serviceFeeCents,

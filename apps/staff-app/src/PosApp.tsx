@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   RefreshControl,
   SafeAreaView,
   StyleSheet,
@@ -18,6 +19,17 @@ import { theme } from './theme';
 
 function money(cents: number, currency: string) {
   return new Intl.NumberFormat('en', { style: 'currency', currency }).format(cents / 100);
+}
+
+/**
+ * Pull the order id out of a `dinedirect-staff://charge/<orderId>` deep link — how the
+ * web POS hands a just-created (unpaid) card order straight to the charge sheet on the
+ * same device. Anything that isn't a charge link returns null.
+ */
+function parseChargeOrderId(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/charge\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 /**
@@ -41,6 +53,10 @@ export function PosApp() {
   const [orders, setOrders] = useState<AwaitingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AwaitingOrder | null>(null);
+  // An order id handed in by a `dinedirect-staff://charge/<id>` deep link (from the web
+  // POS on this device), waiting until the reader is up and the order is in the list to
+  // open its charge sheet automatically.
+  const [deepLinkOrderId, setDeepLinkOrderId] = useState<string | null>(null);
   // The Stripe Terminal Location the reader connects to — fetched before discovery, held
   // in a ref so the discovered-readers callback reads the current value, not a stale one.
   const locationRef = useRef<{ locationId: string; merchantDisplayName: string } | null>(null);
@@ -96,7 +112,36 @@ export function PosApp() {
     return () => clearInterval(t);
   }, [load]);
 
+  // Catch the charge deep link — both the cold-start URL (app launched by the tap) and
+  // any that arrive while it's already open.
+  useEffect(() => {
+    void Linking.getInitialURL().then((url) => {
+      const id = parseChargeOrderId(url);
+      if (id) setDeepLinkOrderId(id);
+    });
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const id = parseChargeOrderId(url);
+      if (id) setDeepLinkOrderId(id);
+    });
+    return () => sub.remove();
+  }, []);
+
+  // A deep-linked order is brand new — refresh so it shows up in the awaiting list.
+  useEffect(() => {
+    if (deepLinkOrderId) void load();
+  }, [deepLinkOrderId, load]);
+
   const ready = !!connectedReader;
+
+  // Once the reader is up and the deep-linked order is in the list, open its charge sheet.
+  useEffect(() => {
+    if (!deepLinkOrderId || !ready) return;
+    const match = orders.find((o) => o.id === deepLinkOrderId);
+    if (match) {
+      setSelected(match);
+      setDeepLinkOrderId(null);
+    }
+  }, [deepLinkOrderId, ready, orders]);
 
   return (
     <SafeAreaView style={styles.screen}>

@@ -61,6 +61,12 @@ export interface WalkInOrderInput {
     country?: string;
   };
   paymentMethod: 'CASH' | 'CARD_TERMINAL';
+  /**
+   * Create the order UNPAID and let the Terminal (Tap to Pay) charge it, instead of
+   * marking it paid on the honour system. Pickup / dine-in only -- a card the counter
+   * already ran elsewhere still uses the paid-in-person path. See createWalkIn.
+   */
+  deferPayment?: boolean;
   notes?: string;
 }
 
@@ -254,6 +260,7 @@ export class OrdersService {
       // (GST + QST) or India (CGST + SGST) correctly, and the only way to print
       // them legally.
       taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
+      taxDeliveryFee: restaurant.taxDeliveryFee,
       fulfillment: input.fulfillment,
       // The courier's real quote. Falls back to the restaurant's flat rate only
       // when there is no quote to reference -- self-delivery, or the quote above
@@ -452,6 +459,10 @@ export class OrdersService {
    * paid, because the money already changed hands the moment staff typed this
    * in; nothing here should wait for a confirmation that is never coming.
    *
+   * The one exception is `deferPayment` (pickup / dine-in): a card the counter has
+   * NOT yet collected, created UNPAID for the Terminal (Tap to Pay) to charge. It
+   * stays off the kitchen board until the tap settles it -- see deferPayment below.
+   *
    * Pickup and dine-in only. Delivery needs an online charge to fold the
    * courier's cost into -- "pay the driver cash" is a different feature, not
    * a variant of this one.
@@ -466,6 +477,16 @@ export class OrdersService {
 
     this.assertFulfillmentAllowed(restaurant, { fulfillment: input.fulfillment });
     const lineItems = await this.resolveLineItems(restaurantId, { items: input.items });
+
+    /**
+     * Tap-to-Pay hand-off: create the order UNPAID and leave the charge to the Terminal
+     * (see PaymentsService.createTerminalPaymentIntent / settleTerminalOrder). It then
+     * sits in listAwaitingPayment until the tap lands, at which point markOrderPaid does
+     * the stock decrement, loyalty credit and the kitchen "NEW ORDER" alert -- so an
+     * unpaid card order never reaches the kitchen. Pickup / dine-in only: a delivery
+     * order folds the courier cost into its charge, a different path we don't defer here.
+     */
+    const deferPayment = input.deferPayment === true && input.fulfillment !== 'DELIVERY';
 
     /**
      * A phone order that's being DELIVERED needs an address — to gate against the
@@ -513,6 +534,7 @@ export class OrdersService {
       items: lineItems,
       taxRateBps: restaurant.taxRateBps,
       taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
+      taxDeliveryFee: restaurant.taxDeliveryFee,
       fulfillment: input.fulfillment,
       deliveryFeeCents,
       serviceFeeCents: restaurant.serviceFeeCents,
@@ -613,23 +635,33 @@ export class OrdersService {
               restaurantId,
               amountCents: pricing.totalCents,
               currency: restaurant.currency,
-              status: 'PAID',
+              // A deferred card order is UNPAID until the Terminal charges it; the tap
+              // recomputes and writes the commission at intent time (createTerminalPaymentIntent).
+              // A paid-in-person sale never touches the platform's payment rail, so there
+              // is nothing for application_fee to take a cut of -- platformFeeCents 0.
+              status: deferPayment ? 'PENDING' : 'PAID',
               method: input.paymentMethod,
-              // No Stripe charge exists to recover a commission from -- a cash
-              // or in-person card sale never touches the platform's payment
-              // rail, so there is nothing here for application_fee to take a
-              // cut of. See the PaymentMethod enum's comment in schema.prisma.
               platformFeeCents: 0,
-              paidAt: now,
+              ...(deferPayment ? {} : { paidAt: now }),
             },
           },
 
           events: {
-            create: { status: 'PENDING', source: 'restaurant', note: 'Walk-in order entered by staff' },
+            create: {
+              status: 'PENDING',
+              source: 'restaurant',
+              note: deferPayment
+                ? 'Walk-in order entered by staff — awaiting card (Tap to Pay)'
+                : 'Walk-in order entered by staff',
+            },
           },
         },
         include: this.orderInclude(),
       });
+
+      // A deferred card order isn't paid yet -- stock, loyalty and the till all wait
+      // for the tap (markOrderPaid handles them on settle), exactly like an online order.
+      if (deferPayment) return created;
 
       // Paid the instant staff typed it in -- decrement now, not on some later
       // confirmation that will never come for a walk-in.
@@ -667,11 +699,15 @@ export class OrdersService {
       `Walk-in order ${order.orderNumber} created for ${restaurant.slug} (${input.paymentMethod})`,
     );
 
-    // Same notification an online order gets the instant Stripe confirms the
-    // charge -- the money already moved, so this order is exactly as "real".
-    void this.notifications.onOrderStatus(order, restaurant, 'PENDING').catch((err) => {
-      this.logger.error(`Notification failed for walk-in order ${order.id}: ${(err as Error).message}`);
-    });
+    // A deferred card order isn't real until the tap lands -- markOrderPaid fires the
+    // "NEW ORDER" alert then, so firing it here would send the kitchen an unpaid ticket.
+    if (!deferPayment) {
+      // Same notification an online order gets the instant Stripe confirms the
+      // charge -- the money already moved, so this order is exactly as "real".
+      void this.notifications.onOrderStatus(order, restaurant, 'PENDING').catch((err) => {
+        this.logger.error(`Notification failed for walk-in order ${order.id}: ${(err as Error).message}`);
+      });
+    }
 
     return order;
   }
@@ -831,6 +867,7 @@ export class OrdersService {
       items: [...existingPriced, ...newItems],
       taxRateBps: restaurant.taxRateBps,
       taxComponents: (restaurant.taxComponents as TaxComponent[] | null) ?? undefined,
+      taxDeliveryFee: restaurant.taxDeliveryFee,
       fulfillment: 'DINE_IN',
       serviceFeeCents: order.serviceFeeCents,
       tipCents: order.tipCents,

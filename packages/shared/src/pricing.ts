@@ -45,6 +45,15 @@ export interface PricingInput {
   fulfillment: 'PICKUP' | 'DELIVERY' | 'DINE_IN';
   /** What the restaurant charges the customer for delivery. */
   deliveryFeeCents?: number;
+  /**
+   * Whether the delivery fee is part of the taxable base.
+   *
+   * Delivery-charge taxability is jurisdiction-specific: in Canada a restaurant's own
+   * delivery charge on taxable food is generally taxable, whereas many US states don't
+   * tax it. So it's a per-restaurant setting rather than a hardcoded rule. Default
+   * false (delivery untaxed) — the historical behaviour.
+   */
+  taxDeliveryFee?: boolean;
   /** Flat service fee the restaurant adds to every order. */
   serviceFeeCents?: number;
   tipCents?: number;
@@ -102,10 +111,11 @@ export function priceOrder(input: PricingInput): PricingResult {
   const serviceFeeCents = input.serviceFeeCents ?? 0;
   const tipCents = Math.max(0, input.tipCents ?? 0);
 
-  // Tax applies to the discounted food subtotal plus the service fee. Delivery
-  // fees and tips are not taxed. This holds across US, Canada and India for
-  // restaurant food; a jurisdiction that differs is a change HERE, in one place.
-  const taxableCents = subtotalCents - discountCents + serviceFeeCents;
+  // Tax applies to the discounted food subtotal plus the service fee, and — when the
+  // restaurant is in a jurisdiction that taxes it (input.taxDeliveryFee) — the
+  // delivery fee too. Tips are never taxed.
+  const taxableCents =
+    subtotalCents - discountCents + serviceFeeCents + (input.taxDeliveryFee ? deliveryFeeCents : 0);
 
   /**
    * Components win when present. They are the only way to charge Quebec (GST +

@@ -126,6 +126,9 @@ export class RestaurantsService {
               : {}),
           ...(input.taxCountry ? { taxCountry: input.taxCountry } : {}),
           ...(input.taxRegion ? { taxRegion: input.taxRegion } : {}),
+          ...(input.taxDeliveryFee !== undefined
+            ? { taxDeliveryFee: input.taxDeliveryFee }
+            : {}),
           ...(input.deliveryFeeCents !== undefined
             ? { deliveryFeeCents: input.deliveryFeeCents }
             : {}),
@@ -327,6 +330,8 @@ export class RestaurantsService {
         // The named components (GST/QST, CGST/SGST) so the live checkout preview
         // itemises tax the same way the final receipt does.
         taxComponents: true,
+        // So the checkout preview taxes the delivery fee exactly when the API will.
+        taxDeliveryFee: true,
         prepTimeMinutes: true,
         loyaltyEnabled: true,
         loyaltyPointsPerDollar: true,

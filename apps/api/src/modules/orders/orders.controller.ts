@@ -70,6 +70,10 @@ const walkInOrderSchema = z.object({
   // Required by the service when fulfillment is DELIVERY (a phone order to be delivered).
   deliveryAddress: walkInAddressSchema.optional(),
   paymentMethod: z.enum(['CASH', 'CARD_TERMINAL']),
+  // Create the order UNPAID and leave it for the Terminal (Tap to Pay) to charge,
+  // rather than trusting that money already changed hands. Pickup / dine-in only;
+  // the service ignores it for a card that's already been collected elsewhere.
+  deferPayment: z.boolean().optional(),
   notes: z.string().max(500).optional(),
 });
 

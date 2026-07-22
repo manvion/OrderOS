@@ -117,6 +117,8 @@ export const createRestaurantSchema = z.object({
   taxComponents: z.array(taxComponentSchema).max(4).optional(),
   taxCountry: z.enum(SUPPORTED_TAX_COUNTRIES).optional(),
   taxRegion: z.string().max(40).optional(),
+  /** Whether the delivery fee is taxed (jurisdiction-specific, e.g. taxable in Canada). */
+  taxDeliveryFee: z.boolean().optional(),
   deliveryFeeCents: z.number().int().min(0).max(100_00).optional(),
   serviceFeeCents: z.number().int().min(0).max(50_00).optional(),
   minOrderCents: z.number().int().min(0).max(500_00).optional(),
@@ -180,6 +182,8 @@ export const updateRestaurantSchema = z.object({
   taxComponents: z.array(taxComponentSchema).max(4).optional(),
   taxCountry: z.enum(SUPPORTED_TAX_COUNTRIES).optional(),
   taxRegion: z.string().max(40).optional(),
+  /** Whether the delivery fee is taxed (jurisdiction-specific, e.g. taxable in Canada). */
+  taxDeliveryFee: z.boolean().optional(),
 
   logoUrl: z.string().url().nullable().optional(),
   coverImageUrl: z.string().url().nullable().optional(),

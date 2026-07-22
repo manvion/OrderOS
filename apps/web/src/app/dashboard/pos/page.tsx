@@ -8,11 +8,13 @@ import {
   Check,
   ClipboardList,
   Copy,
+  CreditCard,
   Link2,
   Minus,
   Plus,
   Receipt,
   ShoppingBag,
+  Smartphone,
   Trash2,
   Truck,
   UtensilsCrossed,
@@ -195,6 +197,18 @@ function OrderTerminal() {
   // The just-created payment link, shown for staff to read out / let the customer scan.
   const [linkResult, setLinkResult] = useState<{ orderNumber: string; url: string } | null>(null);
   const [linkQr, setLinkQr] = useState<string | null>(null);
+  // A card order created unpaid and handed to the Staff app's Tap to Pay. The dialog
+  // polls it until the tap settles it, then clears.
+  const [tapPay, setTapPay] = useState<{
+    orderId: string;
+    orderNumber: string;
+    totalCents: number;
+  } | null>(null);
+
+  // A card taken in person is only a real "tap to pay" for a pickup / dine-in order;
+  // a delivery card still folds the courier cost into a charge run elsewhere, so it
+  // keeps the plain confirm-and-send path.
+  const isTapToPay = paymentMethod === 'CARD_TERMINAL' && fulfillment !== 'DELIVERY';
 
   // The payment link is an online charge (pickup / dine-in only) and can't ride on a
   // delivery ticket — snap back to Cash if the fulfillment moves to delivery.
@@ -262,6 +276,7 @@ function OrderTerminal() {
         })),
         taxRateBps: restaurant?.taxRateBps ?? 0,
         taxComponents: restaurant?.taxComponents ?? undefined,
+        taxDeliveryFee: restaurant?.taxDeliveryFee ?? false,
         fulfillment,
         deliveryFeeCents: restaurant?.deliveryFeeCents ?? 0,
         serviceFeeCents: restaurant?.serviceFeeCents ?? 0,
@@ -338,6 +353,38 @@ function OrderTerminal() {
     onError: (err) =>
       toast.error(
         err instanceof ApiRequestError ? err.body.message : 'Could not create the order',
+      ),
+  });
+
+  // Create the order UNPAID and hand it to the Staff app's Tap to Pay. The order lands
+  // in the app's "awaiting payment" queue; the deep link jumps straight to its charge
+  // sheet. It reaches the kitchen only once the tap settles it (server-side), which the
+  // TapToPayDialog waits for.
+  const startTap = useMutation({
+    mutationFn: () =>
+      api.createWalkInOrder({
+        items: lines.map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+          modifierIds: l.modifierIds,
+        })),
+        fulfillment: fulfillment === 'DINE_IN' ? 'DINE_IN' : 'PICKUP',
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
+        tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
+        paymentMethod: 'CARD_TERMINAL',
+        deferPayment: true,
+      }),
+    onSuccess: (order) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setTapPay({ orderId: order.id, orderNumber: order.orderNumber, totalCents: order.totalCents });
+      openStaffAppCharge(order.id);
+      resetTicket();
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not start the card payment',
       ),
   });
 
@@ -653,6 +700,16 @@ function OrderTerminal() {
               >
                 {sendLink.isPending ? 'Creating link…' : 'Create & send payment link'}
               </Button>
+            ) : isTapToPay ? (
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={lines.length === 0 || startTap.isPending}
+                onClick={() => startTap.mutate()}
+              >
+                <CreditCard className="h-4 w-4" />
+                {startTap.isPending ? 'Starting the charge…' : 'Charge card — Tap to Pay'}
+              </Button>
             ) : (
               <Button
                 className="w-full"
@@ -670,6 +727,13 @@ function OrderTerminal() {
                 the link.
               </p>
             )}
+            {isTapToPay && (
+              <p className="text-[11px] text-muted-foreground">
+                Opens the <span className="font-medium">Staff app</span> to take the tap. The order
+                is placed <span className="font-medium">unpaid</span> and only reaches the kitchen
+                once the card goes through.
+              </p>
+            )}
           </div>
         </Card>
       </div>
@@ -680,6 +744,16 @@ function OrderTerminal() {
           url={linkResult.url}
           qr={linkQr}
           onClose={() => setLinkResult(null)}
+        />
+      )}
+
+      {tapPay && (
+        <TapToPayDialog
+          orderId={tapPay.orderId}
+          orderNumber={tapPay.orderNumber}
+          totalCents={tapPay.totalCents}
+          currency={restaurant.currency}
+          onClose={() => setTapPay(null)}
         />
       )}
 
@@ -745,6 +819,117 @@ function PaymentLinkResult({
           <Button className="w-full" onClick={onClose}>
             Done
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Jump to the native Staff app's charge sheet for one order. The app registers the
+ * `dinedirect-staff` URL scheme (see apps/staff-app/app.json); on the same device this
+ * hands straight off to Tap to Pay. On a device without the app installed nothing opens
+ * — the order still sits in the app's "awaiting payment" queue to be charged from there.
+ */
+function openStaffAppCharge(orderId: string) {
+  window.location.href = `dinedirect-staff://charge/${orderId}`;
+}
+
+/**
+ * Waits for a Tap-to-Pay order to be paid. The charge happens in the Staff app; this
+ * polls the order until its payment settles (server-side, via the Terminal), then shows
+ * Paid and closes. Staff can re-open the app if the hand-off didn't take, or void the
+ * order if the card never goes through.
+ */
+function TapToPayDialog({
+  orderId,
+  orderNumber,
+  totalCents,
+  currency,
+  onClose,
+}: {
+  orderId: string;
+  orderNumber: string;
+  totalCents: number;
+  currency: string;
+  onClose: () => void;
+}) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  const { data: order } = useQuery({
+    queryKey: ['orders', orderId, 'tap-pay'],
+    queryFn: () => api.getOrder(orderId),
+    // Poll while unpaid; stop once it's settled so we're not hammering a done order.
+    refetchInterval: (query) =>
+      query.state.data?.payment?.status === 'PAID' ? false : 2500,
+  });
+
+  const paid =
+    order?.payment?.status === 'PAID' || order?.payment?.status === 'PARTIALLY_REFUNDED';
+
+  // A moment on the ✓ so staff see it landed, then clear.
+  useEffect(() => {
+    if (!paid) return;
+    void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    toast.success(`Order #${orderNumber} paid — sent to the kitchen`);
+    const t = setTimeout(onClose, 1400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paid]);
+
+  const voidOrder = useMutation({
+    mutationFn: () => api.cancelOrder(orderId, 'Card payment not completed'),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success(`Order #${orderNumber} voided`);
+      onClose();
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not void the order'),
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && !paid && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{paid ? 'Paid' : 'Take the tap'} · #{orderNumber}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-center">
+          <p className="text-3xl font-bold tabular-nums">{formatMoney(totalCents, currency)}</p>
+
+          {paid ? (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
+                <Check className="h-7 w-7" />
+              </span>
+              <p className="text-sm text-muted-foreground">Sent to the kitchen.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center gap-2 py-2">
+                <span className="flex h-14 w-14 animate-pulse items-center justify-center rounded-full bg-brand-subtle text-brand">
+                  <Smartphone className="h-7 w-7" />
+                </span>
+                <p className="text-sm text-muted-foreground">
+                  Complete the tap in the Staff app. This closes on its own once the card
+                  goes through.
+                </p>
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => openStaffAppCharge(orderId)}>
+                <CreditCard className="h-4 w-4" />
+                Open the Staff app again
+              </Button>
+              <button
+                type="button"
+                disabled={voidOrder.isPending}
+                onClick={() => voidOrder.mutate()}
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline disabled:opacity-50"
+              >
+                {voidOrder.isPending ? 'Voiding…' : 'Cancel — card not taken'}
+              </button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
