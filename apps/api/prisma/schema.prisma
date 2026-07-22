@@ -147,6 +147,13 @@ enum PaymentMethod {
   CARD_TERMINAL
 }
 
+/// How a restaurant's service fee is calculated: a flat amount or a percentage of
+/// the discounted food subtotal. See Restaurant.serviceFeeType and priceOrder.
+enum ServiceFeeType {
+  FIXED
+  PERCENT
+}
+
 enum DeliveryStatus {
   PENDING
   QUOTED
@@ -351,6 +358,14 @@ model Restaurant {
   deliveryRadiusMeters    Int     @default(8000)
   minOrderCents           Int     @default(0)
   serviceFeeCents         Int     @default(0)
+  /// A mandatory service charge (a "mandatory gratuity") shown to the customer as its
+  /// own line, on top of the service fee and any voluntary tip. FIXED charges
+  /// serviceChargeCents flat; PERCENT charges serviceChargeBps of the discounted food
+  /// subtotal (computed in priceOrder). serviceChargeLabel names the line on the receipt.
+  serviceChargeType       ServiceFeeType  @default(FIXED)
+  serviceChargeCents      Int             @default(0)
+  serviceChargeBps        Int             @default(0)
+  serviceChargeLabel      String          @default("Service charge")
   /// Effective combined rate, derived from taxComponents. Kept for quick display
   /// and for the simple single-rate case.
   taxRateBps              Int     @default(0)
@@ -1041,6 +1056,10 @@ model Order {
   taxCents         Int
   deliveryFeeCents Int @default(0)
   serviceFeeCents  Int @default(0)
+  /// The mandatory service charge frozen at checkout, and the label it was shown under,
+  /// so a later settings change never rewrites an issued receipt.
+  serviceChargeCents Int    @default(0)
+  serviceChargeLabel String @default("Service charge")
   tipCents         Int @default(0)
   discountCents    Int @default(0)
   /// Which Promotion produced discountCents, if any. Not a relation FK -- a

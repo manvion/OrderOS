@@ -282,6 +282,9 @@ function OrderTerminal() {
         fulfillment,
         deliveryFeeCents: restaurant?.deliveryFeeCents ?? 0,
         serviceFeeCents: restaurant?.serviceFeeCents ?? 0,
+        serviceChargeType: restaurant?.serviceChargeType,
+        serviceChargeCents: restaurant?.serviceChargeCents ?? 0,
+        serviceChargeBps: restaurant?.serviceChargeBps ?? 0,
       }),
     [lines, fulfillment, restaurant],
   );
@@ -676,6 +679,13 @@ function OrderTerminal() {
                   <TicketRow label="Subtotal" value={pricing.subtotalCents} currency={restaurant.currency} />
                   {pricing.serviceFeeCents > 0 && (
                     <TicketRow label="Service fee" value={pricing.serviceFeeCents} currency={restaurant.currency} />
+                  )}
+                  {pricing.serviceChargeCents > 0 && (
+                    <TicketRow
+                      label={restaurant.serviceChargeLabel || 'Service charge'}
+                      value={pricing.serviceChargeCents}
+                      currency={restaurant.currency}
+                    />
                   )}
                   {pricing.deliveryFeeCents > 0 && (
                     <TicketRow label="Delivery fee" value={pricing.deliveryFeeCents} currency={restaurant.currency} />
@@ -1176,9 +1186,37 @@ function SettleDialog({
   const api = useApi();
   const queryClient = useQueryClient();
   const [link, setLink] = useState<{ url: string; qr: string | null } | null>(null);
+  // Card is a REAL tap, not an honour-system "mark paid": we hand off to the Staff app
+  // and wait for the charge to actually land (like the new-order Tap to Pay flow).
+  const [cardWaiting, setCardWaiting] = useState(false);
 
+  const { data: polled } = useQuery({
+    queryKey: ['orders', orderId, 'settle-poll'],
+    queryFn: () => api.getOrder(orderId),
+    enabled: cardWaiting,
+    refetchInterval: (query) =>
+      query.state.data?.payment?.status === 'PAID' ? false : 2500,
+  });
+  const cardPaid =
+    polled?.payment?.status === 'PAID' || polled?.payment?.status === 'PARTIALLY_REFUNDED';
+  useEffect(() => {
+    if (!cardWaiting || !cardPaid) return;
+    void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    toast.success(`Order #${orderNumber} paid`);
+    const t = setTimeout(onClose, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardWaiting, cardPaid]);
+
+  const startCard = () => {
+    setCardWaiting(true);
+    openStaffAppCharge(orderId);
+  };
+
+  // Cash is collected in person, so it settles at the desk immediately. (Card no longer
+  // routes through here — it takes a real tap via the Staff app.)
   const settle = useMutation({
-    mutationFn: (method: 'CASH' | 'CARD_TERMINAL') => api.settleAtDesk(orderId, method),
+    mutationFn: () => api.settleAtDesk(orderId, 'CASH'),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       toast.success(`Order #${orderNumber} marked paid`);
@@ -1215,15 +1253,51 @@ function SettleDialog({
   const busy = settle.isPending || sendLink.isPending;
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
+    <Dialog open onOpenChange={(v) => !v && !cardWaiting && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {link ? 'Payment link' : 'Take payment'} · #{orderNumber}
+            {link ? 'Payment link' : cardWaiting ? 'Card — Tap to Pay' : 'Take payment'} · #
+            {orderNumber}
           </DialogTitle>
         </DialogHeader>
 
-        {link ? (
+        {cardWaiting ? (
+          <div className="space-y-4 text-center">
+            <p className="text-3xl font-bold tabular-nums">{formatMoney(totalCents, currency)}</p>
+            {cardPaid ? (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
+                  <Check className="h-7 w-7" />
+                </span>
+                <p className="text-sm text-muted-foreground">Paid.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col items-center gap-2 py-2">
+                  <span className="flex h-14 w-14 animate-pulse items-center justify-center rounded-full bg-brand-subtle text-brand">
+                    <Smartphone className="h-7 w-7" />
+                  </span>
+                  <p className="text-sm text-muted-foreground">
+                    Take the tap in the Staff app. This closes on its own once the card goes
+                    through.
+                  </p>
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => openStaffAppCharge(orderId)}>
+                  <CreditCard className="h-4 w-4" />
+                  Open the Staff app again
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setCardWaiting(false)}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  Back
+                </button>
+              </>
+            )}
+          </div>
+        ) : link ? (
           <div className="space-y-4 text-center">
             <p className="text-sm text-muted-foreground">
               Sent to the customer. They can also scan this to pay {formatMoney(totalCents, currency)}{' '}
@@ -1252,11 +1326,11 @@ function SettleDialog({
               {formatMoney(totalCents, currency)}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" disabled={busy} onClick={() => settle.mutate('CASH')}>
+              <Button variant="outline" disabled={busy} onClick={() => settle.mutate()}>
                 <Banknote className="h-4 w-4" />
                 Cash
               </Button>
-              <Button variant="outline" disabled={busy} onClick={() => settle.mutate('CARD_TERMINAL')}>
+              <Button variant="outline" disabled={busy} onClick={startCard}>
                 <CreditCard className="h-4 w-4" />
                 Card
               </Button>
@@ -1266,8 +1340,8 @@ function SettleDialog({
               {sendLink.isPending ? 'Creating link…' : 'Send a payment link'}
             </Button>
             <p className="text-center text-[11px] text-muted-foreground">
-              Cash and card mark it paid now. A link lets the customer pay online — the order
-              settles when they do.
+              Cash settles now. Card takes a real tap in the Staff app. A link lets the customer
+              pay online — the order settles when the money actually lands.
             </p>
           </div>
         )}

@@ -267,6 +267,9 @@ export class OrdersService {
       // failed and the platform is absorbing this dispatch instead.
       deliveryFeeCents: courierCostCents ?? restaurant.deliveryFeeCents,
       serviceFeeCents: restaurant.serviceFeeCents,
+      serviceChargeType: restaurant.serviceChargeType,
+      serviceChargeCents: restaurant.serviceChargeCents,
+      serviceChargeBps: restaurant.serviceChargeBps,
       tipCents: input.tipCents,
       discountCents: discount?.discountCents ?? 0,
     });
@@ -319,6 +322,8 @@ export class OrdersService {
           taxCents: pricing.taxCents,
           deliveryFeeCents: pricing.deliveryFeeCents,
           serviceFeeCents: pricing.serviceFeeCents,
+          serviceChargeCents: pricing.serviceChargeCents,
+          serviceChargeLabel: restaurant.serviceChargeLabel,
           tipCents: pricing.tipCents,
           discountCents: pricing.discountCents,
           promotionId: discount?.promotionId,
@@ -538,6 +543,9 @@ export class OrdersService {
       fulfillment: input.fulfillment,
       deliveryFeeCents,
       serviceFeeCents: restaurant.serviceFeeCents,
+      serviceChargeType: restaurant.serviceChargeType,
+      serviceChargeCents: restaurant.serviceChargeCents,
+      serviceChargeBps: restaurant.serviceChargeBps,
       tipCents: 0,
     });
 
@@ -581,6 +589,8 @@ export class OrdersService {
           taxCents: pricing.taxCents,
           deliveryFeeCents: pricing.deliveryFeeCents,
           serviceFeeCents: pricing.serviceFeeCents,
+          serviceChargeCents: pricing.serviceChargeCents,
+          serviceChargeLabel: restaurant.serviceChargeLabel,
           tipCents: 0,
           discountCents: pricing.discountCents,
           totalCents: pricing.totalCents,
@@ -870,9 +880,20 @@ export class OrdersService {
       taxDeliveryFee: restaurant.taxDeliveryFee,
       fulfillment: 'DINE_IN',
       serviceFeeCents: order.serviceFeeCents,
+      // Recompute the service charge from the restaurant's current setting so a PERCENT
+      // charge grows with the bigger tab (a flat one stays put).
+      serviceChargeType: restaurant.serviceChargeType,
+      serviceChargeCents: restaurant.serviceChargeCents,
+      serviceChargeBps: restaurant.serviceChargeBps,
       tipCents: order.tipCents,
       discountCents: order.discountCents,
     });
+
+    // A new round must be COOKED, even if the earlier items are already done. Without
+    // this, adding to an order that's already READY leaves the whole ticket READY and
+    // the new food never gets made — it just shows up "ready" on the kitchen board. Send
+    // the ticket back to PREPARING so the kitchen sees and cooks the new round.
+    const reopenedStatus: OrderStatus | undefined = order.status === 'READY' ? 'PREPARING' : undefined;
 
     const loyaltyPointsEarned =
       restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)
@@ -889,7 +910,9 @@ export class OrdersService {
           taxCents: pricing.taxCents,
           taxLines: pricing.taxLines as unknown as Prisma.InputJsonValue,
           totalCents: pricing.totalCents,
+          serviceChargeCents: pricing.serviceChargeCents,
           loyaltyPointsEarned,
+          ...(reopenedStatus ? { status: reopenedStatus } : {}),
           items: {
             create: newItems.map((item) => {
               const modifiersCents = item.modifiers.reduce((s, m) => s + m.priceCents, 0);
@@ -913,9 +936,11 @@ export class OrdersService {
           },
           events: {
             create: {
-              status: order.status,
+              status: reopenedStatus ?? order.status,
               source: opts.source,
-              note: `Added to tab: ${newItems.map((i) => `${i.quantity}× ${i.name}`).join(', ')}`,
+              note:
+                `Added to tab: ${newItems.map((i) => `${i.quantity}× ${i.name}`).join(', ')}` +
+                (reopenedStatus ? ' — sent back to the kitchen' : ''),
             },
           },
         },

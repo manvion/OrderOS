@@ -56,6 +56,17 @@ export interface PricingInput {
   taxDeliveryFee?: boolean;
   /** Flat service fee the restaurant adds to every order. */
   serviceFeeCents?: number;
+  /**
+   * A mandatory service charge (a "mandatory gratuity"), shown to the customer as its
+   * OWN line separate from the service fee and the voluntary tip. Either a flat amount
+   * (`serviceChargeType` FIXED) or a percentage of the discounted food subtotal
+   * (`serviceChargeType` PERCENT, `serviceChargeBps`). Computed here so the same number
+   * is charged, taxed and displayed everywhere.
+   */
+  serviceChargeCents?: number;
+  serviceChargeType?: 'FIXED' | 'PERCENT';
+  /** Basis points of the discounted subtotal, when serviceChargeType is PERCENT (500 = 5%). */
+  serviceChargeBps?: number;
   tipCents?: number;
   discountCents?: number;
 }
@@ -82,6 +93,8 @@ export interface PricingResult {
   taxLines: TaxLine[];
   deliveryFeeCents: number;
   serviceFeeCents: number;
+  /** The mandatory service charge charged on this order (its own line). */
+  serviceChargeCents: number;
   tipCents: number;
   totalCents: number;
 }
@@ -109,13 +122,24 @@ export function priceOrder(input: PricingInput): PricingResult {
 
   const deliveryFeeCents = input.fulfillment === 'DELIVERY' ? (input.deliveryFeeCents ?? 0) : 0;
   const serviceFeeCents = input.serviceFeeCents ?? 0;
+  // A mandatory service charge: flat, or a percentage of the discounted food subtotal
+  // (the same base commission is taken on) so it tracks the size of the actual order.
+  const serviceChargeCents =
+    input.serviceChargeType === 'PERCENT'
+      ? Math.round(((subtotalCents - discountCents) * (input.serviceChargeBps ?? 0)) / 10_000)
+      : (input.serviceChargeCents ?? 0);
   const tipCents = Math.max(0, input.tipCents ?? 0);
 
-  // Tax applies to the discounted food subtotal plus the service fee, and — when the
-  // restaurant is in a jurisdiction that taxes it (input.taxDeliveryFee) — the
-  // delivery fee too. Tips are never taxed.
+  // Tax applies to the discounted food subtotal plus the service fee and the mandatory
+  // service charge (a mandatory gratuity is a taxable charge, unlike a voluntary tip),
+  // and — when the restaurant is in a jurisdiction that taxes it (input.taxDeliveryFee) —
+  // the delivery fee too. Voluntary tips are never taxed.
   const taxableCents =
-    subtotalCents - discountCents + serviceFeeCents + (input.taxDeliveryFee ? deliveryFeeCents : 0);
+    subtotalCents -
+    discountCents +
+    serviceFeeCents +
+    serviceChargeCents +
+    (input.taxDeliveryFee ? deliveryFeeCents : 0);
 
   /**
    * Components win when present. They are the only way to charge Quebec (GST +
@@ -133,7 +157,13 @@ export function priceOrder(input: PricingInput): PricingResult {
         : { lines: [] as TaxLine[], totalCents: 0 };
 
   const totalCents =
-    subtotalCents - discountCents + taxCents + deliveryFeeCents + serviceFeeCents + tipCents;
+    subtotalCents -
+    discountCents +
+    taxCents +
+    deliveryFeeCents +
+    serviceFeeCents +
+    serviceChargeCents +
+    tipCents;
 
   return {
     lineItems,
@@ -143,6 +173,7 @@ export function priceOrder(input: PricingInput): PricingResult {
     taxLines,
     deliveryFeeCents,
     serviceFeeCents,
+    serviceChargeCents,
     tipCents,
     totalCents,
   };

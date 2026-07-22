@@ -220,6 +220,9 @@ export function useCartTotals(
     fulfillment,
     deliveryFeeCents: deliveryFeeOverrideCents ?? restaurant.deliveryFeeCents,
     serviceFeeCents: restaurant.serviceFeeCents,
+    serviceChargeType: restaurant.serviceChargeType,
+    serviceChargeCents: restaurant.serviceChargeCents,
+    serviceChargeBps: restaurant.serviceChargeBps,
     tipCents,
     discountCents: promoDiscountCents,
   });

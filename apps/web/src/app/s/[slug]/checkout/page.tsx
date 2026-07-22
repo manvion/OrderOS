@@ -742,6 +742,13 @@ export default function CheckoutPage() {
                 </span>
               </div>
             )}
+            {totals.serviceChargeCents > 0 && (
+              <Row
+                label={restaurant.serviceChargeLabel || 'Service charge'}
+                cents={totals.serviceChargeCents}
+                currency={restaurant.currency}
+              />
+            )}
             {totals.serviceFeeCents > 0 && (
               <Row
                 label={t.checkout.serviceFee}

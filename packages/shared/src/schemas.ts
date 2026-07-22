@@ -121,6 +121,10 @@ export const createRestaurantSchema = z.object({
   taxDeliveryFee: z.boolean().optional(),
   deliveryFeeCents: z.number().int().min(0).max(100_00).optional(),
   serviceFeeCents: z.number().int().min(0).max(50_00).optional(),
+  serviceChargeType: z.enum(['FIXED', 'PERCENT']).optional(),
+  serviceChargeCents: z.number().int().min(0).max(500_00).optional(),
+  serviceChargeBps: z.number().int().min(0).max(10_000).optional(),
+  serviceChargeLabel: z.string().min(1).max(40).optional(),
   minOrderCents: z.number().int().min(0).max(500_00).optional(),
   prepTimeMinutes: z.number().int().min(1).max(180).optional(),
 });
@@ -328,6 +332,12 @@ export const deliverySettingsSchema = z.object({
   deliveryRadiusMeters: z.number().int().min(500).max(50_000),
   minOrderCents: z.number().int().min(0).max(500_00),
   serviceFeeCents: z.number().int().min(0).max(50_00),
+  /** A mandatory service charge (its own customer-facing line): flat cents, or a
+   *  percentage of the discounted subtotal (bps, max 100%). Label names the line. */
+  serviceChargeType: z.enum(['FIXED', 'PERCENT']).optional(),
+  serviceChargeCents: z.number().int().min(0).max(500_00).optional(),
+  serviceChargeBps: z.number().int().min(0).max(10_000).optional(),
+  serviceChargeLabel: z.string().min(1).max(40).optional(),
   /**
    * Tax is NOT here, and that is the point.
    *

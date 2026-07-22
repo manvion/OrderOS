@@ -135,6 +135,18 @@ export class RestaurantsService {
           ...(input.serviceFeeCents !== undefined
             ? { serviceFeeCents: input.serviceFeeCents }
             : {}),
+          ...(input.serviceChargeType !== undefined
+            ? { serviceChargeType: input.serviceChargeType }
+            : {}),
+          ...(input.serviceChargeCents !== undefined
+            ? { serviceChargeCents: input.serviceChargeCents }
+            : {}),
+          ...(input.serviceChargeBps !== undefined
+            ? { serviceChargeBps: input.serviceChargeBps }
+            : {}),
+          ...(input.serviceChargeLabel !== undefined
+            ? { serviceChargeLabel: input.serviceChargeLabel }
+            : {}),
           ...(input.minOrderCents !== undefined ? { minOrderCents: input.minOrderCents } : {}),
           ...(input.prepTimeMinutes !== undefined
             ? { prepTimeMinutes: input.prepTimeMinutes }
@@ -326,6 +338,10 @@ export class RestaurantsService {
         deliveryFeeCents: true,
         minOrderCents: true,
         serviceFeeCents: true,
+        serviceChargeType: true,
+        serviceChargeCents: true,
+        serviceChargeBps: true,
+        serviceChargeLabel: true,
         taxRateBps: true,
         // The named components (GST/QST, CGST/SGST) so the live checkout preview
         // itemises tax the same way the final receipt does.

@@ -363,6 +363,7 @@ export class EmailService {
       ${row(fr ? 'Sous-total' : 'Subtotal', order.subtotalCents)}
       ${order.discountCents > 0 ? row(fr ? 'Rabais' : 'Discount', -order.discountCents) : ''}
       ${order.serviceFeeCents > 0 ? row(fr ? 'Frais de service' : 'Service fee', order.serviceFeeCents) : ''}
+      ${order.serviceChargeCents > 0 ? row(order.serviceChargeLabel || (fr ? 'Frais de service' : 'Service charge'), order.serviceChargeCents) : ''}
       ${order.deliveryFeeCents > 0 ? row(fr ? 'Livraison' : 'Delivery', order.deliveryFeeCents) : ''}
       ${this.taxRows(order, row, fr)}
       ${order.tipCents > 0 ? row(fr ? 'Pourboire' : 'Tip', order.tipCents) : ''}

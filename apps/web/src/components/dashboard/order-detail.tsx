@@ -156,6 +156,9 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
       slipRow('Subtotal', order.subtotalCents) +
       (order.discountCents > 0 ? slipRow('Discount', -order.discountCents) : '') +
       (order.serviceFeeCents > 0 ? slipRow('Service fee', order.serviceFeeCents) : '') +
+      (order.serviceChargeCents > 0
+        ? slipRow(order.serviceChargeLabel || 'Service charge', order.serviceChargeCents)
+        : '') +
       (order.deliveryFeeCents > 0 ? slipRow('Delivery', order.deliveryFeeCents) : '') +
       taxRows +
       (order.tipCents > 0 ? slipRow('Tip', order.tipCents) : '');
@@ -276,6 +279,13 @@ export function OrderDetail({ order, onClose }: { order: Order; onClose: () => v
               )}
               {order.serviceFeeCents > 0 && (
                 <MoneyRow label="Service fee" cents={order.serviceFeeCents} currency={order.currency} />
+              )}
+              {order.serviceChargeCents > 0 && (
+                <MoneyRow
+                  label={order.serviceChargeLabel || 'Service charge'}
+                  cents={order.serviceChargeCents}
+                  currency={order.currency}
+                />
               )}
               {order.deliveryFeeCents > 0 && (
                 <MoneyRow label="Delivery" cents={order.deliveryFeeCents} currency={order.currency} />

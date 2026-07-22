@@ -453,6 +453,10 @@ function DeliverySettings() {
     deliveryRadiusMeters: restaurant?.deliveryRadiusMeters ?? 8000,
     minOrderCents: restaurant?.minOrderCents ?? 0,
     serviceFeeCents: restaurant?.serviceFeeCents ?? 0,
+    serviceChargeType: restaurant?.serviceChargeType ?? 'FIXED',
+    serviceChargeCents: restaurant?.serviceChargeCents ?? 0,
+    serviceChargeBps: restaurant?.serviceChargeBps ?? 0,
+    serviceChargeLabel: restaurant?.serviceChargeLabel ?? 'Service charge',
     // taxRateBps is deliberately NOT here. It is derived from the tax components in
     // BusinessLocationForm, and if this form still carried it, saving "prep time" would
     // POST a stale rate and silently overwrite the itemised tax the owner just set.
@@ -628,6 +632,90 @@ function DeliverySettings() {
             <p className="text-xs text-muted-foreground">
               What we tell customers, and when we ask Uber to collect.
             </p>
+          </div>
+        </div>
+
+        {/* A mandatory service charge — its own line to the customer, kept by the restaurant
+            (a "mandatory gratuity"). Separate from the Service fee above and the voluntary tip. */}
+        <div className="space-y-4 border-t pt-5">
+          <div>
+            <h3 className="text-sm font-semibold">Mandatory service charge</h3>
+            <p className="text-xs text-muted-foreground">
+              A separate charge added to every order — like a mandatory gratuity. Shown to the
+              customer on its own line and kept by you.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="sc-label">Label on the receipt</Label>
+              <Input
+                id="sc-label"
+                value={form.serviceChargeLabel}
+                maxLength={40}
+                placeholder="Service charge"
+                onChange={(e) => setForm({ ...form, serviceChargeLabel: e.target.value })}
+                disabled={readOnly}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Charge as</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={form.serviceChargeType === 'FIXED' ? 'brand' : 'outline'}
+                  size="sm"
+                  disabled={readOnly}
+                  onClick={() => setForm({ ...form, serviceChargeType: 'FIXED' })}
+                >
+                  Flat amount
+                </Button>
+                <Button
+                  type="button"
+                  variant={form.serviceChargeType === 'PERCENT' ? 'brand' : 'outline'}
+                  size="sm"
+                  disabled={readOnly}
+                  onClick={() => setForm({ ...form, serviceChargeType: 'PERCENT' })}
+                >
+                  Percentage
+                </Button>
+              </div>
+            </div>
+            {form.serviceChargeType === 'PERCENT' ? (
+              <div className="space-y-2">
+                <Label htmlFor="sc-pct">Percentage of the order</Label>
+                <div className="relative">
+                  <Input
+                    id="sc-pct"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={form.serviceChargeBps / 100}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        serviceChargeBps: Math.round(
+                          Math.min(100, Math.max(0, Number(e.target.value))) * 100,
+                        ),
+                      })
+                    }
+                    disabled={readOnly}
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    %
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">Charged on the food subtotal.</p>
+              </div>
+            ) : (
+              <MoneyField
+                label="Amount"
+                hint="Flat charge per order (0 to turn off)"
+                cents={form.serviceChargeCents}
+                onChange={(serviceChargeCents) => setForm({ ...form, serviceChargeCents })}
+                disabled={readOnly}
+              />
+            )}
           </div>
         </div>
 

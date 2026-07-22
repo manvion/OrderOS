@@ -351,6 +351,13 @@ export function OrderTracker({
                 </span>
               </div>
             )}
+            {order.serviceChargeCents > 0 && (
+              <Row
+                label={order.serviceChargeLabel || 'Service charge'}
+                cents={order.serviceChargeCents}
+                currency={order.currency}
+              />
+            )}
             {order.serviceFeeCents > 0 && (
               <Row label={t.checkout.serviceFee} cents={order.serviceFeeCents} currency={order.currency} />
             )}

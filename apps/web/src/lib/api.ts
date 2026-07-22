@@ -1248,6 +1248,11 @@ export interface StorefrontRestaurant {
   deliveryFeeCents: number;
   minOrderCents: number;
   serviceFeeCents: number;
+  /** A mandatory service charge (its own line): flat cents, or a % of the subtotal. */
+  serviceChargeType: 'FIXED' | 'PERCENT';
+  serviceChargeCents: number;
+  serviceChargeBps: number;
+  serviceChargeLabel: string;
   taxRateBps: number;
   /** Named tax components (GST/QST, …). Preferred over taxRateBps when present. */
   taxComponents: Array<{ name: string; rateBps: number }> | null;
@@ -1429,6 +1434,8 @@ export interface TrackedOrder {
   tipCents: number;
   deliveryFeeCents: number;
   serviceFeeCents: number;
+  serviceChargeCents: number;
+  serviceChargeLabel: string;
   createdAt: string;
   scheduledFor: string | null;
   items: Array<{
@@ -1556,6 +1563,10 @@ export interface Restaurant {
   deliveryRadiusMeters: number;
   minOrderCents: number;
   serviceFeeCents: number;
+  serviceChargeType: 'FIXED' | 'PERCENT';
+  serviceChargeCents: number;
+  serviceChargeBps: number;
+  serviceChargeLabel: string;
   taxRateBps: number;
   prepTimeMinutes: number;
   businessHours: unknown;
@@ -1638,6 +1649,8 @@ export interface Order {
   tipCents: number;
   deliveryFeeCents: number;
   serviceFeeCents: number;
+  serviceChargeCents: number;
+  serviceChargeLabel: string;
   totalCents: number;
   currency: string;
   customerName: string;
