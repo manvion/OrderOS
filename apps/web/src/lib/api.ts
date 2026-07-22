@@ -1411,6 +1411,8 @@ export interface OpenTab {
   status: string;
   totalCents: number;
   currency: string;
+  /** First name of whoever started the tab, so a different party can tell it isn't theirs. */
+  customerFirstName?: string | null;
   items: Array<{ id: string; name: string; quantity: number; totalCents: number }>;
 }
 

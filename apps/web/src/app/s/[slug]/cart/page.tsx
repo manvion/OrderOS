@@ -270,11 +270,14 @@ export default function CartPage() {
           <Utensils className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
           <div className="text-sm">
             <p className="font-semibold">
-              Table {tab.tableNumber} has an open tab (order #{tab.orderNumber})
+              Table {tab.tableNumber} has an open tab
+              {tab.customerFirstName ? ` started by ${tab.customerFirstName}` : ''} (order #
+              {tab.orderNumber})
             </p>
             <p className="text-muted-foreground">
-              Add these to your table&apos;s bill — {formatMoney(tab.totalCents, restaurant.currency)}{' '}
-              so far. One bill, settle it all at the end.
+              If you&apos;re with {tab.customerFirstName ? `${tab.customerFirstName}'s` : 'this'}{' '}
+              party, add these to the same bill — {formatMoney(tab.totalCents, restaurant.currency)}{' '}
+              so far, settle it all at the end. A separate party can start their own bill below.
             </p>
           </div>
         </div>
@@ -288,20 +291,27 @@ export default function CartPage() {
             <Link href={href('/menu')}>{t.cart.addMore}</Link>
           </Button>
           {tab ? (
-            <Button
-              variant="brand"
-              size="lg"
-              className="flex-1"
-              disabled={addingToTab}
-              onClick={addToTab}
-            >
-              {addingToTab
-                ? 'Adding…'
-                : `Add to Table ${tab.tableNumber} tab · ${formatMoney(
-                    (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
-                    restaurant.currency,
-                  )}`}
-            </Button>
+            <div className="flex flex-1 flex-col gap-2">
+              <Button
+                variant="brand"
+                size="lg"
+                className="w-full"
+                disabled={addingToTab}
+                onClick={addToTab}
+              >
+                {addingToTab
+                  ? 'Adding…'
+                  : `Add to Table ${tab.tableNumber} tab · ${formatMoney(
+                      (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0),
+                      restaurant.currency,
+                    )}`}
+              </Button>
+              {/* A different party sharing the same table shouldn't be forced onto the
+                  first party's bill — let them start their own separate order. */}
+              <Button asChild variant="ghost" size="sm" className="w-full">
+                <Link href={href('/checkout')}>Not your table&apos;s order? Start a separate bill</Link>
+              </Button>
+            </div>
           ) : (
             <Button asChild variant="brand" size="lg" className="flex-1">
               <Link href={href('/checkout')}>

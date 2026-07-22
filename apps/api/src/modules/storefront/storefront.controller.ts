@@ -426,7 +426,29 @@ export class StorefrontController {
   async openTab(@TenantId() restaurantId: string, @Query('tableNumber') tableNumber?: string) {
     if (!tableNumber) return { tab: null };
     const tab = await this.orders.findOpenTabForTable(restaurantId, tableNumber);
-    return { tab };
+    if (!tab) return { tab: null };
+    // Trimmed for a shared-table scanner: only what the "add to this tab?" prompt needs,
+    // plus the starter's FIRST name so a different party can tell it isn't theirs and
+    // start their own bill. No phone/email/full name — this endpoint answers to anyone
+    // holding the table QR.
+    return {
+      tab: {
+        id: tab.id,
+        orderNumber: tab.orderNumber,
+        trackingToken: tab.trackingToken,
+        tableNumber: tab.tableNumber,
+        status: tab.status,
+        totalCents: tab.totalCents,
+        currency: tab.currency,
+        customerFirstName: tab.customerName?.trim().split(/\s+/)[0] || null,
+        items: tab.items.map((i) => ({
+          id: i.id,
+          name: i.name,
+          quantity: i.quantity,
+          totalCents: i.totalCents,
+        })),
+      },
+    };
   }
 
   /**
