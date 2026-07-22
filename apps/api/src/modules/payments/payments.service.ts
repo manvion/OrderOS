@@ -1007,7 +1007,14 @@ export class PaymentsService {
 
     // Real money now -- decrement stock and credit loyalty here, not at PENDING
     // creation, so an abandoned checkout never holds either hostage.
-    await applyInventoryDelta(this.prisma, order.items, -1);
+    //
+    // A pay-at-desk table is the exception: it's been cooking, unpaid, on the board,
+    // so its stock ALREADY left at creation. Settling it now (by link, terminal, or
+    // any online path) must NOT decrement again -- only credit the loyalty that was
+    // deliberately held back until the bill was actually settled.
+    if (!order.payAtDesk) {
+      await applyInventoryDelta(this.prisma, order.items, -1);
+    }
     await applyLoyaltyDelta(this.prisma, order.customerId, order.loyaltyPointsEarned, 1);
 
     await this.audit.log({
@@ -1027,11 +1034,17 @@ export class PaymentsService {
     // The single most important notification: the customer gets a receipt + tracking
     // link, the restaurant gets "NEW ORDER #..." by SMS and a printable ticket. Fired
     // on payment, never on order creation — an unpaid order isn't an order.
-    void this.notifications.onOrderStatus(
-      { ...order, items: order.items },
-      order.restaurant,
-      'PENDING',
-    );
+    //
+    // A pay-at-desk table already fired this at creation (it's been on the board), so
+    // settling it now would text the kitchen a duplicate "NEW ORDER". Skip it — the
+    // money moved, but nothing new arrived for the kitchen to see.
+    if (!order.payAtDesk) {
+      void this.notifications.onOrderStatus(
+        { ...order, items: order.items },
+        order.restaurant,
+        'PENDING',
+      );
+    }
   }
 
   /** Checkout expired unpaid — cancel the order so it doesn't linger on the board. */

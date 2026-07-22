@@ -1429,9 +1429,23 @@ export class OrdersService {
       });
     }
 
-    // Never let a kitchen start work on an unpaid order.
-    if (to === 'ACCEPTED' && order.payment?.status !== 'PAID') {
+    // Never let a kitchen start work on an unpaid order -- EXCEPT a pay-at-desk table,
+    // which is unpaid on purpose (cook now, settle at the counter later). Its stock
+    // already left and the kitchen was alerted at creation, so accepting it is exactly
+    // what's meant to happen; the bill is collected via settleAtDesk when the table pays.
+    if (to === 'ACCEPTED' && order.payment?.status !== 'PAID' && !order.payAtDesk) {
       throw new ConflictException('Cannot accept an order that has not been paid');
+    }
+
+    // A table can be cooked while unpaid (pay-at-desk), but it must NOT be closed until
+    // the bill is settled -- completing an order is the last step, and doing it on a
+    // still-unpaid tab would lose the money. Staff settle it (Take payment) first.
+    if (to === 'COMPLETED' && order.payment?.status === 'PENDING') {
+      throw new ConflictException({
+        statusCode: 409,
+        error: 'Unpaid',
+        message: 'Settle the bill before completing this order',
+      });
     }
 
     const now = new Date();

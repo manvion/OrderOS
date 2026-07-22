@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import {
+  Banknote,
   Bike,
   Check,
   ClipboardList,
@@ -25,6 +26,7 @@ import { useApi, useDashboard } from '@/components/dashboard/dashboard-provider'
 import { ApiRequestError, type Order, type Product } from '@/lib/api';
 import {
   ModifierConfigurator,
+  WalkInOrderDialog,
   type ConfiguredLine,
 } from '@/components/dashboard/walk-in-order-dialog';
 import { DeliveryActions } from '@/components/dashboard/delivery-actions';
@@ -998,6 +1000,18 @@ function ActiveOrders() {
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the order'),
   });
 
+  // The open table tab we're adding a round to, and the unpaid order we're collecting on.
+  const [tabFor, setTabFor] = useState<{
+    id: string;
+    orderNumber: string;
+    tableNumber: string | null;
+  } | null>(null);
+  const [settleFor, setSettleFor] = useState<{
+    id: string;
+    orderNumber: string;
+    totalCents: number;
+  } | null>(null);
+
   // Delivery has its own tab (dispatch is a different job); this is the counter flow.
   const counter = (orders ?? []).filter(
     (o) => o.fulfillment !== 'DELIVERY' && ACTIVE_STATUSES.includes(o.status),
@@ -1027,10 +1041,20 @@ function ActiveOrders() {
     );
   }
 
+  const currency = restaurant?.currency ?? 'CAD';
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {counter.map((order) => {
         const next = COUNTER_NEXT_ACTION[order.status];
+        const paid =
+          order.payment?.status === 'PAID' || order.payment?.status === 'PARTIALLY_REFUNDED';
+        // An open dine-in table whose bill isn't settled yet: staff can add another round
+        // and take the payment. A pay-at-desk table is the common case, but any unpaid
+        // dine-in tab qualifies.
+        const isOpenTab = order.fulfillment === 'DINE_IN' && !paid;
+        const awaitingPayment = !paid && (order.payAtDesk || order.fulfillment === 'DINE_IN');
         return (
           <Card key={order.id}>
             <CardContent className="space-y-3 p-4">
@@ -1043,9 +1067,14 @@ function ActiveOrders() {
                     {order.customerName ? ` · ${order.customerName}` : ''}
                   </p>
                 </div>
-                <Badge variant={order.status === 'READY' ? 'success' : 'info'}>
-                  {order.status.toLowerCase()}
-                </Badge>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge variant={order.status === 'READY' ? 'success' : 'info'}>
+                    {order.status.toLowerCase()}
+                  </Badge>
+                  <Badge variant={paid ? 'success' : 'warning'} className="text-[10px]">
+                    {paid ? 'paid' : 'unpaid'}
+                  </Badge>
+                </div>
               </div>
 
               <p className="line-clamp-2 text-xs text-muted-foreground">
@@ -1054,7 +1083,7 @@ function ActiveOrders() {
 
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold tabular-nums">
-                  {formatMoney(order.totalCents, restaurant?.currency ?? 'CAD')}
+                  {formatMoney(order.totalCents, currency)}
                 </span>
                 {next && (
                   <Button
@@ -1067,11 +1096,183 @@ function ActiveOrders() {
                   </Button>
                 )}
               </div>
+
+              {(isOpenTab || awaitingPayment) && (
+                <div className="flex flex-wrap gap-2 border-t pt-3">
+                  {isOpenTab && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setTabFor({
+                          id: order.id,
+                          orderNumber: order.orderNumber,
+                          tableNumber: order.tableNumber,
+                        })
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add items
+                    </Button>
+                  )}
+                  {awaitingPayment && (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        setSettleFor({
+                          id: order.id,
+                          orderNumber: order.orderNumber,
+                          totalCents: order.totalCents,
+                        })
+                      }
+                    >
+                      <Banknote className="h-3.5 w-3.5" />
+                      Take payment
+                    </Button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         );
       })}
-    </div>
+      </div>
+
+      {tabFor && (
+        <WalkInOrderDialog open onOpenChange={(v) => !v && setTabFor(null)} tabOrder={tabFor} />
+      )}
+
+      {settleFor && (
+        <SettleDialog
+          orderId={settleFor.id}
+          orderNumber={settleFor.orderNumber}
+          totalCents={settleFor.totalCents}
+          currency={currency}
+          onClose={() => setSettleFor(null)}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Collect payment on an open counter/table order. Staff pick how the customer is paying:
+ * cash or card mark it settled at the desk right now; a payment link texts/emails them a
+ * Stripe checkout (and shows a QR to scan at the counter) that settles it when they pay.
+ */
+function SettleDialog({
+  orderId,
+  orderNumber,
+  totalCents,
+  currency,
+  onClose,
+}: {
+  orderId: string;
+  orderNumber: string;
+  totalCents: number;
+  currency: string;
+  onClose: () => void;
+}) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  const [link, setLink] = useState<{ url: string; qr: string | null } | null>(null);
+
+  const settle = useMutation({
+    mutationFn: (method: 'CASH' | 'CARD_TERMINAL') => api.settleAtDesk(orderId, method),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success(`Order #${orderNumber} marked paid`);
+      onClose();
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not mark paid'),
+  });
+
+  const sendLink = useMutation({
+    mutationFn: () => api.createOrderPaymentLink(orderId),
+    onSuccess: async (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      const qr = await QRCode.toDataURL(res.checkoutUrl, { width: 320, margin: 1 }).catch(() => null);
+      setLink({ url: res.checkoutUrl, qr });
+      toast.success('Payment link created and sent to the customer');
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiRequestError ? err.body.message : 'Could not create the payment link',
+      ),
+  });
+
+  const copy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link.url);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy — long-press the link instead');
+    }
+  };
+
+  const busy = settle.isPending || sendLink.isPending;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>
+            {link ? 'Payment link' : 'Take payment'} · #{orderNumber}
+          </DialogTitle>
+        </DialogHeader>
+
+        {link ? (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Sent to the customer. They can also scan this to pay {formatMoney(totalCents, currency)}{' '}
+              now — the order settles automatically once they do.
+            </p>
+            {link.qr ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={link.qr} alt="Scan to pay" className="mx-auto h-48 w-48 rounded-lg border bg-white" />
+            ) : (
+              <div className="mx-auto h-48 w-48 animate-pulse rounded-lg bg-muted" />
+            )}
+            <div className="flex items-center gap-2">
+              <Input readOnly value={link.url} className="text-xs" onFocus={(e) => e.target.select()} />
+              <Button size="sm" variant="outline" className="shrink-0" onClick={copy}>
+                <Copy className="h-3.5 w-3.5" />
+                Copy
+              </Button>
+            </div>
+            <Button className="w-full" onClick={onClose}>
+              Done
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-center text-3xl font-bold tabular-nums">
+              {formatMoney(totalCents, currency)}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" disabled={busy} onClick={() => settle.mutate('CASH')}>
+                <Banknote className="h-4 w-4" />
+                Cash
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={() => settle.mutate('CARD_TERMINAL')}>
+                <CreditCard className="h-4 w-4" />
+                Card
+              </Button>
+            </div>
+            <Button className="w-full" variant="outline" disabled={busy} onClick={() => sendLink.mutate()}>
+              <Link2 className="h-4 w-4" />
+              {sendLink.isPending ? 'Creating link…' : 'Send a payment link'}
+            </Button>
+            <p className="text-center text-[11px] text-muted-foreground">
+              Cash and card mark it paid now. A link lets the customer pay online — the order
+              settles when they do.
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

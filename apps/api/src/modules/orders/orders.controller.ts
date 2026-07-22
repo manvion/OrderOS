@@ -339,6 +339,32 @@ export class OrdersController {
   }
 
   /**
+   * Text/email the customer a Stripe link to settle an EXISTING unpaid order — the
+   * "pay by link" option when a pay-at-desk table would rather pay online than hand over
+   * cash or a card. Reuses the same unpaid-order → checkout pair the storefront and the
+   * new-order link flow use; the webhook flips it to paid (markOrderPaid, which knows a
+   * pay-at-desk order is already cooking and won't re-alert the kitchen). The link is
+   * also returned so the POS can show a QR to scan at the counter.
+   */
+  @Post(':id/payment-link')
+  @Roles('STAFF')
+  @Audit('order.payment_link_created', 'Order')
+  async createOrderPaymentLink(@TenantId() restaurantId: string, @Param('id') id: string) {
+    // findById scopes to this tenant and 404s otherwise — the authorization for :id.
+    const order = await this.orders.findById(restaurantId, id);
+    const { checkoutUrl } = await this.payments.createCheckoutSession(order.id);
+
+    const restaurant = await this.prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (restaurant) {
+      await this.notifications.sendPaymentLink(order, restaurant, checkoutUrl).catch(() => {
+        // A failed text/email doesn't lose the link — the POS still shows it to scan.
+      });
+    }
+
+    return { orderId: order.id, orderNumber: order.orderNumber, checkoutUrl };
+  }
+
+  /**
    * Staff adding a round to an open table tab — someone at the table asked for another
    * item. Appends to the same order so the table gets one bill.
    */

@@ -702,6 +702,13 @@ export function createDashboardApi(
         method: 'POST',
         body: JSON.stringify(method ? { method } : {}),
       }),
+    /** Text/email the customer a Stripe link to pay an existing unpaid order; returns the
+     *  link so the POS can show a QR to scan too. Webhook flips the order to paid. */
+    createOrderPaymentLink: (id: string) =>
+      call<{ orderId: string; orderNumber: string; checkoutUrl: string }>(
+        `/orders/${id}/payment-link`,
+        { method: 'POST' },
+      ),
     /** Staff adding another round to an open dine-in table tab. */
     addTabItems: (
       id: string,
