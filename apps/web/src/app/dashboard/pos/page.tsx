@@ -1547,6 +1547,17 @@ function DeliveryDispatch() {
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the order'),
   });
 
+  // TEST: animate a fake courier so the customer tracking map can be seen moving.
+  const simulate = useMutation({
+    mutationFn: (id: string) => api.simulateDelivery(id),
+    onSuccess: (r) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success(`Simulating a driver (${r.steps} steps) — open the order's tracking page to watch it move.`);
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not start the simulation'),
+  });
+
   const deliveries = (orders ?? []).filter(
     (o) => o.fulfillment === 'DELIVERY' && o.status !== 'DELIVERED' && o.status !== 'CANCELLED',
   );
@@ -1606,6 +1617,17 @@ function DeliveryDispatch() {
             ) : (
               <DeliveryActions order={order} />
             )}
+
+            {/* Test the tracking map without a real driver — animates a fake courier
+                along the route so you can open the order's tracking page and watch. */}
+            <button
+              type="button"
+              onClick={() => simulate.mutate(order.id)}
+              disabled={simulate.isPending}
+              className="w-full border-t pt-2 text-center text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+            >
+              {simulate.isPending ? 'Starting…' : '▶ Simulate a driver (test the tracking map)'}
+            </button>
           </CardContent>
         </Card>
       ))}
