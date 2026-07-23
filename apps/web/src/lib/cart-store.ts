@@ -34,6 +34,10 @@ interface CartState {
    *  contents change, so a stale discount can never linger past the order it
    *  was computed for. */
   promoDiscountCents: number;
+  /** Epoch ms of the last cart activity. An abandoned cart (items added but never
+   *  checked out) expires after CART_TTL_MS so a later visitor — or the same one
+   *  coming back to a shared table tablet — starts fresh, not on stale items. */
+  lastActivityAt: number;
 
   addLine: (product: MenuProduct, modifiers: CartLine['modifiers'], quantity: number, notes?: string) => void;
   removeLine: (lineId: string) => void;
@@ -58,6 +62,9 @@ function lineKey(productId: string, modifierIds: string[]): string {
   return `${productId}::${[...modifierIds].sort().join(',')}`;
 }
 
+/** How long an untouched cart survives before it's abandoned and reset (30 minutes). */
+export const CART_TTL_MS = 30 * 60 * 1000;
+
 export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
@@ -69,14 +76,18 @@ export const useCart = create<CartState>()(
       qrCodeId: null,
       promoCode: null,
       promoDiscountCents: 0,
+      lastActivityAt: Date.now(),
 
       /**
-       * Drop the cart if the customer has moved to a different restaurant.
-       * Called on every storefront page load. Without this, a persisted cart from
-       * Joe's would show up on Bella's checkout and every product id would 400.
+       * Drop the cart if the customer has moved to a different restaurant, OR if it has
+       * gone stale — items were added but the order was never placed and CART_TTL_MS has
+       * since passed. Called on every storefront page load, so a customer returning to an
+       * abandoned cart (or the next person on a shared table tablet) starts fresh.
        */
       ensureRestaurant: (slug) => {
-        if (get().restaurantSlug !== slug) {
+        const expired =
+          get().lines.length > 0 && Date.now() - get().lastActivityAt > CART_TTL_MS;
+        if (get().restaurantSlug !== slug || expired) {
           set({
             restaurantSlug: slug,
             lines: [],
@@ -86,6 +97,7 @@ export const useCart = create<CartState>()(
             promoCode: null,
             promoDiscountCents: 0,
             fulfillment: 'PICKUP',
+            lastActivityAt: Date.now(),
           });
         }
       },
@@ -104,11 +116,13 @@ export const useCart = create<CartState>()(
                 : l,
             ),
             promoDiscountCents: 0,
+            lastActivityAt: Date.now(),
           });
           return;
         }
 
         set({
+          lastActivityAt: Date.now(),
           lines: [
             ...get().lines,
             {
@@ -127,11 +141,19 @@ export const useCart = create<CartState>()(
       },
 
       removeLine: (lineId) =>
-        set({ lines: get().lines.filter((l) => l.lineId !== lineId), promoDiscountCents: 0 }),
+        set({
+          lines: get().lines.filter((l) => l.lineId !== lineId),
+          promoDiscountCents: 0,
+          lastActivityAt: Date.now(),
+        }),
 
       setQuantity: (lineId, quantity) => {
         if (quantity <= 0) {
-          set({ lines: get().lines.filter((l) => l.lineId !== lineId), promoDiscountCents: 0 });
+          set({
+            lines: get().lines.filter((l) => l.lineId !== lineId),
+            promoDiscountCents: 0,
+            lastActivityAt: Date.now(),
+          });
           return;
         }
         set({
@@ -139,6 +161,7 @@ export const useCart = create<CartState>()(
             l.lineId === lineId ? { ...l, quantity: Math.min(99, quantity) } : l,
           ),
           promoDiscountCents: 0,
+          lastActivityAt: Date.now(),
         });
       },
 
@@ -269,4 +292,30 @@ export function useSyncedDiscount(restaurant: Pick<StorefrontRestaurant, 'slug'>
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, promoCode, JSON.stringify(lines.map((l) => [l.productId, l.quantity, l.modifiers.length]))]);
+}
+
+/**
+ * Expire an abandoned cart while the page sits open. `ensureRestaurant` already resets a
+ * stale cart on navigation/reload; this covers the phone left idle on the menu — after
+ * CART_TTL_MS with no activity the items are cleared so the session restarts fresh. Also
+ * re-checks when the tab regains focus (picked the phone back up after a while).
+ */
+export function useCartExpiry(): void {
+  const clear = useCart((s) => s.clear);
+
+  useEffect(() => {
+    const check = () => {
+      const s = useCart.getState();
+      if (s.lines.length > 0 && Date.now() - s.lastActivityAt > CART_TTL_MS) {
+        clear();
+      }
+    };
+    check();
+    const timer = setInterval(check, 60_000);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', check);
+    };
+  }, [clear]);
 }

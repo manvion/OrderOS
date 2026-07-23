@@ -208,17 +208,21 @@ export function playChime(sound: ChimeSound, volume: number): void {
 // --- The hook ---------------------------------------------------------------
 
 /**
- * Chime once when a genuinely NEW incoming order (a PENDING one we haven't seen)
- * appears in the polled list.
+ * Chime when a genuinely NEW incoming order appears (a PENDING one we haven't seen),
+ * OR when an order already on the board GAINS items — a new round added to a running
+ * dine-in tab, which the kitchen must be told about just like a fresh order.
  *
- * - The first render records the current backlog silently — reloading the Orders
+ * - The first render records the current backlog + item counts silently — reloading the
  *   screen must not blast the chime for every order already on the board.
- * - Only PENDING is treated as "new arrival"; an order advancing to PREPARING is a
- *   status change, not a new order, and must not re-chime.
+ * - A plain status change (PENDING → PREPARING) does NOT re-chime; only a new order or
+ *   more food does.
  * - Settings are re-read at play time so a change in the control takes effect at once.
  */
-export function useNewOrderChime(orders: Array<{ id: string; status: string }> | undefined): void {
-  const seen = useRef<Set<string> | null>(null);
+export function useNewOrderChime(
+  orders: Array<{ id: string; status: string; items?: Array<{ quantity: number }> }> | undefined,
+): void {
+  // id -> item count last seen, so a growing ticket (an added round) rings too.
+  const seen = useRef<Map<string, number> | null>(null);
 
   useEffect(() => {
     // Resume the audio context on the first interaction anywhere, so the first
@@ -234,21 +238,29 @@ export function useNewOrderChime(orders: Array<{ id: string; status: string }> |
 
   useEffect(() => {
     if (!orders) return;
+    const countOf = (o: { items?: Array<{ quantity: number }> }) =>
+      o.items ? o.items.reduce((n, i) => n + (i.quantity ?? 1), 0) : 0;
 
     if (seen.current === null) {
-      seen.current = new Set(orders.map((o) => o.id));
+      seen.current = new Map(orders.map((o) => [o.id, countOf(o)]));
       return;
     }
 
-    let hasNew = false;
+    let ring = false;
     for (const o of orders) {
-      if (!seen.current.has(o.id)) {
-        seen.current.add(o.id);
-        if (o.status === 'PENDING') hasNew = true;
+      const prev = seen.current.get(o.id);
+      const count = countOf(o);
+      if (prev === undefined) {
+        // A brand-new order — ring when it lands as a fresh (PENDING) ticket.
+        if (o.status === 'PENDING') ring = true;
+      } else if (count > prev) {
+        // A ticket already on the board grew — a new round was added to a tab.
+        ring = true;
       }
+      seen.current.set(o.id, count);
     }
 
-    if (hasNew) {
+    if (ring) {
       const settings = current();
       if (settings.enabled) playChime(settings.sound, settings.volume);
     }

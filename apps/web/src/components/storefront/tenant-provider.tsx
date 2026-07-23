@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { storefrontApi, type StorefrontRestaurant } from '@/lib/api';
 import { CustomerAuthProvider } from './customer-auth';
-import { useCart } from '@/lib/cart-store';
+import { useCart, useCartExpiry } from '@/lib/cart-store';
 
 interface TenantContextValue {
   restaurant: StorefrontRestaurant;
@@ -67,6 +67,10 @@ export function TenantProvider({
   const ensureRestaurant = useCart((s) => s.ensureRestaurant);
   const setTableContext = useCart((s) => s.setTableContext);
   const searchParams = useSearchParams();
+
+  // Expire an abandoned cart (items added but never checked out) so a returning or next
+  // customer starts fresh rather than on stale items.
+  useCartExpiry();
 
   // Reset a cart carried over from a different restaurant. The cart is persisted
   // in localStorage, which is shared across subdomains in dev — without this, a
