@@ -320,6 +320,18 @@ export class DeliveryService {
             // same write that records the courier, so there is no window in which a
             // dispatched delivery is also still queued for dispatch.
             nextRetryAt: null,
+            // A RE-dispatch is a fresh courier: wipe any handoff and courier state left
+            // by a previous attempt (on a first dispatch these are already null). Without
+            // this, a retry inherits the old "handed over" flag and never re-prompts for
+            // the pickup code, and the card shows the previous courier's name.
+            handedOverAt: null,
+            handedOverByUserId: null,
+            courierName: null,
+            courierPhone: null,
+            courierVehicle: null,
+            courierLatitude: null,
+            courierLongitude: null,
+            pickedUpAt: null,
           },
         });
 
