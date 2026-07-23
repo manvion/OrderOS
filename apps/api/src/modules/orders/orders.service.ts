@@ -276,13 +276,17 @@ export class OrdersService {
 
     // A minimum order is a DELIVERY floor — it's there to make a driver worth
     // dispatching. Pickup and dine-in have no such cost, so they're never blocked.
-    if (input.fulfillment === 'DELIVERY' && pricing.subtotalCents < restaurant.minOrderCents) {
+    // Measured on the food subtotal AFTER any discount but BEFORE tax and fees — the
+    // actual value of goods going out the door, so a promo can bring a real order under
+    // the floor and tax never props a small order over it.
+    const netFoodCents = pricing.subtotalCents - pricing.discountCents;
+    if (input.fulfillment === 'DELIVERY' && netFoodCents < restaurant.minOrderCents) {
       throw new BadRequestException({
         statusCode: 400,
         error: 'BelowMinimum',
         message: `Minimum delivery order is ${(restaurant.minOrderCents / 100).toFixed(2)} ${restaurant.currency}`,
         minOrderCents: restaurant.minOrderCents,
-        subtotalCents: pricing.subtotalCents,
+        subtotalCents: netFoodCents,
       });
     }
 
@@ -1587,6 +1591,48 @@ export class OrdersService {
       source: 'restaurant',
       note: reason,
     });
+  }
+
+  /**
+   * Correct the customer's contact on a live order — typically a delivery phone a
+   * courier declined. Writing it back to the order is enough: the next dispatch reads
+   * `order.customerPhone` fresh (normalised to E.164 there), so a corrected number just
+   * works on the retry. Refused once the order is closed — there's nothing left to reach
+   * the customer about.
+   */
+  async updateContact(
+    restaurantId: string,
+    orderId: string,
+    input: { customerPhone?: string; customerName?: string },
+  ) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(order.status)) {
+      throw new BadRequestException('This order is closed — its contact details are final');
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        ...(input.customerPhone !== undefined
+          ? { customerPhone: input.customerPhone.trim() }
+          : {}),
+        ...(input.customerName !== undefined ? { customerName: input.customerName.trim() } : {}),
+      },
+      include: this.orderInclude(),
+    });
+
+    // Keep the CRM record in step when this order is tied to one, so the corrected
+    // number is what a re-order and the customer's history show too.
+    if (updated.customerId && input.customerPhone) {
+      await this.prisma.customer
+        .update({ where: { id: updated.customerId }, data: { phone: input.customerPhone.trim() } })
+        .catch(() => {
+          // A phone collision with another customer record is not worth failing the fix.
+        });
+    }
+
+    return updated;
   }
 
   /**

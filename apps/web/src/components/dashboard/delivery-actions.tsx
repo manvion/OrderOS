@@ -31,8 +31,21 @@ export function DeliveryActions({ order }: { order: Order }) {
   const [code, setCode] = useState('');
   const [showOverride, setShowOverride] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
+  const [phone, setPhone] = useState(order.customerPhone ?? '');
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['orders'] });
+
+  // Correct a bad delivery phone (the usual reason Uber declines) so a retry can go
+  // through, without re-taking the whole order.
+  const updatePhone = useMutation({
+    mutationFn: () => api.updateOrderContact(order.id, { customerPhone: phone.trim() }),
+    onSuccess: () => {
+      refresh();
+      toast.success('Phone updated — now try the courier again');
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not update the phone'),
+  });
 
   const dispatchUber = useMutation({
     mutationFn: () => api.dispatchUber(order.id),
@@ -264,6 +277,39 @@ export function DeliveryActions({ order }: { order: Order }) {
         {delivery.lastError && (
           <p className="text-[11px] text-destructive">{delivery.lastError}</p>
         )}
+
+        {/* Most Uber declines are a bad/placeholder phone. Let staff fix it in place and
+            retry, instead of cancelling and re-taking the order. */}
+        <div className="space-y-1 rounded-lg border bg-background p-2">
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Customer phone
+          </label>
+          <div className="flex gap-2">
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. 514-555-0188"
+              className="h-8 text-xs"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0"
+              onClick={() => updatePhone.mutate()}
+              disabled={
+                updatePhone.isPending ||
+                phone.trim().length < 7 ||
+                phone.trim() === (order.customerPhone ?? '')
+              }
+            >
+              {updatePhone.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Fix a bad number, then Try Uber again.
+          </p>
+        </div>
 
         <div className={`grid gap-2 ${canUber && canSelf ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {canUber && (

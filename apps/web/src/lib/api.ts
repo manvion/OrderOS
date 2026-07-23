@@ -696,6 +696,10 @@ export function createDashboardApi(
       }),
     cancelOrder: (id: string, reason: string) =>
       call<Order>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    /** Fix a customer's contact on a live order — e.g. a mistyped delivery phone a
+     *  courier rejected. Correcting it lets staff re-dispatch without re-ordering. */
+    updateOrderContact: (id: string, body: { customerPhone?: string; customerName?: string }) =>
+      call<Order>(`/orders/${id}/contact`, { method: 'PATCH', body: JSON.stringify(body) }),
     /** Settle a pay-at-desk order at the counter. Pass amountCents for a PARTIAL payment
      *  (some now, the rest later); omit it to clear the whole remaining balance. */
     settleAtDesk: (id: string, method?: 'CASH' | 'CARD_TERMINAL', amountCents?: number) =>

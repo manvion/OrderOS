@@ -99,9 +99,11 @@ export default function CartPage() {
     );
   }
 
-  // The minimum only applies to DELIVERY — pickup and dine-in are never blocked.
+  // The minimum only applies to DELIVERY — pickup and dine-in are never blocked. Measured
+  // on the food subtotal AFTER any discount, before tax/fees, to match the server.
   const belowMinimum =
-    fulfillment === 'DELIVERY' && (totals?.subtotalCents ?? 0) < restaurant.minOrderCents;
+    fulfillment === 'DELIVERY' &&
+    (totals?.subtotalCents ?? 0) - (totals?.discountCents ?? 0) < restaurant.minOrderCents;
 
   return (
     <div className="container max-w-2xl py-8 pb-32">

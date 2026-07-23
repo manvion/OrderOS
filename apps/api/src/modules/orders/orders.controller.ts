@@ -40,6 +40,17 @@ const cancelSchema = z.object({ reason: z.string().min(1).max(500) });
 
 const etaSchema = z.object({ minutesFromNow: z.number().int().min(0).max(180) });
 
+/** Correct the customer contact on an order — e.g. a mistyped delivery phone that a
+ *  courier rejected. Phone and/or name; at least one must be present. */
+const contactSchema = z
+  .object({
+    customerPhone: z.string().min(7).max(20).optional(),
+    customerName: z.string().min(1).max(120).optional(),
+  })
+  .refine((b) => b.customerPhone !== undefined || b.customerName !== undefined, {
+    message: 'Provide a phone number or a name to update',
+  });
+
 const settleAtDeskSchema = z.object({
   /** How the counter collected. Defaults to card terminal if unspecified. */
   method: z.enum(['CASH', 'CARD_TERMINAL']).optional(),
@@ -236,6 +247,22 @@ export class OrdersController {
     @Body(new ZodValidationPipe(etaSchema)) body: { minutesFromNow: number },
   ) {
     return this.orders.setEstimatedReadyMinutes(restaurantId, id, body.minutesFromNow, user.id);
+  }
+
+  /**
+   * Fix the customer's contact details on a live order — most often a delivery phone a
+   * courier declined (e.g. a placeholder like 555-555-5555). Correcting it lets staff
+   * re-dispatch without re-taking the whole order.
+   */
+  @Patch(':id/contact')
+  @Roles('STAFF')
+  @Audit('order.contact_updated', 'Order')
+  updateContact(
+    @TenantId() restaurantId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(contactSchema)) body: z.infer<typeof contactSchema>,
+  ) {
+    return this.orders.updateContact(restaurantId, id, body);
   }
 
   @Post(':id/cancel')

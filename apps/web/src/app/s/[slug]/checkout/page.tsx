@@ -252,7 +252,9 @@ export default function CheckoutPage() {
 
   // The minimum applies to DELIVERY only. It's the last gate rather than a block on a
   // previous screen, so switching to pickup here immediately lets the order through.
-  const belowMinimum = fulfillment === 'DELIVERY' && subtotalCents < restaurant.minOrderCents;
+  // Measured after any discount, before tax/fees, to match the server's check.
+  const netFoodCents = subtotalCents - (totals?.discountCents ?? 0);
+  const belowMinimum = fulfillment === 'DELIVERY' && netFoodCents < restaurant.minOrderCents;
 
   const canSubmit =
     lines.length > 0 &&
@@ -801,7 +803,7 @@ export default function CheckoutPage() {
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
           Delivery orders have a {formatMoney(restaurant.minOrderCents, restaurant.currency)}{' '}
           minimum. Add{' '}
-          {formatMoney(restaurant.minOrderCents - subtotalCents, restaurant.currency)} more, or
+          {formatMoney(restaurant.minOrderCents - netFoodCents, restaurant.currency)} more, or
           switch to pickup above.
         </p>
       )}

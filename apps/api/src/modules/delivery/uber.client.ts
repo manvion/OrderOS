@@ -276,9 +276,24 @@ export class UberClient {
       let code: string | undefined;
       let message = text;
       try {
-        const parsed = JSON.parse(text) as { code?: string; message?: string };
+        const parsed = JSON.parse(text) as {
+          code?: string;
+          message?: string;
+          params?: Record<string, unknown>;
+          metadata?: Record<string, unknown>;
+        };
         code = parsed.code;
         message = parsed.message ?? text;
+        // Uber says WHICH field is wrong in `params`/`metadata`. A bare "the parameters
+        // of your request were invalid" is unactionable without it, so fold the specific
+        // field(s) into the message the restaurant actually sees.
+        const detail = parsed.params ?? parsed.metadata;
+        if (detail && typeof detail === 'object' && Object.keys(detail).length > 0) {
+          const fields = Object.entries(detail)
+            .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+            .join('; ');
+          message = `${message} — ${fields}`;
+        }
       } catch {
         // Non-JSON error body; use the raw text.
       }
