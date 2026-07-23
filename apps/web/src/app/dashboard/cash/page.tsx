@@ -181,6 +181,10 @@ function OpenDrawer({
   onError: (e: unknown) => void;
   api: ReturnType<typeof useApi>;
 }) {
+  // Never assume the nested relation is present — a drawer serialized without its
+  // movements array (or an older/leaner API response) must render as "no movements yet",
+  // not crash the whole page reading `.length` of undefined.
+  const movements = drawer.movements ?? [];
   const [closing, setClosing] = useState(false);
   const [counted, setCounted] = useState('');
   const [moveType, setMoveType] = useState<'PAY_IN' | 'PAY_OUT' | null>(null);
@@ -347,13 +351,13 @@ function OpenDrawer({
       </div>
 
       {/* Movements */}
-      {drawer.movements.length > 0 && (
+      {movements.length > 0 && (
         <div className="rounded-2xl border">
           <p className="border-b px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             This shift
           </p>
           <ul className="divide-y">
-            {drawer.movements.map((m) => {
+            {movements.map((m) => {
               const negative = m.type === 'REFUND' || m.type === 'PAY_OUT';
               return (
                 <li key={m.id} className="flex items-center justify-between px-4 py-2.5 text-sm">

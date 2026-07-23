@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { ChefHat, CreditCard, LayoutDashboard, Monitor, Printer, Store } from 'lucide-react';
+import {
+  ChefHat,
+  CreditCard,
+  ExternalLink,
+  Globe,
+  LayoutDashboard,
+  Monitor,
+  Printer,
+  Store,
+} from 'lucide-react';
 import { useDashboard } from '@/components/dashboard/dashboard-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,6 +85,14 @@ export function StaffAccessQrs() {
         icon: Monitor,
         hint: 'A wall screen showing order numbers as they’re prepared and ready. No login — safe to point a public TV at.',
         footer: 'No sign-in — a public order screen',
+      },
+      {
+        key: 'storefront',
+        url: storefront,
+        label: 'Storefront (front end)',
+        icon: Globe,
+        hint: 'Your customer-facing ordering site. Open it to preview what diners see, or point a device at it.',
+        footer: 'No sign-in — your public ordering site',
       },
       {
         key: 'dashboard',
@@ -221,10 +238,25 @@ export function StaffAccessQrs() {
 
             <p className="text-xs text-muted-foreground">{hint}</p>
 
-            <Button variant="outline" size="sm" onClick={() => print(target)} disabled={!images[key]}>
-              <Printer className="h-3.5 w-3.5" />
-              Print
-            </Button>
+            {/* On-screen quick links — click to open the screen directly instead of
+                scanning. Deliberately NOT part of the QR: print() builds its own HTML
+                (code + label only) and the downloads are the bare code image, so this
+                URL never lands on a printed or saved copy. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => print(target)} disabled={!images[key]}>
+                <Printer className="h-3.5 w-3.5" />
+                Print
+              </Button>
+              <a
+                href={target.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand underline-offset-2 hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open link
+              </a>
+            </div>
           </div>
           );
         })}
