@@ -59,65 +59,110 @@ export class RoutingService {
     return parsed;
   }
 
-  /** The OSRM instance to route against for a given restaurant country. */
-  private baseUrlFor(country?: string | null): string {
+  /** A configured OSRM instance for a country, or null when only the public demo applies. */
+  private configuredOsrmFor(country?: string | null): string | null {
     const perCountry = country ? this.urlsByCountry[country.toUpperCase()] : undefined;
-    return (
-      perCountry ??
-      this.config.get<string>('OSRM_URL') ??
-      'https://router.project-osrm.org'
-    );
+    return perCountry ?? this.config.get<string>('OSRM_URL') ?? null;
   }
 
   /**
    * The driving route between two points as `[lat, lng]` pairs following the roads,
    * or `null` when no route can be produced (the caller then draws a straight line).
-   * `country` (the restaurant's) selects the right regional OSRM in a multi-country setup.
+   *
+   * Provider order:
+   *  1. A configured OSRM (per-country `OSRM_URLS`, or single `OSRM_URL`) — self-hosted,
+   *     fast, free; use it wherever you run one.
+   *  2. OpenRouteService (`ORS_API_KEY`) — a single free key that covers EVERY country,
+   *     so a global platform gets real routes everywhere without an OSRM per region.
+   *  3. The public OSRM demo — the keyless last resort (rate-limited; a straight line
+   *     when it fails).
    */
   async route(
     from: GeoPoint,
     to: GeoPoint,
     opts: { country?: string | null } = {},
   ): Promise<Array<[number, number]> | null> {
-    const baseUrl = this.baseUrlFor(opts.country);
-    // Key by the instance too: the same coordinates never resolve on two OSRMs, but a
-    // config change (a country moved to a new instance) shouldn't serve a stale route.
-    const cacheKey = `route:${hostOf(baseUrl)}:${key(from)}->${key(to)}`;
+    const osrm = this.configuredOsrmFor(opts.country);
+    const orsKey = this.config.get<string>('ORS_API_KEY');
+    const provider: 'osrm' | 'ors' = osrm ? 'osrm' : orsKey ? 'ors' : 'osrm';
+    const osrmBase = osrm ?? 'https://router.project-osrm.org';
+
+    // Cache per provider so a config change (or a fresh key) never serves a stale route.
+    const providerId = provider === 'ors' ? 'ors' : hostOf(osrmBase);
+    const cacheKey = `route:${providerId}:${key(from)}->${key(to)}`;
 
     const cached = await this.redis.get<Array<[number, number]> | { miss: true }>(cacheKey);
     if (cached) return 'miss' in cached ? null : cached;
 
     try {
-      // OSRM wants lng,lat — the opposite order to everything else here.
-      const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
-      const url = `${baseUrl}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+      const latlngs =
+        provider === 'ors'
+          ? await this.fetchOrs(orsKey!, from, to)
+          : await this.fetchOsrm(osrmBase, from, to);
 
-      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) throw new Error(`OSRM ${res.status}`);
-
-      const body = (await res.json()) as {
-        code: string;
-        routes?: Array<{ geometry: { coordinates: Array<[number, number]> } }>;
-      };
-      const coordinates = body.routes?.[0]?.geometry.coordinates;
-
-      if (body.code !== 'Ok' || !coordinates || coordinates.length < 2) {
+      if (!latlngs) {
         // A real "no drivable route" answer — cache it briefly so we don't hammer the
         // provider re-asking about a leg it just declined.
         await this.redis.set(cacheKey, { miss: true }, 60 * 60);
         return null;
       }
-
-      // GeoJSON is [lng, lat]; the map wants [lat, lng].
-      const latlngs = coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
       await this.redis.set(cacheKey, latlngs, RoutingService.CACHE_TTL_SECONDS);
       return latlngs;
     } catch (err) {
       // An outage must never break the map — the caller falls back to a straight line.
-      // Not cached: a transient failure should be retried on the next poll.
-      this.logger.warn(`Routing failed: ${(err as Error).message}`);
+      this.logger.warn(`Routing (${provider}) failed: ${(err as Error).message}`);
       return null;
     }
+  }
+
+  /** OSRM `/route` — returns [lat,lng] pairs, or null on a "no route" answer. */
+  private async fetchOsrm(
+    base: string,
+    from: GeoPoint,
+    to: GeoPoint,
+  ): Promise<Array<[number, number]> | null> {
+    // OSRM wants lng,lat — the opposite order to everything else here.
+    const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
+    const url = `${base}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) throw new Error(`OSRM ${res.status}`);
+    const body = (await res.json()) as {
+      code: string;
+      routes?: Array<{ geometry: { coordinates: Array<[number, number]> } }>;
+    };
+    const coordinates = body.routes?.[0]?.geometry.coordinates;
+    if (body.code !== 'Ok' || !coordinates || coordinates.length < 2) return null;
+    return coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
+  }
+
+  /** OpenRouteService `/directions` — global coverage from one free key. */
+  private async fetchOrs(
+    key: string,
+    from: GeoPoint,
+    to: GeoPoint,
+  ): Promise<Array<[number, number]> | null> {
+    const res = await fetch(
+      'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+      {
+        method: 'POST',
+        headers: { Authorization: key, 'Content-Type': 'application/json' },
+        // ORS wants lng,lat too.
+        body: JSON.stringify({
+          coordinates: [
+            [from.longitude, from.latitude],
+            [to.longitude, to.latitude],
+          ],
+        }),
+        signal: AbortSignal.timeout(6000),
+      },
+    );
+    if (!res.ok) throw new Error(`ORS ${res.status}`);
+    const body = (await res.json()) as {
+      features?: Array<{ geometry: { coordinates: Array<[number, number]> } }>;
+    };
+    const coordinates = body.features?.[0]?.geometry.coordinates;
+    if (!coordinates || coordinates.length < 2) return null;
+    return coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
   }
 }
 
