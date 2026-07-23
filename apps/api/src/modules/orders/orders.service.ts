@@ -909,11 +909,12 @@ export class OrdersService {
       discountCents: order.discountCents,
     });
 
-    // A new round must be COOKED, even if the earlier items are already done. Without
-    // this, adding to an order that's already READY leaves the whole ticket READY and
-    // the new food never gets made — it just shows up "ready" on the kitchen board. Send
-    // the ticket back to PREPARING so the kitchen sees and cooks the new round.
-    const reopenedStatus: OrderStatus | undefined = order.status === 'READY' ? 'PREPARING' : undefined;
+    // A new round must be consciously picked up by the kitchen, not silently folded into
+    // whatever the ticket was doing. Send it back to the NEW column (PENDING) so the
+    // kitchen ACCEPTS the addition, exactly like a fresh order — the card still carries
+    // the same order number and its already-served items, so it reads as an extension of
+    // the same tab, not a second ticket. (An order still sitting in NEW stays there.)
+    const reopenedStatus: OrderStatus | undefined = order.status === 'PENDING' ? undefined : 'PENDING';
 
     const loyaltyPointsEarned =
       restaurant.loyaltyEnabled && this.loyaltyAllowedByPlan(restaurant)
@@ -960,7 +961,7 @@ export class OrdersService {
               source: opts.source,
               note:
                 `Added to tab: ${newItems.map((i) => `${i.quantity}× ${i.name}`).join(', ')}` +
-                (reopenedStatus ? ' — sent back to the kitchen' : ''),
+                (reopenedStatus ? ' — new round sent to the kitchen' : ''),
             },
           },
         },

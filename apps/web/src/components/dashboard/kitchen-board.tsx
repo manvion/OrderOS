@@ -389,33 +389,59 @@ function OrderCard({
       </div>
 
       {(() => {
-        // A round added to an already-served tab arrives un-prepared, while the earlier
-        // items are done. Show only what's left to cook; a done order (READY) has no
-        // un-prepared items, so it falls back to showing everything.
+        // Items still to cook (this round) vs ones already served on an earlier round.
+        // When both are present the ticket is an EXTENSION of a running tab: the new
+        // round is highlighted so the kitchen makes only that, and the served items are
+        // shown struck-through underneath so the card still reads as one whole order.
         const toCook = order.items.filter((i) => !i.preparedAt);
         const done = order.items.filter((i) => i.preparedAt);
-        const showItems = toCook.length > 0 ? toCook : order.items;
+        const isExtension = toCook.length > 0 && done.length > 0;
+        const cook = toCook.length > 0 ? toCook : order.items;
         return (
-          <ul className="mt-3 space-y-1 border-t pt-3">
-            {showItems.map((item) => (
-              <li key={item.id} className="flex gap-2 text-sm">
-                <span className="font-bold tabular-nums">{item.quantity}×</span>
-                <span className="min-w-0">
-                  <span className="font-medium">{item.name}</span>
-                  {item.modifiers?.length > 0 && (
-                    <span className="block text-xs text-muted-foreground">
-                      {item.modifiers.map((m) => m.name).join(', ')}
-                    </span>
-                  )}
-                </span>
-              </li>
-            ))}
-            {toCook.length > 0 && done.length > 0 && (
-              <li className="pt-1 text-xs italic text-muted-foreground">
-                + {done.reduce((n, i) => n + i.quantity, 0)} already served
-              </li>
+          <div className="mt-3 border-t pt-3">
+            {isExtension && (
+              <span className="mb-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-900">
+                ＋ Added round — make these
+              </span>
             )}
-          </ul>
+            <ul
+              className={`space-y-1 ${
+                isExtension ? 'rounded-lg border-l-4 border-amber-400 bg-amber-50/70 py-2 pl-2.5' : ''
+              }`}
+            >
+              {cook.map((item) => (
+                <li key={item.id} className="flex gap-2 text-sm">
+                  <span className="font-bold tabular-nums">{item.quantity}×</span>
+                  <span className="min-w-0">
+                    <span className="font-medium">{item.name}</span>
+                    {item.modifiers?.length > 0 && (
+                      <span className="block text-xs text-muted-foreground">
+                        {item.modifiers.map((m) => m.name).join(', ')}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {isExtension && (
+              <div className="mt-2 opacity-60">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Already served
+                </p>
+                <ul className="mt-0.5 space-y-0.5">
+                  {done.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex gap-2 text-xs text-muted-foreground line-through"
+                    >
+                      <span className="tabular-nums">{item.quantity}×</span>
+                      <span>{item.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         );
       })()}
 
