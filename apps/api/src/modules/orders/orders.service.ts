@@ -233,6 +233,9 @@ export class OrdersService {
     const courierQuote =
       input.fulfillment === 'DELIVERY' &&
       input.deliveryAddress &&
+      // Staff pre-picked their own driver — don't spend an Uber/DoorDash quote on it;
+      // the flat self-delivery rate applies.
+      input.preferredCourier !== 'SELF' &&
       (restaurant.uberDirectEnabled || restaurant.doorDashEnabled)
         ? this.couriers
             .bestQuote(restaurant, {
@@ -361,6 +364,7 @@ export class OrdersService {
                 deliveryCountry: input.deliveryAddress.country,
                 deliveryLatitude: input.deliveryAddress.latitude,
                 deliveryLongitude: input.deliveryAddress.longitude,
+                ...(input.preferredCourier ? { preferredCourier: input.preferredCourier } : {}),
               }
             : {}),
 

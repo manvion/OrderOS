@@ -772,15 +772,17 @@ export function createDashboardApi(
       }>('/delivery/quote', { method: 'POST', body: JSON.stringify({ address, orderValueCents }) }),
 
     /** A counter phone order the customer pays via a texted/emailed Stripe link.
-     *  Created UNPAID — it reaches the kitchen only once they pay. Pickup / dine-in;
-     *  phone required. Returns the link so the POS can show/QR it too. */
+     *  Created UNPAID — it reaches the kitchen (and dispatch) only once they pay. Phone
+     *  required. Delivery carries an address + the chosen courier. Returns the link. */
     createPaymentLinkOrder: (body: {
       items: Array<{ productId: string; quantity: number; notes?: string; modifierIds: string[] }>;
-      fulfillment: 'PICKUP' | 'DINE_IN';
+      fulfillment: 'PICKUP' | 'DINE_IN' | 'DELIVERY';
       customerName?: string;
       customerPhone: string;
       customerEmail?: string;
       tableNumber?: string;
+      deliveryAddress?: { street: string; city: string; state?: string; postalCode?: string; country?: string };
+      courier?: 'UBER' | 'SELF';
     }) =>
       call<{ orderId: string; orderNumber: string; checkoutUrl: string }>('/orders/payment-link', {
         method: 'POST',

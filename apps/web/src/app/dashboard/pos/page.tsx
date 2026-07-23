@@ -216,12 +216,6 @@ function OrderTerminal() {
   // keeps the plain confirm-and-send path.
   const isTapToPay = paymentMethod === 'CARD_TERMINAL' && fulfillment !== 'DELIVERY';
 
-  // The payment link is an online charge (pickup / dine-in only) and can't ride on a
-  // delivery ticket — snap back to Cash if the fulfillment moves to delivery.
-  useEffect(() => {
-    if (fulfillment === 'DELIVERY' && paymentMethod === 'LINK') setPaymentMethod('CASH');
-  }, [fulfillment, paymentMethod]);
-
   // Render the link as a QR so a customer standing at the counter can just scan to pay.
   useEffect(() => {
     if (!linkResult) {
@@ -463,11 +457,22 @@ function OrderTerminal() {
           quantity: l.quantity,
           modifierIds: l.modifierIds,
         })),
-        fulfillment: fulfillment === 'DINE_IN' ? 'DINE_IN' : 'PICKUP',
+        fulfillment,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
         tableNumber: fulfillment === 'DINE_IN' ? tableNumber.trim() || undefined : undefined,
+        ...(fulfillment === 'DELIVERY'
+          ? {
+              deliveryAddress: {
+                street: address.street.trim(),
+                city: address.city.trim(),
+                state: address.state.trim() || undefined,
+                postalCode: address.postalCode.trim() || undefined,
+              },
+              courier,
+            }
+          : {}),
       }),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -752,9 +757,10 @@ function OrderTerminal() {
               </p>
             )}
 
-            {/* Payment link isn't an in-person method and doesn't apply to a delivery
-                ticket, so it's offered only for pickup / dine-in. */}
-            <div className={`grid gap-2 ${fulfillment === 'DELIVERY' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {/* Cash / card are collected in person; a link texts the customer a Stripe
+                checkout. For delivery, a paid link is what confirms the order before a
+                courier is dispatched. */}
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 type="button"
                 variant={paymentMethod === 'CASH' ? 'brand' : 'outline'}
@@ -771,17 +777,15 @@ function OrderTerminal() {
               >
                 Card
               </Button>
-              {fulfillment !== 'DELIVERY' && (
-                <Button
-                  type="button"
-                  variant={paymentMethod === 'LINK' ? 'brand' : 'outline'}
-                  size="sm"
-                  onClick={() => setPaymentMethod('LINK')}
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                  Link
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant={paymentMethod === 'LINK' ? 'brand' : 'outline'}
+                size="sm"
+                onClick={() => setPaymentMethod('LINK')}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Link
+              </Button>
             </div>
 
             <div className="space-y-1 text-sm">
@@ -820,7 +824,7 @@ function OrderTerminal() {
               <Button
                 className="w-full"
                 size="lg"
-                disabled={lines.length === 0 || !linkReady || sendLink.isPending}
+                disabled={lines.length === 0 || !linkReady || !deliveryReady || sendLink.isPending}
                 onClick={() => sendLink.mutate()}
               >
                 {sendLink.isPending ? 'Creating link…' : 'Create & send payment link'}
@@ -847,9 +851,9 @@ function OrderTerminal() {
             )}
             {paymentMethod === 'LINK' && (
               <p className="text-[11px] text-muted-foreground">
-                The order is placed <span className="font-medium">unpaid</span> and only reaches the
-                kitchen once the customer pays. We text{customerEmail.trim() ? ' & email' : ''} them
-                the link.
+                The order is placed <span className="font-medium">unpaid</span>. It only reaches the
+                kitchen{fulfillment === 'DELIVERY' ? ' (and the courier)' : ''} once the customer
+                pays. We text{customerEmail.trim() ? ' & email' : ''} them the link.
               </p>
             )}
             {isTapToPay && (

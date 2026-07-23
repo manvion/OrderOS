@@ -484,6 +484,12 @@ export const createOrderSchema = z
     promoCode: z.string().max(40).optional(),
     /** The language the customer is ordering in — their texts/emails come back in it. */
     locale: z.enum(['en', 'fr']).optional(),
+    /**
+     * DELIVERY only: the courier staff pre-picked when taking a counter order to be paid
+     * by link. Stored on the order so it auto-dispatches to that courier once paid and
+     * marked ready. SELF also means "price the flat rate, don't quote Uber".
+     */
+    preferredCourier: z.enum(['UBER', 'SELF']).optional(),
   })
   .refine((o) => o.fulfillment !== 'DELIVERY' || !!o.deliveryAddress, {
     message: 'A delivery address is required for delivery orders',

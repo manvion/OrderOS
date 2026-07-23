@@ -97,16 +97,19 @@ const walkInOrderSchema = z.object({
 /**
  * A counter phone order the customer pays online via a texted/emailed link, instead
  * of at the desk. Phone is required — it's the link's primary channel and the
- * customer key; email is optional (adds the email copy). Pickup / dine-in only for
- * now; delivery-by-link needs the address + courier path and is a separate step.
+ * customer key; email is optional (adds the email copy). Delivery is allowed too: it
+ * carries an address and the courier staff picked, and only reaches dispatch once the
+ * customer has paid the link.
  */
 const paymentLinkOrderSchema = z.object({
   items: z.array(walkInItemSchema).min(1).max(100),
-  fulfillment: z.enum(['PICKUP', 'DINE_IN']),
+  fulfillment: z.enum(['PICKUP', 'DINE_IN', 'DELIVERY']),
   customerName: z.string().max(120).optional(),
   customerPhone: z.string().min(7).max(20),
   customerEmail: z.string().email().max(160).optional(),
   tableNumber: z.string().max(20).optional(),
+  deliveryAddress: walkInAddressSchema.optional(),
+  courier: z.enum(['UBER', 'SELF']).optional(),
 });
 
 /** Restaurant-facing order management. Customers use StorefrontController. */
@@ -363,6 +366,22 @@ export class OrdersController {
       },
       tipCents: 0,
       ...(body.tableNumber ? { tableNumber: body.tableNumber } : {}),
+      ...(body.fulfillment === 'DELIVERY' && body.deliveryAddress
+        ? {
+            deliveryAddress: {
+              street: body.deliveryAddress.street,
+              city: body.deliveryAddress.city,
+              state: body.deliveryAddress.state ?? '',
+              postalCode: body.deliveryAddress.postalCode ?? '',
+              country: body.deliveryAddress.country ?? '',
+            },
+          }
+        : {}),
+      // The courier staff picked at the counter — stored so the order auto-dispatches to
+      // it once the customer has paid the link and it's marked ready.
+      ...(body.fulfillment === 'DELIVERY' && body.courier
+        ? { preferredCourier: body.courier }
+        : {}),
     });
 
     // Same unpaid-order → Stripe checkout pair the storefront uses. Throws a clean
