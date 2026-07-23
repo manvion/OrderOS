@@ -749,8 +749,27 @@ export function createDashboardApi(
       paymentMethod: 'CASH' | 'CARD_TERMINAL';
       /** Create the order UNPAID for the Terminal (Tap to Pay) to charge. Pickup / dine-in. */
       deferPayment?: boolean;
+      /** DELIVERY only: the courier staff picked, and the fee they were quoted for it.
+       *  UBER auto-dispatches Uber (and charges the live fee) when the order is ready. */
+      courier?: 'UBER' | 'SELF';
+      deliveryFeeCents?: number;
       notes?: string;
     }) => call<Order>('/orders/walk-in', { method: 'POST', body: JSON.stringify(body) }),
+
+    /** A live courier quote for a counter-taken delivery — the real Uber fee for the
+     *  entered address, or a not-deliverable reason. Used by the POS delivery form. */
+    getDeliveryQuote: (
+      address: { street: string; city: string; state?: string; postalCode?: string; country?: string },
+      orderValueCents: number,
+    ) =>
+      call<{
+        deliverable: boolean;
+        reason?: string;
+        customerFeeCents?: number;
+        courierFeeCents?: number | null;
+        selfDelivery?: boolean;
+        outOfRange?: boolean;
+      }>('/delivery/quote', { method: 'POST', body: JSON.stringify({ address, orderValueCents }) }),
 
     /** A counter phone order the customer pays via a texted/emailed Stripe link.
      *  Created UNPAID — it reaches the kitchen only once they pay. Pickup / dine-in;

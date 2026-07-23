@@ -67,6 +67,14 @@ export interface WalkInOrderInput {
    * already ran elsewhere still uses the paid-in-person path. See createWalkIn.
    */
   deferPayment?: boolean;
+  /**
+   * For a DELIVERY order: which courier staff picked, and the fee they were quoted for
+   * it. UBER stores the live quote as the fee and auto-dispatches Uber when the order is
+   * marked ready; SELF uses the flat self-delivery rate. Omitted -> the flat rate and no
+   * pre-chosen courier (staff pick at dispatch, the old behaviour).
+   */
+  courier?: 'UBER' | 'SELF';
+  deliveryFeeCents?: number;
   notes?: string;
 }
 
@@ -534,10 +542,16 @@ export class OrdersService {
       }
 
       deliveryCoords = await this.geocoding.geocode(deliveryAddress);
-      // The restaurant's flat delivery fee is what the customer pays in person. The
-      // actual courier is priced and dispatched later, when staff mark it ready.
-      deliveryFeeCents = restaurant.deliveryFeeCents;
+      // Charge the fee staff were quoted at the counter (the live Uber fee when they
+      // picked Uber) if one was passed; otherwise fall back to the restaurant's flat
+      // rate. The courier is dispatched later — automatically to `preferredCourier` when
+      // the order is marked ready (see transition), or by hand on the Delivery tab.
+      deliveryFeeCents = input.deliveryFeeCents ?? restaurant.deliveryFeeCents;
     }
+
+    // Map the POS courier choice to the dispatch provider stored on the order.
+    const preferredCourier: 'UBER' | 'SELF' | null =
+      input.fulfillment === 'DELIVERY' && input.courier ? input.courier : null;
 
     const pricing = priceOrder({
       items: lineItems,
@@ -619,6 +633,7 @@ export class OrdersService {
                 deliveryCountry: deliveryAddress.country,
                 deliveryLatitude: deliveryCoords?.latitude,
                 deliveryLongitude: deliveryCoords?.longitude,
+                ...(preferredCourier ? { preferredCourier } : {}),
               }
             : {}),
 

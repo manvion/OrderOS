@@ -82,6 +82,10 @@ const walkInOrderSchema = z.object({
   tableNumber: z.string().max(20).optional(),
   // Required by the service when fulfillment is DELIVERY (a phone order to be delivered).
   deliveryAddress: walkInAddressSchema.optional(),
+  // For a delivery order: the courier staff picked and the fee they were quoted (the
+  // live Uber fee, or the flat self rate). UBER auto-dispatches Uber when marked ready.
+  courier: z.enum(['UBER', 'SELF']).optional(),
+  deliveryFeeCents: z.number().int().min(0).max(100_00).optional(),
   paymentMethod: z.enum(['CASH', 'CARD_TERMINAL']),
   // Create the order UNPAID and leave it for the Terminal (Tap to Pay) to charge,
   // rather than trusting that money already changed hands. Pickup / dine-in only;
@@ -193,6 +197,30 @@ export class OrdersController {
 
     if (body.status !== 'READY' || order.fulfillment !== 'DELIVERY') {
       return { order };
+    }
+
+    /**
+     * Staff already picked the courier when they took the order at the POS — honour that
+     * choice and dispatch it now, no second decision. A dispatch failure (Uber declined)
+     * still leaves the order READY with a warning, so staff can retry or use their own
+     * driver from the Delivery tab.
+     */
+    if (order.preferredCourier === 'UBER' || order.preferredCourier === 'SELF') {
+      try {
+        const delivery =
+          order.preferredCourier === 'SELF'
+            ? await this.delivery.createSelfDelivery(restaurantId, id, {}, user.id)
+            : await this.delivery.createDelivery(restaurantId, id, user.id);
+        return { order, delivery };
+      } catch (err) {
+        const message = (err as Error).message;
+        this.logger.error(`Auto-dispatch failed for order ${order.orderNumber}: ${message}`);
+        return {
+          order,
+          delivery: null,
+          warning: `The order is ready, but the courier couldn't be arranged: ${message}. Retry or assign your own driver on the Delivery tab.`,
+        };
+      }
     }
 
     const restaurant = await this.prisma.restaurant.findUnique({

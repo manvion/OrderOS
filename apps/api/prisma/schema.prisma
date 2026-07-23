@@ -1102,6 +1102,10 @@ model Order {
   deliveryLatitude   Float?
   deliveryLongitude  Float?
   deliveryNotes      String?
+  /// The courier staff picked when a POS delivery order was taken. When set, marking the
+  /// order READY auto-dispatches to this provider instead of waiting for a manual choice
+  /// on the Delivery tab. Null for online orders (dispatched by the usual flow).
+  preferredCourier   DeliveryProvider?
 
   notes       String?
   tableNumber String?

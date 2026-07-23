@@ -195,6 +195,10 @@ function OrderTerminal() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [address, setAddress] = useState({ street: '', city: '', state: '', postalCode: '' });
+  // Which courier carries a POS delivery order. Uber pulls a LIVE fee for the address;
+  // own driver uses the flat self-delivery rate. The order auto-dispatches to this
+  // courier when it's marked ready.
+  const [deliveryCourier, setDeliveryCourier] = useState<'UBER' | 'SELF'>('UBER');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD_TERMINAL' | 'LINK'>('CASH');
   // The just-created payment link, shown for staff to read out / let the customer scan.
   const [linkResult, setLinkResult] = useState<{ orderNumber: string; url: string } | null>(null);
@@ -243,6 +247,58 @@ function OrderTerminal() {
   // A payment link is texted/emailed — it needs a phone (its primary channel).
   const linkReady = paymentMethod !== 'LINK' || customerPhone.trim().length > 4;
 
+  // --- Delivery courier + live fee -----------------------------------------
+  const uberEnabled = restaurant?.uberDirectEnabled ?? false;
+  const selfEnabled = restaurant?.selfDeliveryEnabled ?? false;
+  // Only Uber can be chosen if that's all there is, and vice-versa.
+  const courier: 'UBER' | 'SELF' = !uberEnabled ? 'SELF' : !selfEnabled ? 'UBER' : deliveryCourier;
+  const addressComplete = address.street.trim().length > 2 && address.city.trim().length > 1;
+  const goodsCents = lines.reduce(
+    (sum, l) => sum + (l.unitPriceCents + l.modifiersCents) * l.quantity,
+    0,
+  );
+
+  // Live Uber fee for the entered address. Only fetched when it can matter — a delivery
+  // order, Uber chosen, an address to quote and something in the cart.
+  const { data: deliveryQuote, isFetching: quoting } = useQuery({
+    queryKey: ['delivery-quote', address.street.trim(), address.city.trim(), address.postalCode.trim(), goodsCents],
+    queryFn: () =>
+      api.getDeliveryQuote(
+        {
+          street: address.street.trim(),
+          city: address.city.trim(),
+          state: address.state.trim() || undefined,
+          postalCode: address.postalCode.trim() || undefined,
+        },
+        goodsCents,
+      ),
+    enabled:
+      fulfillment === 'DELIVERY' && courier === 'UBER' && uberEnabled && addressComplete && lines.length > 0,
+    staleTime: 30_000,
+  });
+
+  const uberFeeCents =
+    deliveryQuote?.deliverable && typeof deliveryQuote.customerFeeCents === 'number'
+      ? deliveryQuote.customerFeeCents
+      : null;
+  // The fee that goes on the ticket and the charge: the live Uber quote when Uber is
+  // chosen and could quote; otherwise the restaurant's flat rate.
+  const effectiveDeliveryFeeCents =
+    fulfillment !== 'DELIVERY'
+      ? 0
+      : courier === 'UBER' && uberFeeCents != null
+        ? uberFeeCents
+        : restaurant?.deliveryFeeCents ?? 0;
+  // Uber was chosen but couldn't quote this address (out of range / declined).
+  const uberUnavailable =
+    fulfillment === 'DELIVERY' &&
+    courier === 'UBER' &&
+    uberEnabled &&
+    addressComplete &&
+    !quoting &&
+    deliveryQuote != null &&
+    !deliveryQuote.deliverable;
+
   const grouped = useMemo(() => {
     if (!categories || !products) return [];
     return categories
@@ -280,13 +336,13 @@ function OrderTerminal() {
         taxComponents: restaurant?.taxComponents ?? undefined,
         taxDeliveryFee: restaurant?.taxDeliveryFee ?? false,
         fulfillment,
-        deliveryFeeCents: restaurant?.deliveryFeeCents ?? 0,
+        deliveryFeeCents: effectiveDeliveryFeeCents,
         serviceFeeCents: restaurant?.serviceFeeCents ?? 0,
         serviceChargeType: restaurant?.serviceChargeType,
         serviceChargeCents: restaurant?.serviceChargeCents ?? 0,
         serviceChargeBps: restaurant?.serviceChargeBps ?? 0,
       }),
-    [lines, fulfillment, restaurant],
+    [lines, fulfillment, restaurant, effectiveDeliveryFeeCents],
   );
 
   const addLine = (product: Product) => {
@@ -345,6 +401,10 @@ function OrderTerminal() {
                 postalCode: address.postalCode.trim() || undefined,
               }
             : undefined,
+        // The chosen courier + the fee they were quoted; auto-dispatches on ready.
+        ...(fulfillment === 'DELIVERY'
+          ? { courier, deliveryFeeCents: effectiveDeliveryFeeCents }
+          : {}),
         // create() only runs for the in-person methods; LINK goes through sendLink.
         paymentMethod: paymentMethod === 'CARD_TERMINAL' ? 'CARD_TERMINAL' : 'CASH',
       }),
@@ -603,10 +663,63 @@ function OrderTerminal() {
                     onChange={(e) => setAddress((a) => ({ ...a, postalCode: e.target.value }))}
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  The delivery fee is added to the total below. Assign a courier from the Delivery
-                  tab once it&apos;s ready.
-                </p>
+                {/* Who carries it. Only a real choice when the restaurant runs both;
+                    otherwise the single option is used silently. */}
+                {uberEnabled && selfEnabled && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={courier === 'UBER' ? 'brand' : 'outline'}
+                      onClick={() => setDeliveryCourier('UBER')}
+                    >
+                      <Truck className="h-3.5 w-3.5" />
+                      Uber
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={courier === 'SELF' ? 'brand' : 'outline'}
+                      onClick={() => setDeliveryCourier('SELF')}
+                    >
+                      <Bike className="h-3.5 w-3.5" />
+                      Own driver
+                    </Button>
+                  </div>
+                )}
+
+                {/* Live Uber fee / status for the entered address. */}
+                {courier === 'UBER' && uberEnabled && (
+                  <p className="text-[11px]">
+                    {!addressComplete ? (
+                      <span className="text-muted-foreground">
+                        Enter the address for a live Uber fee.
+                      </span>
+                    ) : quoting ? (
+                      <span className="text-muted-foreground">Getting Uber&apos;s fee…</span>
+                    ) : uberFeeCents != null ? (
+                      <span className="font-medium text-brand">
+                        Uber fee: {formatMoney(uberFeeCents, restaurant.currency)} — charged to the
+                        customer, auto-dispatched when ready.
+                      </span>
+                    ) : uberUnavailable ? (
+                      <span className="text-destructive">
+                        {deliveryQuote?.reason ?? 'Uber can’t deliver to that address.'}
+                        {selfEnabled ? ' Switch to your own driver.' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Using the flat delivery fee until Uber quotes.
+                      </span>
+                    )}
+                  </p>
+                )}
+                {courier === 'SELF' && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Flat {formatMoney(restaurant.deliveryFeeCents, restaurant.currency)} fee. Your
+                    own driver is assigned automatically when the order is ready.
+                  </p>
+                )}
               </div>
             )}
 

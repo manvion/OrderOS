@@ -64,6 +64,18 @@ const handoffSchema = z
     path: ['code'],
   });
 
+/** A live courier quote for the POS when staff take a delivery order at the counter. */
+const quoteSchema = z.object({
+  address: z.object({
+    street: z.string().min(1).max(200),
+    city: z.string().min(1).max(120),
+    state: z.string().max(120).optional(),
+    postalCode: z.string().max(20).optional(),
+    country: z.string().max(60).optional(),
+  }),
+  orderValueCents: z.number().int().min(0).max(1_000_000),
+});
+
 interface RawBodyRequest extends Request {
   rawBody?: Buffer;
 }
@@ -81,6 +93,30 @@ export class DeliveryController {
   @Get('orders/:orderId')
   get(@TenantId() restaurantId: string, @Param('orderId') orderId: string) {
     return this.delivery.getByOrder(restaurantId, orderId);
+  }
+
+  /**
+   * A live courier quote for a counter-taken delivery order, so the POS can charge the
+   * real Uber fee for the entered address instead of a flat rate. Returns { deliverable,
+   * customerFeeCents, selfDelivery, ... } or a not-deliverable reason.
+   */
+  @Post('quote')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  quote(
+    @TenantId() restaurantId: string,
+    @Body(new ZodValidationPipe(quoteSchema)) body: z.infer<typeof quoteSchema>,
+  ) {
+    return this.delivery.getQuote(
+      restaurantId,
+      {
+        street: body.address.street,
+        city: body.address.city,
+        state: body.address.state ?? '',
+        postalCode: body.address.postalCode ?? '',
+        country: body.address.country ?? '',
+      },
+      body.orderValueCents,
+    );
   }
 
   /**
