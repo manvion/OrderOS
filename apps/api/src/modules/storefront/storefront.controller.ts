@@ -309,8 +309,18 @@ export class StorefrontController {
    */
   @Get('route')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  async route(@Query(new ZodValidationPipe(routeSchema)) query: z.infer<typeof routeSchema>) {
-    const geometry = await this.routing.route(parsePoint(query.from), parsePoint(query.to));
+  async route(
+    @TenantId() restaurantId: string,
+    @Query(new ZodValidationPipe(routeSchema)) query: z.infer<typeof routeSchema>,
+  ) {
+    // The restaurant's country picks the regional OSRM in a multi-country deployment.
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { country: true },
+    });
+    const geometry = await this.routing.route(parsePoint(query.from), parsePoint(query.to), {
+      country: restaurant?.country,
+    });
     return { geometry };
   }
 

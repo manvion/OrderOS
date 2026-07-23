@@ -20,9 +20,14 @@ import type { GeoPoint } from './geocoding.service';
  *  - A browser that can't reach the public OSRM (corporate wifi, ad blockers) still
  *    gets a real route, because it only ever talks to our own API.
  *
- * Default is the public OSRM demo server — free and keyless so it works out of the
- * box — but it is a develop-and-small-scale default, not a plan for scale, exactly
- * like Nominatim is for geocoding. Set `OSRM_URL` to your own for production.
+ * MULTI-COUNTRY: one OSRM instance only knows the region it was built from, so a
+ * platform spanning countries runs one OSRM per region and maps each country to the
+ * right one via `OSRM_URLS` — a JSON object keyed by country ISO code (several countries
+ * can share a continent instance), e.g.
+ *   OSRM_URLS={"CA":"http://osrm-na:5000","US":"http://osrm-na:5000","IN":"http://osrm-in:5000"}
+ * The restaurant's country selects the instance. Falls back to the single `OSRM_URL`,
+ * then the public demo server — so a country without its own OSRM still gets *a* route
+ * (or, on any failure, the caller's straight line).
  */
 @Injectable()
 export class RoutingService {
@@ -35,16 +40,49 @@ export class RoutingService {
     private readonly redis: RedisService,
   ) {}
 
-  private get baseUrl(): string {
-    return this.config.get<string>('OSRM_URL') ?? 'https://router.project-osrm.org';
+  /** Parsed once: a map of country ISO code -> OSRM base URL, from OSRM_URLS. */
+  private urlsByCountryCache?: Record<string, string>;
+  private get urlsByCountry(): Record<string, string> {
+    if (this.urlsByCountryCache) return this.urlsByCountryCache;
+    const raw = this.config.get<string>('OSRM_URLS');
+    let parsed: Record<string, string> = {};
+    if (raw) {
+      try {
+        const obj = JSON.parse(raw) as Record<string, string>;
+        // Normalise keys to upper-case ISO so a "ca" mapping still matches "CA".
+        parsed = Object.fromEntries(Object.entries(obj).map(([k, v]) => [k.toUpperCase(), v]));
+      } catch {
+        this.logger.error('OSRM_URLS is not valid JSON — ignoring it, using OSRM_URL.');
+      }
+    }
+    this.urlsByCountryCache = parsed;
+    return parsed;
+  }
+
+  /** The OSRM instance to route against for a given restaurant country. */
+  private baseUrlFor(country?: string | null): string {
+    const perCountry = country ? this.urlsByCountry[country.toUpperCase()] : undefined;
+    return (
+      perCountry ??
+      this.config.get<string>('OSRM_URL') ??
+      'https://router.project-osrm.org'
+    );
   }
 
   /**
    * The driving route between two points as `[lat, lng]` pairs following the roads,
    * or `null` when no route can be produced (the caller then draws a straight line).
+   * `country` (the restaurant's) selects the right regional OSRM in a multi-country setup.
    */
-  async route(from: GeoPoint, to: GeoPoint): Promise<Array<[number, number]> | null> {
-    const cacheKey = `route:${key(from)}->${key(to)}`;
+  async route(
+    from: GeoPoint,
+    to: GeoPoint,
+    opts: { country?: string | null } = {},
+  ): Promise<Array<[number, number]> | null> {
+    const baseUrl = this.baseUrlFor(opts.country);
+    // Key by the instance too: the same coordinates never resolve on two OSRMs, but a
+    // config change (a country moved to a new instance) shouldn't serve a stale route.
+    const cacheKey = `route:${hostOf(baseUrl)}:${key(from)}->${key(to)}`;
 
     const cached = await this.redis.get<Array<[number, number]> | { miss: true }>(cacheKey);
     if (cached) return 'miss' in cached ? null : cached;
@@ -52,7 +90,7 @@ export class RoutingService {
     try {
       // OSRM wants lng,lat — the opposite order to everything else here.
       const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
-      const url = `${this.baseUrl}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+      const url = `${baseUrl}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
 
       const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
       if (!res.ok) throw new Error(`OSRM ${res.status}`);
@@ -87,4 +125,13 @@ export class RoutingService {
 // that GPS jitter doesn't blow the cache on every poll.
 function key(p: GeoPoint): string {
   return `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`;
+}
+
+/** Host of an OSRM base URL, for a short, stable cache-key segment. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'osrm';
+  }
 }

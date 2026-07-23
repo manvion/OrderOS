@@ -237,6 +237,22 @@ curl "http://<osrm-service>:5000/route/v1/driving/-73.47,45.46;-73.45,45.47?over
 Locally it's already wired: `docker compose --profile full up` starts an `osrm` service
 and points the API at it (set `OSRM_PBF_URL` in `.env` first).
 
+**Multiple countries.** One OSRM instance only knows the region it was built from, so a
+platform spanning countries runs **one OSRM per region** and maps each country to the
+right one. Deploy the `infra/osrm` service once per region (each with its own
+`OSRM_PBF_URL` — a continent extract like `north-america`, `europe`, `india`), then on
+the API set `OSRM_URLS` to a JSON map of **country ISO → URL** (several countries can
+share a continent instance):
+
+```ini
+OSRM_URLS={"CA":"http://osrm-na.railway.internal:5000","US":"http://osrm-na.railway.internal:5000","IN":"http://osrm-in.railway.internal:5000"}
+```
+
+The restaurant's country selects the instance; a country with no entry falls back to
+`OSRM_URL`, then the public demo, then a straight line — so nothing ever breaks, it just
+gets less precise. (A whole-planet extract is ~70 GB and impractical to preprocess — use
+per-region instances, not one giant one.)
+
 ---
 
 # Phase 3 — Deploy the web app to Vercel
