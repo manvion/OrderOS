@@ -46,6 +46,7 @@ import { autoKnockoutLogo } from '../../common/image/logo-knockout';
 import { QrService } from '../qr/qr.service';
 import { PaymentsService } from '../payments/payments.service';
 import { VercelClient } from '../domains/vercel.client';
+import { GeocodingService } from '../delivery/geocoding.service';
 
 /** How long a new restaurant gets the Starter tier free before it must subscribe. */
 const TRIAL_DAYS = 14;
@@ -71,7 +72,37 @@ export class RestaurantsService {
     // gets an HTTPS certificate (the wildcard DNS points it at Vercel, but Vercel
     // only serves + certifies hostnames it knows about).
     private readonly vercel: VercelClient,
+    // Turns a saved street address into coordinates so the delivery radius, the
+    // courier pickup, and the live tracking map all have a real origin to work from.
+    // Without this a restaurant's latitude/longitude stay null and the map has no
+    // route to draw and nothing to centre on.
+    private readonly geocoding: GeocodingService,
   ) {}
+
+  /**
+   * Resolve coordinates for an address the owner just saved.
+   *
+   * The settings form sends a street address but no lat/lng, so we geocode it here
+   * rather than trusting the browser to. If the caller already carries coordinates
+   * (e.g. picked from an autocomplete), we honour those and skip the lookup. Returns
+   * null coords when geocoding fails — a bad geocoder afternoon must not block a
+   * settings save; the radius check treats null as "cannot verify" already.
+   */
+  private async resolveCoords(address: {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  }): Promise<{ latitude: number | null; longitude: number | null }> {
+    if (address.latitude != null && address.longitude != null) {
+      return { latitude: address.latitude, longitude: address.longitude };
+    }
+    const point = await this.geocoding.geocode(address);
+    return { latitude: point?.latitude ?? null, longitude: point?.longitude ?? null };
+  }
 
   /**
    * Step 1 of onboarding. Creates the tenant AND the OWNER membership for the
@@ -85,6 +116,8 @@ export class RestaurantsService {
     const email = (await this.clerk.getPrimaryEmail(clerkUserId)) ?? input.email;
     const clerkUser = await this.clerk.getUser(clerkUserId);
 
+    const coords = await this.resolveCoords(input.address);
+
     const restaurant = await this.prisma.$transaction(async (tx) => {
       const created = await tx.restaurant.create({
         data: {
@@ -97,8 +130,8 @@ export class RestaurantsService {
           state: input.address.state,
           postalCode: input.address.postalCode,
           country: input.address.country,
-          latitude: input.address.latitude,
-          longitude: input.address.longitude,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
           timezone: input.timezone,
           currency: input.currency,
           description: input.description,
@@ -448,6 +481,13 @@ export class RestaurantsService {
 
     const derived = relocated ? deriveLocaleDefaults(country, region) : null;
 
+    /**
+     * Geocode the saved address so the restaurant gets real coordinates. The form
+     * sends none, so without this the restaurant stays at (null, null) and the
+     * delivery map has no origin to route from or centre on.
+     */
+    const coords = address ? await this.resolveCoords(address) : null;
+
     /** An explicit component list wins, and its combined rate must follow it. */
     const explicitTax = taxComponents
       ? { taxComponents, taxRateBps: totalTaxBps(taxComponents) }
@@ -464,8 +504,8 @@ export class RestaurantsService {
               state: address.state,
               postalCode: address.postalCode,
               country: address.country,
-              latitude: address.latitude,
-              longitude: address.longitude,
+              latitude: coords?.latitude ?? null,
+              longitude: coords?.longitude ?? null,
             }
           : {}),
         ...(derived
