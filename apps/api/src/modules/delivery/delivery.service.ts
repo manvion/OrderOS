@@ -25,6 +25,7 @@ import {
 } from './courier.interface';
 import { mapUberStatus } from './uber.courier';
 import { mapDoorDashStatus } from './doordash.client';
+import { RoutingService } from './routing.service';
 import {
   UberClient,
   UberClientError,
@@ -79,6 +80,16 @@ function generatePickupCode(): string {
     .join('');
 }
 
+/** Evenly downsample a route's [lat,lng] points to at most `n`, for the driver simulator. */
+function sampleRoute(route: Array<[number, number]>, n: number): Array<[number, number]> {
+  if (route.length <= n || n < 2) return route;
+  const out: Array<[number, number]> = [];
+  for (let k = 0; k < n; k++) {
+    out.push(route[Math.round((k * (route.length - 1)) / (n - 1))]);
+  }
+  return out;
+}
+
 /**
  * Turn a `data:image/jpeg;base64,...` URL from the driver's phone into a Buffer the
  * storage layer can take. Only the image types the store already allows get through;
@@ -130,6 +141,8 @@ export class DeliveryService {
     // Proof-of-delivery photos from the driver's phone land in the same store as
     // every other tenant image.
     private readonly storage: StorageService,
+    // Used by the test-driver simulator to move a fake courier along the real route.
+    private readonly routing: RoutingService,
   ) {}
 
   /**
@@ -1148,6 +1161,84 @@ export class DeliveryService {
       // The trail is a nice-to-have. Never fail a delivery update over it.
       this.logger.warn(`Could not record courier ping: ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * TEST tool: animate a fake courier along the real route so staff can watch the
+   * customer tracking map move — a car gliding from the restaurant to the door, the
+   * route drawing, the map following — without a real driver's phone or a live Uber
+   * delivery. Staff-triggered; steps the delivery's courier position every ~2.5s.
+   */
+  async simulateDelivery(
+    restaurantId: string,
+    orderId: string,
+  ): Promise<{ ok: true; steps: number }> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: {
+        delivery: { select: { id: true } },
+        restaurant: { select: { latitude: true, longitude: true, country: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.fulfillment !== 'DELIVERY') {
+      throw new BadRequestException('Only a delivery order can be simulated');
+    }
+    const from =
+      order.restaurant.latitude != null && order.restaurant.longitude != null
+        ? { latitude: order.restaurant.latitude, longitude: order.restaurant.longitude }
+        : null;
+    const to =
+      order.deliveryLatitude != null && order.deliveryLongitude != null
+        ? { latitude: order.deliveryLatitude, longitude: order.deliveryLongitude }
+        : null;
+    if (!from || !to) {
+      throw new BadRequestException(
+        'Need both the restaurant and the delivery address geocoded to simulate a driver.',
+      );
+    }
+
+    // A delivery record to hang the courier position on. Create a self one if there isn't
+    // one yet, so the tracking page has something to show.
+    let deliveryId = order.delivery?.id;
+    if (!deliveryId) {
+      const created = await this.prisma.delivery.create({
+        data: {
+          orderId,
+          restaurantId,
+          provider: 'SELF',
+          status: 'CREATED',
+          pickupCode: generatePickupCode(),
+          driverName: 'Test driver (simulated)',
+        },
+        select: { id: true },
+      });
+      deliveryId = created.id;
+    }
+    const id = deliveryId;
+
+    const route =
+      (await this.routing.route(from, to, { country: order.restaurant.country })) ?? [
+        [from.latitude, from.longitude],
+        [to.latitude, to.longitude],
+      ];
+    const steps = sampleRoute(route, 24);
+
+    // Move it in the background; return immediately so the button doesn't hang.
+    let i = 0;
+    const tick = async () => {
+      if (i >= steps.length) return;
+      const [lat, lng] = steps[i++];
+      await this.prisma.delivery
+        .update({ where: { id }, data: { courierLatitude: lat, courierLongitude: lng } })
+        .catch(() => {});
+      await this.recordCourierPing(id, { lat, lng });
+      if (i < steps.length) setTimeout(() => void tick(), 2500);
+    };
+    void tick();
+
+    this.logger.log(`Simulating a driver for order ${orderId} over ${steps.length} steps`);
+    return { ok: true, steps: steps.length };
   }
 
   /**

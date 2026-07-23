@@ -71,6 +71,18 @@ export function DeliveryActions({ order }: { order: Order }) {
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not assign'),
   });
 
+  // TEST: animate a fake courier along the route so staff can watch the customer tracking
+  // map move without a real driver's phone.
+  const simulate = useMutation({
+    mutationFn: () => api.simulateDelivery(order.id),
+    onSuccess: (r) => {
+      refresh();
+      toast.success(`Simulating a driver (${r.steps} steps) — open the customer's tracking page to watch it move.`);
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not start the simulation'),
+  });
+
   const selfStatus = useMutation({
     mutationFn: (status: 'OUT_FOR_DELIVERY' | 'DELIVERED') =>
       api.setSelfDeliveryStatus(order.id, status),
@@ -164,6 +176,17 @@ export function DeliveryActions({ order }: { order: Order }) {
             className="h-8 text-xs"
           />
         )}
+
+        {/* Test the tracking map without a real driver: animates a fake courier along the
+            route so staff can open the customer tracking page and watch it move. */}
+        <button
+          type="button"
+          onClick={() => simulate.mutate()}
+          disabled={simulate.isPending}
+          className="w-full pt-1 text-center text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+        >
+          {simulate.isPending ? 'Starting…' : '▶ Simulate a driver (test the tracking map)'}
+        </button>
       </div>
     );
   }

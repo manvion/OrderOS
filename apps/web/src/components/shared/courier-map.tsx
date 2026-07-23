@@ -27,8 +27,10 @@ export interface MapPoint {
  * STREETS (a brand line ahead, a muted line behind for ground covered).
  */
 
-// OpenStreetMap data, rendered with the colourful "Liberty" style. No key, no limits.
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+// OpenStreetMap data, rendered with the light, desaturated "Positron" style — the clean
+// white/grey basemap a ride-hailing app uses, so the route and the car read clearly. No
+// key, no limits.
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 
 type Props = {
   restaurant: MapPoint | null;
@@ -84,6 +86,7 @@ export function CourierMap(props: Props) {
     const map = mapRef.current;
     if (!ml || !map || !readyRef.current || !mountedRef.current) return;
     const p = propsRef.current;
+    ensureLayers(map, p.brandColor); // belt-and-suspenders in case setup raced the style
 
     // --- Static pins ---
     if (p.restaurant && !pickupMarkerRef.current) {
@@ -183,34 +186,23 @@ export function CourierMap(props: Props) {
       map.addControl(new ml.NavigationControl({ showCompass: false }), 'bottom-right');
       mapRef.current = map;
 
-      map.on('load', () => {
-        if (!mountedRef.current) return;
-        map.addSource('trail', emptyLineSource());
-        map.addSource('route', emptyLineSource());
-        map.addLayer({
-          id: 'trail-line',
-          type: 'line',
-          source: 'trail',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#9ca3af', 'line-width': 4, 'line-opacity': 0.7 },
-        });
-        map.addLayer({
-          id: 'route-casing',
-          type: 'line',
-          source: 'route',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.95 },
-        });
-        map.addLayer({
-          id: 'route-line',
-          type: 'line',
-          source: 'route',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': propsRef.current.brandColor, 'line-width': 5 },
-        });
+      // Surface style/tile failures instead of silently showing a blank canvas.
+      map.on('error', (e) => console.error('CourierMap error:', e?.error ?? e));
+
+      // Setup runs once the style is ready. CRITICAL: a cached style can finish loading
+      // *before* an on('load') handler is even attached, so we also check isStyleLoaded()
+      // and run setup immediately in that case — otherwise sources/layers/markers never
+      // get added and the map shows tiles but no route or car (the exact bug reported).
+      const setup = () => {
+        if (!mountedRef.current || !mapRef.current) return;
+        const m = mapRef.current;
+        m.resize(); // the fixed-height card often sizes after the map is created (0×0 fix)
+        ensureLayers(m, propsRef.current.brandColor);
         readyRef.current = true;
         draw();
-      });
+      };
+      if (map.isStyleLoaded()) setup();
+      else map.on('load', setup);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -251,6 +243,39 @@ export function CourierMap(props: Props) {
       />
     </div>
   );
+}
+
+/** Add the trail + route sources and their line layers, idempotently (safe to re-call). */
+function ensureLayers(map: MlMap, brandColor: string) {
+  if (!map.getSource('trail')) map.addSource('trail', emptyLineSource());
+  if (!map.getSource('route')) map.addSource('route', emptyLineSource());
+  if (!map.getLayer('trail-line')) {
+    map.addLayer({
+      id: 'trail-line',
+      type: 'line',
+      source: 'trail',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#9ca3af', 'line-width': 4, 'line-opacity': 0.7 },
+    });
+  }
+  if (!map.getLayer('route-casing')) {
+    map.addLayer({
+      id: 'route-casing',
+      type: 'line',
+      source: 'route',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.95 },
+    });
+  }
+  if (!map.getLayer('route-line')) {
+    map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': brandColor, 'line-width': 5 },
+    });
+  }
 }
 
 /** An empty GeoJSON LineString source, ready for the poll to fill with coordinates. */

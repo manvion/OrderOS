@@ -168,6 +168,15 @@ export class DeliveryController {
     return this.delivery.createSelfDelivery(restaurantId, orderId, body, user.id);
   }
 
+  /**
+   * TEST: animate a fake courier along the real route so staff can watch the customer
+   * tracking map move without a live driver. Staff-triggered.
+   */
+  @Post('orders/:orderId/simulate')
+  simulate(@TenantId() restaurantId: string, @Param('orderId') orderId: string) {
+    return this.delivery.simulateDelivery(restaurantId, orderId);
+  }
+
   /** Move our own driver along. Uber sends webhooks; our own driver does not. */
   @Post('orders/:orderId/self/status')
   @Audit('delivery.self_status_changed', 'Delivery')
