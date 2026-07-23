@@ -201,6 +201,42 @@ curl https://api.dinedirect.manvion.ca/health/ready   # {"status":"ok"} -- this 
 `/health/ready` is the important one. A green deploy with an unreachable database is
 the classic first production failure, and `/health` alone will happily lie about it.
 
+## 2.1 — Self-hosted OSRM (reliable courier routing)
+
+The map draws a road-following line from the driver to the door via **OSRM**. Left
+unset, it uses the **public OSRM demo server**, which rate-limits and times out — so the
+route often falls back to a straight line. Running your own OSRM fixes that permanently.
+It's optional (the map still works without it), but recommended once you're taking real
+deliveries.
+
+It's a second container, built from [`infra/osrm/`](../infra/osrm). On Railway:
+
+1. In the same project → **New → Deploy from GitHub repo** (the same repo).
+2. Settings → **Root Directory**: `infra/osrm`. (Dockerfile Path defaults to `Dockerfile`.)
+3. Variables:
+   ```ini
+   # The SMALLEST Geofabrik extract that covers where you deliver. Smaller = less
+   # RAM/disk and a far shorter first-boot preprocess.
+   OSRM_PBF_URL=https://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf
+   ```
+4. Attach a **Volume** mounted at `/data` — the preprocessed graph is cached there, so a
+   redeploy doesn't reprocess (which can take minutes to hours for a large region).
+5. First boot downloads the extract and preprocesses it; watch the logs for
+   `==> Serving osrm-routed`. Give it RAM proportional to the region (a metro/province is
+   comfortable on 2–4 GB; a whole country wants more).
+6. On the **API** service, set `OSRM_URL` to the OSRM service's URL. Railway private
+   networking is simplest: `OSRM_URL=http://<osrm-service-name>.railway.internal:5000`.
+   Redeploy the API.
+
+**Check:** a route request returns real geometry, not an error —
+```bash
+curl "http://<osrm-service>:5000/route/v1/driving/-73.47,45.46;-73.45,45.47?overview=false"
+# {"code":"Ok", ...}
+```
+
+Locally it's already wired: `docker compose --profile full up` starts an `osrm` service
+and points the API at it (set `OSRM_PBF_URL` in `.env` first).
+
 ---
 
 # Phase 3 — Deploy the web app to Vercel

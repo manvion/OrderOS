@@ -34,6 +34,24 @@ services:
       timeout: 3s
       retries: 10
 
+  # Self-hosted OSRM: reliable, keyless driving directions for the courier map, replacing
+  # the flaky public demo server. On first boot it downloads OSRM_PBF_URL and preprocesses
+  # it (once, cached in the volume) — set OSRM_PBF_URL in .env to your region's Geofabrik
+  # extract. The API keeps working while this preprocesses; routing just falls back to a
+  # straight line until it's ready.
+  osrm:
+    build:
+      context: ./infra/osrm
+    container_name: dinedirect-osrm
+    restart: unless-stopped
+    environment:
+      OSRM_PBF_URL: ${OSRM_PBF_URL:-}
+    ports:
+      - '5000:5000'
+    volumes:
+      - osrm_data:/data
+    profiles: ['full']
+
   api:
     build:
       context: .
@@ -47,6 +65,8 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://dinedirect:dinedirect@postgres:5432/dinedirect
       REDIS_URL: redis://redis:6379
+      # Route through our own OSRM (above) instead of the public demo server.
+      OSRM_URL: http://osrm:5000
     env_file:
       - .env
     depends_on:
@@ -91,3 +111,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  osrm_data:
