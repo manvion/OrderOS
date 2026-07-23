@@ -281,18 +281,16 @@ export default function OrdersPage() {
                       (FAILED / escalated — a bad address or phone Uber will reject
                       every time) is NOT retried, and telling staff to wait for a
                       retry that never comes leaves a paid order sitting unmoved. */}
+                  {/* A hard failure/escalation is shown WITH its retry actions by
+                      DeliveryActions above; here we only surface the transient
+                      "still retrying" state so it isn't a silent wait. */}
                   {order.delivery?.lastError &&
-                    (order.delivery.status === 'FAILED' || order.delivery.escalatedAt ? (
-                      <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
-                        Uber wouldn&apos;t take this order: {order.delivery.lastError}. Assign your own
-                        driver, or check the delivery address and phone number (a placeholder like
-                        555-555-5555 is rejected), then try again.
-                      </p>
-                    ) : (
+                    order.delivery.status !== 'FAILED' &&
+                    !order.delivery.escalatedAt && (
                       <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
                         Uber: {order.delivery.lastError} — retrying automatically.
                       </p>
-                    ))}
+                    )}
 
                   {order.delivery?.trackingUrl && (
                     <a

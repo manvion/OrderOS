@@ -241,6 +241,60 @@ export function DeliveryActions({ order }: { order: Order }) {
     );
   }
 
+  /**
+   * FAILED: Uber declined the dispatch (or it errored out) but automation hasn't
+   * escalated it yet. Don't leave staff on a dead "waiting for a courier" card — give
+   * them both ways forward right here: try Uber again, or hand it to their own driver.
+   */
+  if (delivery.status === 'FAILED') {
+    const canUber = Boolean(restaurant?.uberDirectEnabled);
+    const canSelf = Boolean(restaurant?.selfDeliveryEnabled);
+    const busy = dispatchUber.isPending || selfDeliver.isPending;
+
+    return (
+      <div className="space-y-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Delivery didn&apos;t go through
+        </p>
+        {delivery.lastError && (
+          <p className="text-[11px] text-destructive">{delivery.lastError}</p>
+        )}
+
+        <div className={`grid gap-2 ${canUber && canSelf ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {canUber && (
+            <Button size="sm" variant="outline" onClick={() => dispatchUber.mutate()} disabled={busy}>
+              <Truck className="h-3.5 w-3.5" />
+              {dispatchUber.isPending ? 'Calling Uber…' : 'Try Uber again'}
+            </Button>
+          )}
+          {canSelf && (
+            <Button size="sm" variant="outline" onClick={() => selfDeliver.mutate()} disabled={busy}>
+              <Bike className="h-3.5 w-3.5" />
+              {selfDeliver.isPending ? 'Assigning…' : 'Use own driver'}
+            </Button>
+          )}
+        </div>
+
+        {canSelf && (
+          <Input
+            value={driverName}
+            onChange={(e) => setDriverName(e.target.value)}
+            placeholder="Driver's name (optional)"
+            className="h-8 text-xs"
+          />
+        )}
+
+        <a
+          href={`tel:${order.customerPhone}`}
+          className="block pt-0.5 text-center text-[11px] font-medium text-muted-foreground underline"
+        >
+          Call the customer
+        </a>
+      </div>
+    );
+  }
+
   // --- Uber: the handoff check ---
   const alreadyHandedOver = Boolean(delivery.handedOverAt);
 
