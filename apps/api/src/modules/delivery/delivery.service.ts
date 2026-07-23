@@ -344,7 +344,12 @@ export class DeliveryService {
         return updated;
       } catch (err) {
         await this.handleDispatchFailure(delivery.id, order, err as Error);
-        throw err;
+        // A courier decline (bad address/phone, no driver) is something staff can act on
+        // -- surface the courier's ACTUAL reason as a 4xx, so a manual "Try Uber again"
+        // shows "The parameters of your request were invalid" rather than an opaque 500.
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'No courier would take this delivery',
+        );
       }
     } finally {
       await release();

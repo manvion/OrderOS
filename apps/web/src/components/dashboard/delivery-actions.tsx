@@ -40,8 +40,12 @@ export function DeliveryActions({ order }: { order: Order }) {
       refresh();
       toast.success('Uber courier requested');
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not reach Uber'),
+    onError: (err) => {
+      // Re-fetch so the card reflects the fresh failure, and show the courier's real
+      // reason (bad phone/address) rather than a generic error.
+      refresh();
+      toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not reach Uber');
+    },
   });
 
   const selfDeliver = useMutation({
