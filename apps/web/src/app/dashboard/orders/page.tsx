@@ -285,7 +285,8 @@ export default function OrdersPage() {
                     (order.delivery.status === 'FAILED' || order.delivery.escalatedAt ? (
                       <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
                         Uber wouldn&apos;t take this order: {order.delivery.lastError}. Assign your own
-                        driver or fix the address, then try again.
+                        driver, or check the delivery address and phone number (a placeholder like
+                        555-555-5555 is rejected), then try again.
                       </p>
                     ) : (
                       <p className="rounded bg-destructive/10 p-2 text-xs text-destructive">
