@@ -1,5 +1,6 @@
 'use client';
 
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Map as MlMap, Marker } from 'maplibre-gl';
 import { storefrontApi } from '@/lib/api';
@@ -14,34 +15,22 @@ export interface MapPoint {
  *
  * A fully open, key-free stack:
  *  - RENDERING: MapLibre GL JS (vector maps, GPU-drawn, crisp at every zoom).
- *  - TILES/STYLE: OpenFreeMap — OpenStreetMap data served as vector tiles with no API
- *    key and no request limits, so this map renders on every delivery across every
- *    restaurant at zero marginal cost.
- *  - ROUTING: OSRM, through our own API (see {@link fetchRoute}) — cached server-side so
- *    a leg is one call no matter how many people watch it.
+ *  - TILES/STYLE: OpenFreeMap — OpenStreetMap data as vector tiles, no key, no limits.
+ *  - ROUTING: OSRM through our own API (see {@link fetchRoute}), cached server-side.
  *  - GEOCODING: Nominatim, server-side (see GeocodingService).
  *
- * MapLibre touches `window` on import, so it's loaded dynamically inside an effect
- * rather than at module scope — importing it at the top would break the server render
- * of the tracking page, the one page that must render fast on a phone on bad signal.
+ * MapLibre touches `window` on import, so it's imported dynamically inside the effect.
  *
- * The courier marker GLIDES to each new fix rather than teleporting, and the route
- * FOLLOWS THE STREETS (a brand line ahead, a muted line behind for ground covered) —
- * the exact read a customer gets from a ride-hailing app.
+ * The map FOLLOWS the courier — it keeps the driver and the door framed together and
+ * re-frames as the driver approaches, the way a ride-hailing app does — and the courier
+ * marker GLIDES between the 4s fixes instead of teleporting. The route FOLLOWS THE
+ * STREETS (a brand line ahead, a muted line behind for ground covered).
  */
 
 // OpenStreetMap data, rendered with the colourful "Liberty" style. No key, no limits.
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
-export function CourierMap({
-  restaurant,
-  dropoff,
-  courier,
-  trail,
-  brandColor,
-  className,
-  slug,
-}: {
+type Props = {
   restaurant: MapPoint | null;
   dropoff: MapPoint | null;
   courier: MapPoint | null;
@@ -51,175 +40,191 @@ export function CourierMap({
   className?: string;
   /**
    * The tenant slug. When set, the route is fetched through our own API (reliable,
-   * cached, street-following). Without it the map falls back to calling the public
-   * router directly — kept only so contexts without a slug still draw something.
+   * cached, street-following). Without it the map calls the public router directly.
    */
   slug?: string;
-}) {
+};
+
+export function CourierMap(props: Props) {
+  const { restaurant, dropoff, courier, trail, brandColor, className } = props;
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const mlRef = useRef<typeof import('maplibre-gl') | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const readyRef = useRef(false);
+  const mountedRef = useRef(true);
+
   const pickupMarkerRef = useRef<Marker | null>(null);
   const dropoffMarkerRef = useRef<Marker | null>(null);
   const courierMarkerRef = useRef<Marker | null>(null);
-  const hasFittedRef = useRef(false);
-  // The origin the currently-drawn route was computed FROM, rounded — so we re-route
-  // only once the driver has genuinely moved on, one OSRM call per meaningful move.
+
+  // The origin the drawn route was computed FROM, and the courier position last framed —
+  // rounded, so we only re-route / re-frame once the driver has genuinely moved on.
   const routedFromRef = useRef<string | null>(null);
-  // Smooth courier motion: glide the marker frame-by-frame between the 4s fixes.
+  const framedAtRef = useRef<string | null>(null);
+  const didInitialFitRef = useRef(false);
+
+  // Smooth courier motion: glide the marker frame-by-frame between fixes.
   const courierAnimRef = useRef<number | null>(null);
   const courierPosRef = useRef<[number, number] | null>(null);
 
-  // Stable identity so the effect doesn't re-run on every poll just because the parent
-  // handed a new array with the same contents.
+  // Latest props in a ref so the persistent map callbacks always read current data,
+  // never the values captured on first render.
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
   const trailKey = useMemo(
     () => trail.map((p) => `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`).join('|'),
     [trail],
   );
 
-  useEffect(() => {
-    let cancelled = false;
+  /** Redraw everything that can change on a poll: pins, trail, route, courier, framing. */
+  function draw() {
+    const ml = mlRef.current;
+    const map = mapRef.current;
+    if (!ml || !map || !readyRef.current || !mountedRef.current) return;
+    const p = propsRef.current;
 
-    (async () => {
-      const maplibregl = (await import('maplibre-gl')).default;
-      if (cancelled || !containerRef.current) return;
+    // --- Static pins ---
+    if (p.restaurant && !pickupMarkerRef.current) {
+      pickupMarkerRef.current = new ml.Marker({ element: pickupEl(), anchor: 'center' })
+        .setLngLat([p.restaurant.longitude, p.restaurant.latitude])
+        .addTo(map);
+    }
+    if (p.dropoff && !dropoffMarkerRef.current) {
+      dropoffMarkerRef.current = new ml.Marker({ element: dropoffEl(p.brandColor), anchor: 'bottom' })
+        .setLngLat([p.dropoff.longitude, p.dropoff.latitude])
+        .addTo(map);
+    }
 
-      // --- One-time map setup ---
-      if (!mapRef.current) {
-        const map = new maplibregl.Map({
-          container: containerRef.current,
-          style: MAP_STYLE,
-          center: [
-            (courier ?? dropoff ?? restaurant)?.longitude ?? 0,
-            (courier ?? dropoff ?? restaurant)?.latitude ?? 0,
-          ],
-          zoom: 12,
-          attributionControl: { compact: true },
-          // A map inside a scrolling page that steals the scroll wheel is infuriating on
-          // desktop. Drag and pinch still work.
-          scrollZoom: false,
+    // --- Trail (ground covered) ---
+    if (p.trail.length > 1) setLine(map, 'trail', p.trail);
+
+    // --- The road ahead: routed line to the door ---
+    const routeStart = p.courier ?? p.restaurant;
+    if (routeStart && p.dropoff) {
+      const fromKey = roundKey(routeStart);
+      const moved =
+        routedFromRef.current === null || (p.courier != null && routedFromRef.current !== fromKey);
+      if (moved) {
+        routedFromRef.current = fromKey;
+        const dest = p.dropoff;
+        void fetchRoute(routeStart, dest, p.slug).then((latlngs) => {
+          if (!mountedRef.current || !mapRef.current) return;
+          setLineLatLng(mapRef.current, 'route', latlngs);
         });
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-        mapRef.current = map;
-
-        // Sources + layers can only be added once the style has loaded. Set up empty
-        // route/trail sources now; the poll below just swaps their data.
-        map.on('load', () => {
-          if (cancelled) return;
-          map.addSource('trail', emptyLineSource());
-          map.addSource('route', emptyLineSource());
-
-          // Where the driver has already been — muted, under the road ahead.
-          map.addLayer({
-            id: 'trail-line',
-            type: 'line',
-            source: 'trail',
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': '#9ca3af', 'line-width': 4, 'line-opacity': 0.7 },
-          });
-          // The road ahead: a white casing under a solid brand line, legible over any map.
-          map.addLayer({
-            id: 'route-casing',
-            type: 'line',
-            source: 'route',
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.95 },
-          });
-          map.addLayer({
-            id: 'route-line',
-            type: 'line',
-            source: 'route',
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': brandColor, 'line-width': 5 },
-          });
-
-          readyRef.current = true;
-          void draw();
-        });
-      }
-
-      if (readyRef.current) void draw();
-    })();
-
-    // Everything that changes on a poll: pins, the routed line, the courier, framing.
-    async function draw() {
-      const maplibregl = (await import('maplibre-gl')).default;
-      const map = mapRef.current;
-      if (cancelled || !map || !readyRef.current) return;
-
-      // --- Static pins ---
-      if (restaurant && !pickupMarkerRef.current) {
-        pickupMarkerRef.current = new maplibregl.Marker({ element: pickupEl(), anchor: 'center' })
-          .setLngLat([restaurant.longitude, restaurant.latitude])
-          .addTo(map);
-      }
-      if (dropoff && !dropoffMarkerRef.current) {
-        dropoffMarkerRef.current = new maplibregl.Marker({ element: dropoffEl(brandColor), anchor: 'bottom' })
-          .setLngLat([dropoff.longitude, dropoff.latitude])
-          .addTo(map);
-      }
-
-      // --- Trail (ground covered) ---
-      if (trail.length > 1) {
-        setLine(map, 'trail', trail);
-      }
-
-      // --- The road ahead: routed line to the door ---
-      const routeStart = courier ?? restaurant;
-      if (routeStart && dropoff) {
-        const fromKey = roundKey(routeStart);
-        const moved =
-          routedFromRef.current === null || (courier != null && routedFromRef.current !== fromKey);
-        if (moved) {
-          routedFromRef.current = fromKey;
-          const latlngs = await fetchRoute(routeStart, dropoff, slug);
-          if (cancelled || !mapRef.current) return;
-          setLineLatLng(map, 'route', latlngs);
-        }
-      }
-
-      // --- The courier ---
-      if (courier) {
-        const target: [number, number] = [courier.longitude, courier.latitude];
-        if (courierMarkerRef.current) {
-          animateCourier(courierMarkerRef.current, courierPosRef, courierAnimRef, target);
-        } else {
-          courierMarkerRef.current = new maplibregl.Marker({ element: courierEl(brandColor), anchor: 'center' })
-            .setLngLat(target)
-            .addTo(map);
-          courierPosRef.current = target;
-        }
-      }
-
-      // --- Framing: fit ONCE, then leave the viewport alone ---
-      if (!hasFittedRef.current) {
-        // Frame the leg that matters — the courier and the door. Including the pickup once
-        // the driver is halfway across town is what forced the map to zoom out until the
-        // street names vanished.
-        const focus = (courier ? [courier, dropoff] : [restaurant, dropoff, courier]).filter(
-          Boolean,
-        ) as MapPoint[];
-        if (focus.length > 1) {
-          const bounds = new maplibregl.LngLatBounds();
-          for (const p of focus) bounds.extend([p.longitude, p.latitude]);
-          map.fitBounds(bounds, { padding: 56, maxZoom: 16, animate: false });
-          hasFittedRef.current = true;
-        } else if (focus.length === 1) {
-          map.jumpTo({ center: [focus[0].longitude, focus[0].latitude], zoom: 15 });
-          hasFittedRef.current = true;
-        }
       }
     }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [restaurant, dropoff, courier, trailKey, brandColor, trail, slug]);
+    // --- The courier: glide to each fix ---
+    if (p.courier) {
+      const target: [number, number] = [p.courier.longitude, p.courier.latitude];
+      if (courierMarkerRef.current) {
+        animateCourier(courierMarkerRef.current, courierPosRef, courierAnimRef, target);
+      } else {
+        courierMarkerRef.current = new ml.Marker({ element: courierEl(p.brandColor), anchor: 'center' })
+          .setLngLat(target)
+          .addTo(map);
+        courierPosRef.current = target;
+      }
+    }
 
-  // Tear down only on unmount — not on every prop change, or we'd rebuild the whole map
-  // (and refetch every tile) four times a minute.
+    // --- Framing: follow the driver ---
+    // Keep the courier and the door framed together, re-framing as the driver moves so
+    // the customer always sees where their food is and how close it is — the way Uber's
+    // map tracks the car. Before a driver is moving we frame the restaurant -> door leg.
+    const frameFocus = (p.courier ? [p.courier, p.dropoff] : [p.restaurant, p.dropoff]).filter(
+      Boolean,
+    ) as MapPoint[];
+    if (frameFocus.length > 1) {
+      const bounds = new ml.LngLatBounds();
+      for (const f of frameFocus) bounds.extend([f.longitude, f.latitude]);
+      const focusKey = p.courier ? roundKey(p.courier) : 'static';
+      if (!didInitialFitRef.current) {
+        map.fitBounds(bounds, { padding: 64, maxZoom: 16, animate: false });
+        didInitialFitRef.current = true;
+        framedAtRef.current = focusKey;
+      } else if (p.courier && framedAtRef.current !== focusKey) {
+        // The driver moved — glide the camera to keep the leg framed.
+        framedAtRef.current = focusKey;
+        map.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 900 });
+      }
+    } else if (frameFocus.length === 1 && !didInitialFitRef.current) {
+      map.jumpTo({ center: [frameFocus[0].longitude, frameFocus[0].latitude], zoom: 15 });
+      didInitialFitRef.current = true;
+    }
+  }
+
+  // Init the map ONCE. Guarded by mountedRef (set false only on unmount) so a slow style
+  // load never races a poll and bails out half-built.
+  useEffect(() => {
+    (async () => {
+      // maplibre-gl is ESM with named exports (Map, Marker, …) — use the namespace.
+      const ml = await import('maplibre-gl');
+      if (!mountedRef.current || !containerRef.current) return;
+      mlRef.current = ml;
+
+      if (mapRef.current) {
+        if (readyRef.current) draw();
+        return;
+      }
+
+      const p = propsRef.current;
+      const start = p.courier ?? p.dropoff ?? p.restaurant;
+      const map = new ml.Map({
+        container: containerRef.current,
+        style: MAP_STYLE,
+        center: [start?.longitude ?? 0, start?.latitude ?? 0],
+        zoom: 12,
+        attributionControl: { compact: true },
+        // A map inside a scrolling page that steals the wheel is infuriating on desktop.
+        scrollZoom: false,
+      });
+      map.addControl(new ml.NavigationControl({ showCompass: false }), 'bottom-right');
+      mapRef.current = map;
+
+      map.on('load', () => {
+        if (!mountedRef.current) return;
+        map.addSource('trail', emptyLineSource());
+        map.addSource('route', emptyLineSource());
+        map.addLayer({
+          id: 'trail-line',
+          type: 'line',
+          source: 'trail',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#9ca3af', 'line-width': 4, 'line-opacity': 0.7 },
+        });
+        map.addLayer({
+          id: 'route-casing',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.95 },
+        });
+        map.addLayer({
+          id: 'route-line',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': propsRef.current.brandColor, 'line-width': 5 },
+        });
+        readyRef.current = true;
+        draw();
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Redraw when the polled props change.
+  useEffect(() => {
+    if (readyRef.current) draw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant, dropoff, courier, trailKey, brandColor, props.slug]);
+
+  // Tear down only on unmount.
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
       if (courierAnimRef.current !== null) cancelAnimationFrame(courierAnimRef.current);
       courierAnimRef.current = null;
       courierPosRef.current = null;
@@ -237,9 +242,6 @@ export function CourierMap({
 
   return (
     <div className={className}>
-      {/* MapLibre's CSS. Loaded here rather than globally so it only lands on pages that
-          actually show a map. */}
-      <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
       <div
         ref={containerRef}
         className="h-full w-full overflow-hidden rounded-2xl border border-border shadow-soft"
@@ -279,17 +281,13 @@ function setLineLatLng(map: MlMap, id: string, latlngs: Array<[number, number]>)
   source.setData({
     type: 'Feature',
     properties: {},
-    geometry: {
-      type: 'LineString',
-      coordinates: latlngs.map(([lat, lng]) => [lng, lat]),
-    },
+    geometry: { type: 'LineString', coordinates: latlngs.map(([lat, lng]) => [lng, lat]) },
   });
 }
 
 /**
  * Glide the courier marker from where it currently is to a new fix, at a constant speed
  * over a window just under the 4s poll, so the car reads as continuously on the move.
- * A negligible delta (a stopped car, GPS jitter at a light) settles in place.
  */
 function animateCourier(
   marker: Marker,
@@ -317,12 +315,12 @@ function animateCourier(
   const DURATION_MS = 3500;
   const start = performance.now();
   const step = (now: number) => {
-    const p = Math.min(1, (now - start) / DURATION_MS);
-    const lng = from[0] + dLng * p;
-    const lat = from[1] + dLat * p;
+    const t = Math.min(1, (now - start) / DURATION_MS);
+    const lng = from[0] + dLng * t;
+    const lat = from[1] + dLat * t;
     marker.setLngLat([lng, lat]);
     posRef.current = [lng, lat];
-    if (p < 1) {
+    if (t < 1) {
       animRef.current = requestAnimationFrame(step);
     } else {
       animRef.current = null;
@@ -332,8 +330,8 @@ function animateCourier(
   animRef.current = requestAnimationFrame(step);
 }
 
-// Re-route only once the driver has moved on by ~11m — a real change of position,
-// coarse enough that GPS jitter at a red light doesn't trigger a fresh routing call.
+// Re-route / re-frame only once the driver has moved on by ~11m — a real change of
+// position, coarse enough that GPS jitter at a red light doesn't trigger it every poll.
 function roundKey(p: MapPoint): string {
   return `${p.latitude.toFixed(3)},${p.longitude.toFixed(3)}`;
 }
@@ -395,8 +393,7 @@ async function fetchRoute(
   }
 }
 
-// Routes don't change between renders for the same origin/destination; a customer flips
-// between cart, checkout and tracker. Cache for the life of the tab.
+// Routes don't change between renders for the same origin/destination; cache for the tab.
 const routeCache = new Map<string, Array<[number, number]>>();
 
 // --- Marker elements (plain DOM, so they work as MapLibre custom markers) ------------
