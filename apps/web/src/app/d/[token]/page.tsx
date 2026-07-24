@@ -89,6 +89,22 @@ export default function DriverPage() {
       /* no wake lock — carry on */
     }
 
+    // One fast fix RIGHT NOW so the customer sees the driver — and the route from the
+    // driver to the door — the instant "picked up" is tapped, instead of waiting up to
+    // 20s for the first high-accuracy GPS lock below. Low accuracy + a cached fix is
+    // fine for this first pin; watchPosition sharpens it moments later.
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoError(null);
+        lastSentRef.current = Date.now();
+        void driverApi.ping(token, pos.coords.latitude, pos.coords.longitude).catch(() => {});
+      },
+      () => {
+        /* no quick fix — watchPosition will get one shortly */
+      },
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 8_000 },
+    );
+
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         setGeoError(null);

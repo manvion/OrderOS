@@ -74,15 +74,25 @@ export function OrderTracker({
     const isMoving = order.status === 'DRIVER_ASSIGNED' || order.status === 'OUT_FOR_DELIVERY';
     const intervalMs = isMoving ? 4_000 : 6_000;
 
-    const interval = setInterval(async () => {
+    let cancelled = false;
+    const refresh = async () => {
       try {
-        setOrder(await storefrontApi.track(slug, token));
+        const next = await storefrontApi.track(slug, token);
+        if (!cancelled) setOrder(next);
       } catch {
         // Transient. The next tick retries.
       }
-    }, intervalMs);
+    };
 
-    return () => clearInterval(interval);
+    // Refresh at once when the status flips — the moment the driver taps "picked up",
+    // don't sit on a stale pin for a whole interval before the route appears.
+    void refresh();
+
+    const interval = setInterval(refresh, intervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [slug, token, order.status]);
 
   const steps = order.fulfillment === 'DELIVERY' ? DELIVERY_STEPS : PICKUP_STEPS;
