@@ -184,6 +184,7 @@ export class OrdersService {
      * geocoder had a bad afternoon would be us breaking a restaurant's business over
      * our own outage.
      */
+    let deliveryCoords: { latitude: number; longitude: number } | null = null;
     if (input.fulfillment === 'DELIVERY' && input.deliveryAddress) {
       const radius = await this.geocoding.checkRadius(restaurant, input.deliveryAddress);
 
@@ -199,6 +200,13 @@ export class OrdersService {
           limitMeters: restaurant.deliveryRadiusMeters,
         });
       }
+
+      // Persist real coordinates for the courier and the tracking map. The client may
+      // send its own (from the storefront's address autocomplete); when it doesn't — a
+      // typed address, a POS order — geocode server-side so the dropoff is never left
+      // uncoordinated (which leaves the map with no destination to route to). Cheap:
+      // checkRadius just geocoded this same address, so this is a Redis cache hit.
+      deliveryCoords = await this.geocoding.geocode(input.deliveryAddress);
     }
 
     const lineItems = await this.resolveLineItems(restaurantId, input);
@@ -362,8 +370,10 @@ export class OrdersService {
                 deliveryState: input.deliveryAddress.state,
                 deliveryPostalCode: input.deliveryAddress.postalCode,
                 deliveryCountry: input.deliveryAddress.country,
-                deliveryLatitude: input.deliveryAddress.latitude,
-                deliveryLongitude: input.deliveryAddress.longitude,
+                // Client coords (a precise autocomplete pick) win; the server geocode is
+                // the fallback so a typed/POS address still lands on the map.
+                deliveryLatitude: input.deliveryAddress.latitude ?? deliveryCoords?.latitude,
+                deliveryLongitude: input.deliveryAddress.longitude ?? deliveryCoords?.longitude,
                 ...(input.preferredCourier ? { preferredCourier: input.preferredCourier } : {}),
               }
             : {}),
