@@ -99,6 +99,9 @@ export function OrderTracker({
   const showMap =
     order.fulfillment === 'DELIVERY' &&
     !isCancelled &&
+    // Once it's delivered the live map + driving path are stale clutter sitting on top
+    // of the thank-you card — the journey's over, so put it away.
+    !isDone &&
     Boolean(delivery?.courierLatitude ?? order.restaurant.latitude);
 
   const etaMinutes = delivery?.dropoffEta
