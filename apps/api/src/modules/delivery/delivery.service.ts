@@ -123,6 +123,25 @@ function haversineMeters(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/**
+ * A rough driving ETA for a self / simulated driver.
+ *
+ * Uber hands us its own ETA; a moped rider's phone doesn't, so the customer's
+ * "arriving in N min" had nothing to show. Estimate it: crow-flies distance
+ * inflated for real streets (×1.35), at ~22km/h average urban speed including
+ * lights and stops. Deliberately approximate — an honest "about N minutes", which
+ * is all the number is ever meant to be.
+ */
+function estimateDropoffEta(
+  courier: { latitude: number; longitude: number },
+  dropoff: { latitude: number; longitude: number },
+): Date {
+  const meters = haversineMeters(courier, dropoff) * 1.35;
+  const metersPerMinute = (22 * 1000) / 60; // ~367 m/min
+  const minutes = Math.max(1, Math.round(meters / metersPerMinute));
+  return new Date(Date.now() + minutes * 60_000);
+}
+
 @Injectable()
 export class DeliveryService {
   private readonly logger = new Logger(DeliveryService.name);
@@ -1245,7 +1264,16 @@ export class DeliveryService {
       if (i >= steps.length) return;
       const [lat, lng] = steps[i++];
       await this.prisma.delivery
-        .update({ where: { id }, data: { courierLatitude: lat, courierLongitude: lng } })
+        .update({
+          where: { id },
+          data: {
+            courierLatitude: lat,
+            courierLongitude: lng,
+            // Same "arriving in N min" the real driver page drives, so the simulator
+            // exercises the ETA too.
+            dropoffEta: estimateDropoffEta({ latitude: lat, longitude: lng }, to),
+          },
+        })
         .catch(() => {});
       await this.recordCourierPing(id, { lat, lng });
       if (i < steps.length) setTimeout(() => void tick(), 2000);
@@ -1541,7 +1569,11 @@ export class DeliveryService {
   async recordDriverPing(token: string, location: { lat: number; lng: number }) {
     const d = await this.prisma.delivery.findUnique({
       where: { driverShareToken: token },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        order: { select: { deliveryLatitude: true, deliveryLongitude: true } },
+      },
     });
     if (!d) throw new NotFoundException('This driver link is not valid');
 
@@ -1551,9 +1583,22 @@ export class DeliveryService {
       return { accepted: false as const };
     }
 
+    // Refresh the customer's "arriving in N min" from where the driver actually is.
+    const dropoff =
+      d.order.deliveryLatitude != null && d.order.deliveryLongitude != null
+        ? { latitude: d.order.deliveryLatitude, longitude: d.order.deliveryLongitude }
+        : null;
+    const dropoffEta = dropoff
+      ? estimateDropoffEta({ latitude: location.lat, longitude: location.lng }, dropoff)
+      : undefined;
+
     await this.prisma.delivery.update({
       where: { id: d.id },
-      data: { courierLatitude: location.lat, courierLongitude: location.lng },
+      data: {
+        courierLatitude: location.lat,
+        courierLongitude: location.lng,
+        ...(dropoffEta ? { dropoffEta } : {}),
+      },
     });
     // Reuses the 15m-dedupe helper, so a rider idling at a light doesn't spam rows.
     await this.recordCourierPing(d.id, location);
