@@ -145,6 +145,20 @@ const envSchema = z.object({
   MAPBOX_TOKEN: z.string().optional(),
 
   /**
+   * Courier-map ROUTING (street-following geometry). MUST be declared here — this
+   * schema strips any env var it doesn't list, so an ORS_API_KEY set in the host
+   * that isn't named here never reaches ConfigService, and RoutingService silently
+   * falls back to the public OSRM demo, which cloud IPs get rate-limited off — the
+   * map then draws a straight line "flying" over the houses. See RoutingService.
+   *  - OSRM_URL / OSRM_URLS: a self-hosted OSRM (single, or per-country JSON map).
+   *  - ORS_API_KEY: OpenRouteService — one free key, global coverage, the zero-infra
+   *    way to get real routes everywhere.
+   */
+  OSRM_URL: z.string().optional(),
+  OSRM_URLS: z.string().optional(),
+  ORS_API_KEY: z.string().optional(),
+
+  /**
    * MapTiler key for the courier map's basemap. Served to the browser at RUNTIME via
    * GET /storefront/map-config, so a self-host gets crisp tiles by setting this one
    * env var and restarting the API — no web rebuild. Unset, the map uses the free
