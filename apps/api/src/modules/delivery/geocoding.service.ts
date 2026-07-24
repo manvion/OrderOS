@@ -47,11 +47,17 @@ export class GeocodingService {
     private readonly config: ConfigService,
     private readonly redis: RedisService,
   ) {
-    if (!this.googleKey && !this.mapboxKey && this.config.get('NODE_ENV') === 'production') {
+    if (
+      !this.googleKey &&
+      !this.mapboxKey &&
+      !this.orsKey &&
+      this.config.get('NODE_ENV') === 'production'
+    ) {
       this.logger.warn(
-        'No GOOGLE_MAPS_API_KEY or MAPBOX_TOKEN set. Falling back to Nominatim (OpenStreetMap), ' +
-          'whose usage policy caps you at ~1 request/second and prohibits heavy commercial use. ' +
-          'This will NOT scale past a handful of restaurants — set a real geocoder key.',
+        'No GOOGLE_MAPS_API_KEY, MAPBOX_TOKEN or ORS_API_KEY set. Falling back to Nominatim ' +
+          '(OpenStreetMap), whose usage policy caps you at ~1 request/second, prohibits heavy ' +
+          'commercial use, AND blocks many datacenter IPs outright — so on a cloud host it often ' +
+          'returns nothing and addresses never get coordinates. Set a real geocoder key.',
       );
     }
   }
@@ -62,6 +68,13 @@ export class GeocodingService {
 
   private get mapboxKey(): string | undefined {
     return this.config.get<string>('MAPBOX_TOKEN');
+  }
+
+  // OpenRouteService geocoding (Pelias). The SAME free key that powers routing, and —
+  // crucially — it works from datacenter IPs where Nominatim is blocked, so it's the
+  // reliable default on a cloud host without paying for Google/Mapbox.
+  private get orsKey(): string | undefined {
+    return this.config.get<string>('ORS_API_KEY');
   }
 
   /**
@@ -106,6 +119,9 @@ export class GeocodingService {
   private async lookup(query: string, country: string): Promise<GeoPoint | null> {
     if (this.googleKey) return this.google(query);
     if (this.mapboxKey) return this.mapbox(query, country);
+    // ORS before Nominatim: it's reachable from cloud hosts (Nominatim often isn't) and
+    // needs no extra key beyond the one routing already uses.
+    if (this.orsKey) return this.ors(query, country);
     return this.nominatim(query);
   }
 
@@ -146,6 +162,27 @@ export class GeocodingService {
     // Mapbox returns [lng, lat] — the opposite order to everything else here, and
     // a classic way to end up delivering to the middle of the ocean.
     return center ? { latitude: center[1], longitude: center[0] } : null;
+  }
+
+  private async ors(query: string, country: string): Promise<GeoPoint | null> {
+    const url = new URL('https://api.openrouteservice.org/geocode/search');
+    url.searchParams.set('text', query);
+    url.searchParams.set('size', '1');
+    // Bias to the restaurant's country so "Springfield" lands in the right one.
+    if (country) url.searchParams.set('boundary.country', country.toUpperCase());
+
+    const res = await fetch(url, {
+      headers: { Authorization: this.orsKey! },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`ORS geocoder ${res.status}`);
+
+    const body = (await res.json()) as {
+      features?: Array<{ geometry: { coordinates: [number, number] } }>;
+    };
+    // Pelias returns [lng, lat] — the opposite order to everything else here.
+    const c = body.features?.[0]?.geometry.coordinates;
+    return c ? { latitude: c[1], longitude: c[0] } : null;
   }
 
   private async nominatim(query: string): Promise<GeoPoint | null> {
