@@ -836,7 +836,10 @@ export function createDashboardApi(
       call<Delivery>(`/delivery/orders/${orderId}`, { method: 'POST' }),
     /** TEST: animate a fake courier along the route so the tracking map can be seen moving. */
     simulateDelivery: (orderId: string) =>
-      call<{ ok: true; steps: number }>(`/delivery/orders/${orderId}/simulate`, { method: 'POST' }),
+      call<{ ok: true; steps: number; trackingUrl: string }>(
+        `/delivery/orders/${orderId}/simulate`,
+        { method: 'POST' },
+      ),
     selfDeliver: (orderId: string, driver: { name?: string; phone?: string }) =>
       call<Delivery>(`/delivery/orders/${orderId}/self`, {
         method: 'POST',

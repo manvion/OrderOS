@@ -6,9 +6,11 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { DeliveryProvider, DeliveryStatus, Order, Restaurant } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { storefrontBaseUrl } from '../../common/tenant-url';
 import { RedisService } from '../../common/redis/redis.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { toE164 } from '../../common/phone';
@@ -143,6 +145,8 @@ export class DeliveryService {
     private readonly storage: StorageService,
     // Used by the test-driver simulator to move a fake courier along the real route.
     private readonly routing: RoutingService,
+    // Builds the customer tracking URL the simulator hands back so staff can watch.
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -1172,12 +1176,12 @@ export class DeliveryService {
   async simulateDelivery(
     restaurantId: string,
     orderId: string,
-  ): Promise<{ ok: true; steps: number }> {
+  ): Promise<{ ok: true; steps: number; trackingUrl: string }> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, restaurantId },
       include: {
         delivery: { select: { id: true } },
-        restaurant: { select: { latitude: true, longitude: true, country: true } },
+        restaurant: { select: { latitude: true, longitude: true, country: true, slug: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -1237,8 +1241,12 @@ export class DeliveryService {
     };
     void tick();
 
+    // The customer tracking page — the same link an Uber SMS would carry — so staff
+    // can open it straight from the POS and watch the simulated car move.
+    const trackingUrl = `${storefrontBaseUrl(this.config, order.restaurant.slug)}/track/${order.trackingToken}`;
+
     this.logger.log(`Simulating a driver for order ${orderId} over ${steps.length} steps`);
-    return { ok: true, steps: steps.length };
+    return { ok: true, steps: steps.length, trackingUrl };
   }
 
   /**

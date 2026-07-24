@@ -1552,7 +1552,10 @@ function DeliveryDispatch() {
     mutationFn: (id: string) => api.simulateDelivery(id),
     onSuccess: (r) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
-      toast.success(`Simulating a driver (${r.steps} steps) — open the order's tracking page to watch it move.`);
+      // Open the customer tracking page straight away so staff can watch the car move —
+      // no hunting for a link. Opened in a new tab so the POS stays put.
+      window.open(r.trackingUrl, '_blank', 'noopener');
+      toast.success(`Simulating a driver (${r.steps} steps) — the tracking page just opened in a new tab.`);
     },
     onError: (err) =>
       toast.error(err instanceof ApiRequestError ? err.body.message : 'Could not start the simulation'),
