@@ -1221,12 +1221,23 @@ export class DeliveryService {
     }
     const id = deliveryId;
 
+    // Fresh run: wipe the previous breadcrumb trail and the last courier fix. Without
+    // this every re-run overlays another restaurant->door pass, and the map turns into
+    // a spider-web of grey lines from all the past runs (exactly what was reported).
+    await this.prisma.courierPing.deleteMany({ where: { deliveryId: id } }).catch(() => {});
+    await this.prisma.delivery
+      .update({ where: { id }, data: { courierLatitude: null, courierLongitude: null } })
+      .catch(() => {});
+
     const route =
       (await this.routing.route(from, to, { country: order.restaurant.country })) ?? [
         [from.latitude, from.longitude],
         [to.latitude, to.longitude],
       ];
-    const steps = sampleRoute(route, 24);
+    // Sample densely enough that the recorded trail hugs the road instead of cutting
+    // corners between a handful of far-apart points. recordCourierPing drops anything
+    // under 15m of the last, so on a short hop these naturally thin out.
+    const steps = sampleRoute(route, 40);
 
     // Move it in the background; return immediately so the button doesn't hang.
     let i = 0;
@@ -1237,7 +1248,7 @@ export class DeliveryService {
         .update({ where: { id }, data: { courierLatitude: lat, courierLongitude: lng } })
         .catch(() => {});
       await this.recordCourierPing(id, { lat, lng });
-      if (i < steps.length) setTimeout(() => void tick(), 2500);
+      if (i < steps.length) setTimeout(() => void tick(), 2000);
     };
     void tick();
 
